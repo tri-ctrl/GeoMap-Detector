@@ -10,6 +10,7 @@ import argparse
 import json
 import shutil
 from pathlib import Path
+from ultralytics import YOLO
 
 LABELS = {"yolo11n-obb.pt": "YOLO11 nano OBB · fast", "yolo11s-obb.pt": "YOLO11 small OBB · more accurate",
           "yolo11m-obb.pt": "YOLO11 medium OBB · best, slow in browser"}

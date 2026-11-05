@@ -4,7 +4,6 @@ locally before serving frontend/ with any static server.
 
   python scripts/export_onnx.py                      # yolo11n-obb + yolo11s-obb
   python scripts/export_onnx.py --models my_best.pt  # your own fine-tuned weights
-  python scripts/export_onnx.py --check              # verify assets, no ML dependencies needed
 """
 import argparse
 import json

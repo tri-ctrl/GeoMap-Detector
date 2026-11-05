@@ -1,0 +1,6 @@
+# The browser portal is a static site that lives in frontend/.
+# Without this, Netlify publishes the repository root, which has no index.html (-> "Page not found").
+[build]
+  base = ""
+  publish = "frontend"
+  command = ""

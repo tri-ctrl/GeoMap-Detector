@@ -15,7 +15,7 @@ const color = c => COLORS[c] || "#" + (((([...String(c)].reduce((a, ch) => a * 3
 const S = {
   api: store.get("api", ""), online: false, engine: store.get("engine", "browser"),
   releases: [], selRel: new Set(store.get("selRel", [])), viewRel: null,
-  aois: store.get("aois", []), activeAoi: null,
+  aois: E.uniqueAois(store.get("aois", [])), activeAoi: null,
   classes: store.get("classes", DOTA.slice()), wantClasses: new Set(store.get("want", ["aircraft","ship","helicopter"])),
   models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null, abort: null,
 };
@@ -111,11 +111,15 @@ function normalizeFeatures(fc) {
   return out;
 }
 function addAois(feats) {
-  const base = S.aois.length;
-  feats.forEach((f, i) => S.aois.push({ type: "Feature", properties: { ...f.properties, name: String(aoiName(f, base + i)) }, geometry: f.geometry }));
+  const active = S.aois[S.activeAoi], existing = E.uniqueAois(S.aois), base = existing.length;
+  const incoming = feats.map((f, i) => ({ type: "Feature", properties: { ...f.properties, name: String(aoiName(f, base + i)) }, geometry: f.geometry }));
+  S.aois = E.uniqueAois(existing.concat(incoming));
+  const activeIndex = S.aois.indexOf(active);
+  S.activeAoi = activeIndex >= 0 ? activeIndex : null;
+  const added = S.aois.length - base, skipped = feats.length - added;
   saveAois(); renderAois();
   if (aoiLayer.getLayers().length) map.fitBounds(aoiLayer.getBounds().pad(0.1));
-  toast(`${feats.length} AOI${feats.length === 1 ? "" : "s"} added`);
+  toast(`${added} AOI${added === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
 }
 function saveAois() { store.set("aois", S.aois); }
 function renderAois() {
@@ -305,7 +309,7 @@ async function runBrowser(mode) {
     let model = null;
     if (detectOn) {
       jlog(job, `Loading model ${m.label}…`);
-      model = await E.loadModel({ key: m.key, url: m.url, buffer: m.buffer, names: m.names, imgsz: m.imgsz });
+      model = await E.loadModel({ key: m.key, url: m.url, buffer: m.buffer, names: m.names, imgsz: m.imgsz, signal: S.abort.signal });
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
     }
     const plan = [];

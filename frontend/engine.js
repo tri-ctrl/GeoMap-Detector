@@ -37,6 +37,17 @@ function bboxOf(geom) {
   polygonsOf(geom).forEach(p => p.forEach(ring => ring.forEach(([x, y]) => { a = [Math.min(a[0], x), Math.min(a[1], y), Math.max(a[2], x), Math.max(a[3], y)]; })));
   return a;
 }
+function uniqueAois(features) {
+  // Skip exact duplicates from repeated imports or previously saved AOI lists.
+  // Keep different names, geometries, and metadata as separate AOIs.
+  const seen = new Set();
+  return features.filter(f => {
+    const key = JSON.stringify(f);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 function pointInRings(rings, x, y) {          // even-odd over all rings (holes included)
   let inside = false;
   for (const ring of rings) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -182,10 +193,27 @@ function mkDet(cls, conf, pts) {
 // ------------------------------------------------------------------ model
 const _sessions = new Map();
 async function loadModel(spec) {
-  // spec: {key, url | buffer, names[], imgsz}
+  // spec: {key, url | buffer, names[], imgsz, signal}
   if (_sessions.has(spec.key)) return _sessions.get(spec.key);
   if (!global.ort) throw new Error("ONNX Runtime Web did not load");
-  const src = spec.buffer || spec.url;
+  let src = spec.buffer;
+  if (!src) {
+    if (!spec.url) throw new Error("No ONNX model file was specified");
+    // Fetch once before choosing a provider. ORT reports a missing model URL as
+    // "failed to load external data file", hiding the HTTP status and remedy.
+    const help = "Export the models with scripts/export_onnx.py before serving the portal. For GitHub Pages, enable Settings → Pages → Source: GitHub Actions and rerun the publish workflow. You can also use Load ONNX model.";
+    let response;
+    try { response = await fetch(spec.url, { signal: spec.signal, cache: "no-cache" }); }
+    catch (e) {
+      if (e.name === "AbortError") throw e;
+      throw new Error(`Could not download ONNX model ${spec.url}: ${e.message}. Check your connection and the model URL.`);
+    }
+    if (!response.ok) throw new Error(`Could not download ONNX model ${spec.url} (HTTP ${response.status}). ${help}`);
+    if ((response.headers.get("content-type") || "").toLowerCase().includes("text/html"))
+      throw new Error(`The server returned an HTML page instead of ONNX model ${spec.url}. ${help}`);
+    src = new Uint8Array(await response.arrayBuffer());
+    if (!src.byteLength) throw new Error(`ONNX model ${spec.url} is empty. ${help}`);
+  }
   let session = null, provider = "wasm";
   if (global.navigator && navigator.gpu) {
     try { session = await ort.InferenceSession.create(src, { executionProviders: ["webgpu"], graphOptimizationLevel: "all" }); provider = "webgpu"; } catch (e) { session = null; }
@@ -411,5 +439,5 @@ function convexHull(p) {
 }
 
 global.GVEngine = { getReleases, localChanges, buildRaster, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset,
-  writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
+  writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
 })(typeof window !== "undefined" ? window : globalThis);

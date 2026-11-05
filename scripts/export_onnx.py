@@ -4,16 +4,28 @@ locally before serving frontend/ with any static server.
 
   python scripts/export_onnx.py                      # yolo11n-obb + yolo11s-obb
   python scripts/export_onnx.py --models my_best.pt  # your own fine-tuned weights
+  python scripts/export_onnx.py --check              # verify assets, no ML dependencies needed
 """
 import argparse
 import json
 import shutil
 from pathlib import Path
 
-from ultralytics import YOLO
-
 LABELS = {"yolo11n-obb.pt": "YOLO11 nano OBB · fast", "yolo11s-obb.pt": "YOLO11 small OBB · more accurate",
           "yolo11m-obb.pt": "YOLO11 medium OBB · best, slow in browser"}
+
+
+def check_models(out):
+    """Reject missing model binaries, including incomplete restored build caches."""
+    out = Path(out)
+    entries = json.loads((out / "models.json").read_text())
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{out / 'models.json'} must list at least one exported model")
+    for entry in entries:
+        model = out / entry["file"]
+        if not model.is_file() or model.stat().st_size == 0:
+            raise FileNotFoundError(f"Missing or empty ONNX model: {model}. Run python scripts/export_onnx.py first.")
+    return entries
 
 
 def main():
@@ -21,8 +33,19 @@ def main():
     ap.add_argument("--models", nargs="+", default=["yolo11n-obb.pt", "yolo11s-obb.pt"])
     ap.add_argument("--imgsz", type=int, default=1024)
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "frontend" / "models"))
+    ap.add_argument("--check", action="store_true", help="Verify the manifest and model files without exporting")
     a = ap.parse_args()
     out = Path(a.out)
+    if a.check:
+        try:
+            entries = check_models(out)
+        except (OSError, ValueError) as e:
+            ap.exit(1, f"Model asset check failed: {e}\n")
+        print(f"Verified {len(entries)} ONNX model(s) in {out}")
+        return
+
+    from ultralytics import YOLO
+
     out.mkdir(parents=True, exist_ok=True)
     entries = []
     for w in a.models:
@@ -35,6 +58,7 @@ def main():
                         "size_mb": round(dst.stat().st_size / 1e6, 1)})
         print("exported", dst, entries[-1]["size_mb"], "MB")
     (out / "models.json").write_text(json.dumps(entries, indent=1))
+    check_models(out)
 
 
 if __name__ == "__main__":

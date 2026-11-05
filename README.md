@@ -4,6 +4,9 @@ Web portal for detecting and annotating aircraft, ships and other objects on
 **Esri World Imagery Wayback** across many AOIs (airports, ports, bases) and many
 imagery dates, with export of GeoJSON and AOI-clipped images.
 
+Known issues, the implementation plan, and verification status are maintained in
+[the task tracker](docs/tasks.md), with findings in [the performance review](docs/performance-review.md).
+
 ```
 AOIs (GeoJSON/KML/SHP/CSV)  ─┐
 Wayback releases (latest /   ├─► mosaic tiles ─► clip to AOI ─► YOLO-OBB detection ─► GeoJSON + GeoTIFF/PNG ─► zip

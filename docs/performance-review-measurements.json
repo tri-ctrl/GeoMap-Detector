@@ -1,0 +1,201 @@
+{
+  "reviewDate": "2026-11-05",
+  "repositoryRevision": "be3bd28",
+  "site": "https://tri-ctrl.github.io/GeoMap-Detector/",
+  "method": {
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "httpCacheDisabled": true,
+    "samples": 1,
+    "workloads": [
+      "startup",
+      "sample loaded twice",
+      "same release selected five times",
+      "374 by 413 pixel imagery-only clip",
+      "result image toggled five times"
+    ],
+    "limitations": [
+      "No full-size detection benchmark",
+      "No backend load test",
+      "No mobile test",
+      "No sustained GPU memory profile"
+    ]
+  },
+  "startup": {
+    "firstContentfulPaintMs": 3660,
+    "firstObservedTileAndModelsReadyMs": 8739.199999988079,
+    "longTasks": [
+      {
+        "start": 2518.899999976158,
+        "duration": 79
+      },
+      {
+        "start": 3075.599999964237,
+        "duration": 359
+      }
+    ],
+    "domElements": 1591,
+    "releaseRows": 198,
+    "crossOriginIsolated": false,
+    "wasmThreads": 1,
+    "jsHeapBytes": 3782571
+  },
+  "models": [
+    {
+      "file": "yolo11n-obb.onnx",
+      "label": "YOLO11 nano OBB · fast",
+      "manifestSizeMB": 11
+    },
+    {
+      "file": "yolo11s-obb.onnx",
+      "label": "YOLO11 small OBB · more accurate",
+      "manifestSizeMB": 39.2
+    }
+  ],
+  "interactions": {
+    "repeatedSampleAoiCount": 12,
+    "sameReleaseSwitch": {
+      "tileLayersCreated": 5
+    },
+    "overlayBeforeToggle": {
+      "created": 1,
+      "revoked": 0,
+      "tileAdds": 6
+    },
+    "overlayAfterToggle": {
+      "created": 1,
+      "revoked": 0,
+      "tileAdds": 11
+    },
+    "smallClipLog": "23:28:08  Review_small: 1 release(s) 2026-10-29\n23:28:08  [1/1] Review_small · 2026-10-29\n23:28:10      z18 · 374×413 px · 0 objects \n23:28:10  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+    "jsExceptions": []
+  },
+  "network": {
+    "responseCount": 53,
+    "cancelledRequests": 49,
+    "nonSuccessResponses": [
+      {
+        "url": "https://tri-ctrl.github.io/favicon.ico",
+        "status": 404,
+        "mime": "text/html",
+        "type": "Other"
+      }
+    ]
+  },
+  "resourceTimings": [
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Martian+Mono:wght@400;500&display=swap",
+      "duration": 1334.8999999761581,
+      "encodedBytes": 761,
+      "decodedBytes": 8826
+    },
+    {
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css",
+      "duration": 208.29999995231628,
+      "encodedBytes": 1010,
+      "decodedBytes": 5267
+    },
+    {
+      "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+      "duration": 298,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    },
+    {
+      "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+      "duration": 354,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    },
+    {
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+      "duration": 197.69999998807907,
+      "encodedBytes": 12470,
+      "decodedBytes": 67484
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+      "duration": 197.0999999642372,
+      "encodedBytes": 12965,
+      "decodedBytes": 32665
+    },
+    {
+      "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+      "duration": 225.19999998807907,
+      "encodedBytes": 25201,
+      "decodedBytes": 97630
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+      "duration": 268.19999998807907,
+      "encodedBytes": 88135,
+      "decodedBytes": 333594
+    },
+    {
+      "url": "https://tri-ctrl.github.io/GeoMap-Detector/engine.js",
+      "duration": 423,
+      "encodedBytes": 10461,
+      "decodedBytes": 27934
+    },
+    {
+      "url": "https://tri-ctrl.github.io/GeoMap-Detector/app.js",
+      "duration": 460.5,
+      "encodedBytes": 14389,
+      "decodedBytes": 43268
+    },
+    {
+      "url": "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json",
+      "duration": 2317.399999976158,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    },
+    {
+      "url": "https://tri-ctrl.github.io/GeoMap-Detector/models/models.json",
+      "duration": 958.8999999761581,
+      "encodedBytes": 303,
+      "decodedBytes": 860
+    },
+    {
+      "url": "https://tri-ctrl.github.io/favicon.ico",
+      "duration": 510,
+      "encodedBytes": 5142,
+      "decodedBytes": 9115
+    },
+    {
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/11/875/1337",
+      "duration": 3626,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    },
+    {
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/11/874/1338",
+      "duration": 3627,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    },
+    {
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/11/874/1337",
+      "duration": 3658.800000011921,
+      "encodedBytes": 0,
+      "decodedBytes": 0
+    }
+  ],
+  "memoryInterpretation": "JavaScript heap values are snapshots, not total native/GPU memory or proof of a leak rate.",
+  "modelDownloadChecks": [
+    {
+      "url": "https://tri-ctrl.github.io/GeoMap-Detector/models/yolo11n-obb.onnx",
+      "method": "HEAD",
+      "status": 200,
+      "contentLength": 11003776
+    },
+    {
+      "url": "https://tri-ctrl.github.io/GeoMap-Detector/models/yolo11s-obb.onnx",
+      "method": "HEAD",
+      "status": 200,
+      "contentLength": 39195915
+    }
+  ]
+}

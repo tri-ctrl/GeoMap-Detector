@@ -13,7 +13,7 @@ Wayback releases (latest /   ├─► mosaic tiles ─► clip to AOI ─► YO
 
 ## Run it in the browser (GitHub Pages, nothing to install)
 
-**https://rgiq2024.github.io/geovision-annotator/**
+
 
 Everything happens on the visitor's computer: Wayback tiles are fetched by the browser, clipped
 to each AOI on a canvas, run through YOLO11-OBB with ONNX Runtime Web (WebGPU on Chrome/Edge,

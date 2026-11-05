@@ -22,15 +22,6 @@ def main():
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "frontend" / "models"))
     a = ap.parse_args()
     out = Path(a.out)
-    if a.check:
-        try:
-            entries = check_models(out)
-        except (OSError, ValueError) as e:
-            ap.exit(1, f"Model asset check failed: {e}\n")
-        print(f"Verified {len(entries)} ONNX model(s) in {out}")
-        return
-
-    from ultralytics import YOLO
 
     out.mkdir(parents=True, exist_ok=True)
     entries = []

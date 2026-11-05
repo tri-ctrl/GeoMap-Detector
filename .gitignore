@@ -1,0 +1,8 @@
+outputs/
+cache/
+data/datasets/
+models/runs/
+*.pt
+.venv/
+__pycache__/
+frontend/models/*.onnx

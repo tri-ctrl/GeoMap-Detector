@@ -55,6 +55,19 @@ using system-managed certificates, use `node --use-system-ca` for the commands a
 The default map check without `--deployed` uses local JavaScript overrides for testing
 unpublished changes; it does not establish deployment parity.
 
+Map startup loads detection, drawing and export JavaScript only when needed. The
+last valid Wayback release list is saved locally and shown while it refreshes;
+**Refresh dates** retries a failed refresh without changing the viewed release.
+Orange **Imagery update near …** labels identify the queried AOI's historical
+updates. Several releases may qualify; the active row is the viewed date and
+checkboxes choose processing dates. Changing the AOI clears obsolete lookup results.
+
+Run `node --use-system-ca tests/browser/startup.cjs` for five cold/warm comparisons
+of committed versus working-tree sources and real-browser first-use checks. It
+uses a temporary local server/profile, real CDN/imagery requests and controlled
+failure fixtures after sampling. `GVEngine.diagnostics()` exposes startup marks,
+dependency timings and metadata refresh state; it does not measure detection accuracy.
+
 ## Optional Python server (large jobs, GPU training)
 
 ```bash

@@ -20,13 +20,13 @@ const S = {
   models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null, abort: null,
 };
 const BJOBS = {};                       // browser jobs (kept in memory until the tab closes)
+let localHits = new Set(), localLookup = null, pageActive = true;
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const saveBlob = (name, blob) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000); };
 const download = (name, text, type = "application/geo+json") => saveBlob(name, new Blob([text], { type }));
-const loadScript = src => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => no(new Error("Could not load " + src)); document.head.append(s); });
 const postJSON = async (p, body) => { const r = await fetch(api(p), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); };
 
 // ---------------------------------------------------------------- theme
@@ -63,6 +63,7 @@ function setWayback(rel) {
   else {
     wbLayer = L.tileLayer(url, { maxZoom: 21, maxNativeZoom: 19, attribution: ATTR }).addTo(map);
     wbLayer.bringToBack();
+    wbLayer.on("tileload", () => E.markStartup("mapFirstTile"));
   }
   $("#hudRel").textContent = rel.date;
   renderReleases();
@@ -84,6 +85,7 @@ async function checkApi() {
   updEngineUI();
 }
 function updEngineUI() {
+  invalidateLocalChanges();
   $$('[name=engine]').forEach(r => r.checked = r.value === S.engine);
   const srv = isServer();
   $("#engineTag").textContent = srv ? "Python server" : "In browser";
@@ -127,6 +129,7 @@ function addAois(feats) {
 }
 function saveAois() { store.set("aois", S.aois); }
 function renderAois() {
+  invalidateLocalChanges();
   aoiLayer.clearLayers();
   const list = $("#aoiList"); list.innerHTML = "";
   S.aois.forEach((f, i) => {
@@ -156,9 +159,9 @@ function renameAoi(i, el) {
 function selectAoi(i) { S.activeAoi = i; renderAois(); map.fitBounds(L.geoJSON(S.aois[i]).getBounds().pad(0.15)); }
 async function readFile(file) {
   const n = file.name.toLowerCase();
-  if (n.endsWith(".zip")) { if (!window.shp) await loadScript("https://unpkg.com/shpjs@4.0.4/dist/shp.js"); const g = await shp(await file.arrayBuffer()); return Array.isArray(g) ? { type: "FeatureCollection", features: g.flatMap(x => x.features) } : g; }
+  if (n.endsWith(".zip")) { await E.ensureLibrary("shp"); const g = await shp(await file.arrayBuffer()); return Array.isArray(g) ? { type: "FeatureCollection", features: g.flatMap(x => x.features) } : g; }
   const text = await file.text();
-  if (n.endsWith(".kml")) { if (!window.toGeoJSON) await loadScript("https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"); return toGeoJSON.kml(new DOMParser().parseFromString(text, "text/xml")); }
+  if (n.endsWith(".kml")) { await E.ensureLibrary("kml"); return toGeoJSON.kml(new DOMParser().parseFromString(text, "text/xml")); }
   if (n.endsWith(".csv")) return csvToFC(text);
   return JSON.parse(text);
 }
@@ -179,35 +182,79 @@ drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 $("#clearAoi").onclick = () => { S.aois = []; S.activeAoi = null; saveAois(); renderAois(); };
 $("#loadSample").onclick = async () => { try { addAois(normalizeFeatures(await (await fetch("sample_aois/uae_airports_ports.geojson")).json())); } catch { toast("Sample file not found next to the portal"); } };
 
-let drawMode = null;
-function startDraw(kind, purpose) {
-  drawMode = purpose;
-  new (kind === "rect" ? L.Draw.Rectangle : L.Draw.Polygon)(map, { shapeOptions: { color: purpose === "aoi" ? "#f2a516" : color($("#drawClass").value), weight: 2 }, showArea: false }).enable();
+let drawMode = null, drawRequest = 0, drawTool = null;
+async function startDraw(kind, purpose) {
+  const request = ++drawRequest;
+  drawTool?.disable();
+  try {
+    await E.ensureLibrary("draw");
+    if (request !== drawRequest || !pageActive) return;
+    drawMode = purpose;
+    drawTool = new (kind === "rect" ? L.Draw.Rectangle : L.Draw.Polygon)(map, { shapeOptions: { color: purpose === "aoi" ? "#f2a516" : color($("#drawClass").value), weight: 2 }, showArea: false });
+    drawTool.enable();
+  } catch (error) { if (request === drawRequest) toast(error.message, 5000); }
 }
 $("#drawRect").onclick = () => startDraw("rect", "aoi");
 $("#drawPoly").onclick = () => startDraw("poly", "aoi");
-map.on(L.Draw.Event.CREATED, e => {
+map.on("draw:created", e => {
   const g = e.layer.toGeoJSON().geometry;
   if (drawMode === "aoi") addAois([{ type: "Feature", properties: { name: "AOI " + (S.aois.length + 1) }, geometry: g }]);
   else if (drawMode === "ann") addManualObject(g);
-  drawMode = null;
+  drawMode = null; drawTool = null;
 });
 
 // ---------------------------------------------------------------- Wayback releases
-async function loadReleases() {
-  try { S.releases = await E.getReleases(); }
-  catch { try { S.releases = await (await fetch(api("/api/releases"))).json(); } catch { S.releases = []; } }
-  if (S.releases.length) setWayback(S.releases[0]);
-  else $("#relList").innerHTML = `<div class="item"><span></span><span class="s">Could not load the Wayback release list. Check your connection and reload.</span><span></span></div>`;
+function applyReleases(releases) {
+  if (!pageActive) return;
+  S.releases = releases;
+  if (!S.viewRel && releases.length) setWayback(releases[0]); else renderReleases();
+  E.markStartup("metadataReady");
 }
-let localHits = new Set();
+function renderReleaseStatus() {
+  const info = E.releaseCacheInfo(), updated = info.fetchedAt ? new Date(info.fetchedAt).toLocaleString() : null;
+  $("#releaseStatus").textContent = info.refreshing ? `${updated ? "Saved release list · " + updated + ". " : ""}Refreshing…`
+    : info.error ? `${S.releases.length ? "Showing saved release list. " : ""}Refresh failed. Try Refresh dates.`
+    : updated ? `${info.source === "cache" ? "Saved" : "Updated"} release list · ${updated}` : "Wayback releases";
+  $("#relRefresh").disabled = info.refreshing;
+}
+async function refreshReleases() {
+  const request = E.getReleases({ refresh: true }); renderReleaseStatus();
+  try { applyReleases(await request); }
+  catch (error) { if (pageActive && !S.releases.length) $("#relList").textContent = "Could not load imagery dates. Check your connection and try Refresh dates."; }
+  finally { if (pageActive) renderReleaseStatus(); }
+}
+async function loadReleases() {
+  try {
+    applyReleases(await E.getReleases()); renderReleaseStatus();
+    if (pageActive && E.releaseCacheInfo().source === "cache") await refreshReleases();
+  } catch {
+    if (!pageActive) return;
+    try { applyReleases(await E.requestJSON(api("/api/releases"))); }
+    catch { $("#relList").textContent = "Could not load imagery dates. Check your connection and try Refresh dates."; }
+    renderReleaseStatus();
+  }
+}
+$("#relRefresh").onclick = refreshReleases;
+function lookupMatches(request) {
+  const aoi = S.aois[S.activeAoi];
+  return request && aoi === request.aoi && JSON.stringify(aoi.geometry) === request.geometry
+    && aoi.properties.name === request.name && request.source === (isServer() ? api("/api/releases/local") : "browser");
+}
+function invalidateLocalChanges(force = false) {
+  if (!localLookup || (!force && lookupMatches(localLookup))) return;
+  localLookup.controller.abort(); localLookup = null; localHits = new Set();
+  $("#relLocal").disabled = false; $("#relLocal").textContent = "Changes at AOI";
+  $("#localChangeStatus").textContent = "Select an AOI, then find its historical imagery updates.";
+  renderReleases();
+}
 function renderReleases() {
+  if (localLookup && !lookupMatches(localLookup)) { invalidateLocalChanges(); return; }
   const q = $("#relSearch").value.trim().toLowerCase(), list = $("#relList");
   const rows = S.releases.filter(r => !q || r.date.includes(q) || (r.title || "").toLowerCase().includes(q));
   list.innerHTML = rows.map(r => `
     <div class="item${S.viewRel && S.viewRel.release === r.release ? " active" : ""}" data-r="${r.release}">
       <input type="checkbox" data-c="${r.release}" ${S.selRel.has(r.release) ? "checked" : ""} style="accent-color:var(--accent)" aria-label="Select ${r.date}">
-      <div><div class="t mono">${r.date || r.release}</div><div class="s">Release ${r.release}${localHits.has(r.release) ? ' · <span style="color:var(--accent)">changed at AOI</span>' : ""}</div></div>
+      <div><div class="t mono">${r.date || r.release}</div><div class="s">Release ${r.release}${localHits.has(r.release) ? ' · <span style="color:var(--accent)">Imagery update near ' + esc(localLookup.name) + '</span>' : ""}</div></div>
       <span class="s mono" style="color:var(--accent)">${localHits.has(r.release) ? "●" : ""}</span></div>`).join("") || `<div class="item"><span></span><span class="s">No releases match.</span><span></span></div>`;
   list.querySelectorAll("[data-r]").forEach(it => it.onclick = e => { if (e.target.matches("input")) return; setWayback(S.releases.find(r => r.release === +it.dataset.r)); });
   list.querySelectorAll("[data-c]").forEach(cb => cb.onchange = () => { cb.checked ? S.selRel.add(+cb.dataset.c) : S.selRel.delete(+cb.dataset.c); store.set("selRel", [...S.selRel]); updModeHint(); });
@@ -215,14 +262,24 @@ function renderReleases() {
 $("#relSearch").oninput = renderReleases;
 $("#relLocal").onclick = async () => {
   if (S.activeAoi == null) return toast("Select an AOI first");
-  const c = L.geoJSON(S.aois[S.activeAoi]).getBounds().getCenter(), btn = $("#relLocal");
+  invalidateLocalChanges(true);
+  const aoi = S.aois[S.activeAoi], c = L.geoJSON(aoi).getBounds().getCenter(), btn = $("#relLocal");
+  const request = localLookup = { aoi, name: aoi.properties.name, geometry: JSON.stringify(aoi.geometry),
+    source: isServer() ? api("/api/releases/local") : "browser", controller: new AbortController() };
+  const current = () => pageActive && localLookup === request && lookupMatches(request) && !request.controller.signal.aborted;
   btn.disabled = true; btn.textContent = "Searching…";
+  $("#localChangeStatus").textContent = `Finding historical imagery updates near ${request.name}…`;
   try {
-    const hits = isServer() ? await postJSON("/api/releases/local", { lon: c.lng, lat: c.lat, zoom: 17 }) : await E.localChanges(c.lng, c.lat, 17);
+    const hits = isServer() ? await E.requestJSON(api("/api/releases/local"), { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lon: c.lng, lat: c.lat, zoom: 17 }), signal: request.controller.signal })
+      : await E.localChanges(c.lng, c.lat, 17, { signal: request.controller.signal });
+    if (!current()) return;
+    if (!Array.isArray(hits) || hits.some(hit => !Number.isSafeInteger(hit?.release))) throw new Error("Invalid imagery update list");
     localHits = new Set(hits.map(h => h.release)); renderReleases();
-    toast(`${hits.length} distinct imagery dates at ${S.aois[S.activeAoi].properties.name}`);
-  } catch (e) { toast("Lookup failed: " + e.message); }
-  btn.disabled = false; btn.textContent = "Changes at AOI";
+    $("#localChangeStatus").textContent = `${localHits.size} historical imagery update${localHits.size === 1 ? "" : "s"} near ${request.name} · centre tile at zoom 17. Orange labels are updates; the active row is the viewed map.`;
+  } catch (error) {
+    if (current()) { localHits = new Set(); renderReleases(); $("#localChangeStatus").textContent = `Could not find imagery updates near ${request.name}: ${error.message}. Try again.`; }
+  } finally { if (localLookup === request) { btn.disabled = false; btn.textContent = "Changes at AOI"; } }
 };
 const relMode = () => $$('[name=relMode]').find(r => r.checked).value;
 function updModeHint() {
@@ -475,7 +532,17 @@ function setStatus(st, cls) {
   if (cls) { p.original_class = p.original_class || p.class; p.class = cls; }
   p.status = st; p.reviewed_at = new Date().toISOString(); S.sel.setStyle(STYLE(S.sel.feature)); select(S.sel); updStats(); dirty = true;
 }
-function editShape() { if (!S.sel) return; S.editing = S.sel; S.sel.editing.enable(); toast("Drag the corners, then press Enter or click the map"); }
+async function editShape() {
+  const selected = S.sel;
+  if (!selected) return;
+  try {
+    await E.ensureLibrary("draw");
+    if (!pageActive || S.sel !== selected || !detLayer.getLayers().includes(selected)) return;
+    // Leaflet.Draw init hooks do not run retroactively for pre-existing polygons.
+    if (!selected.editing) selected.editing = new L.Edit.Poly(selected);
+    S.editing = selected; selected.editing.enable(); toast("Drag the corners, then press Enter or click the map");
+  } catch (error) { toast(error.message, 5000); }
+}
 function syncGeom(l) { l.feature.geometry = l.toGeoJSON().geometry; if (l.feature.properties.status === "predicted") l.feature.properties.status = "corrected"; dirty = true; }
 function delSel() { if (!S.sel) return; S.annFC.features = S.annFC.features.filter(f => f !== S.sel.feature); detLayer.removeLayer(S.sel); S.sel = null; $("#selCard").innerHTML = '<span class="hint">Click an object on the map.</span>'; updStats(); dirty = true; }
 function nextPending() {
@@ -574,8 +641,11 @@ $("#expCsv").onclick = () => {
 };
 
 // ---------------------------------------------------------------- boot
-if (window.ort) { ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/"; if (!self.crossOriginIsolated) ort.env.wasm.numThreads = 1; }
 renderAois(); renderClasses(); updModeHint();
 showTab(store.get("tab", "aoi"));
-(async () => { await checkApi(); await Promise.all([loadReleases(), loadModels()]); updEngineUI(); })();
+E.markStartup("appReady");
+loadReleases();
+(async () => { await checkApi(); await loadModels(); updEngineUI(); })();
+window.addEventListener("pagehide", () => { pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh(); });
+window.addEventListener("pageshow", event => { if (event.persisted) { pageActive = true; loadReleases(); } });
 })();

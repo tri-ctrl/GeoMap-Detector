@@ -19,18 +19,21 @@ async function withChrome(run) {
   try {
     const endpoint = await new Promise((resolve, reject) => {
       let stderr = "";
-      const timer = setTimeout(() => reject(new Error("Chrome startup timed out")), 20000);
+      const timer = setTimeout(() => reject(new Error("Chrome startup timed out: " + stderr.slice(-2000))), 30000);
       chrome.once("error", error => { clearTimeout(timer); reject(error); });
-      chrome.stderr.on("data", chunk => {
+      const exited = code => { clearTimeout(timer); reject(new Error(`Chrome exited during startup (${code}): ${stderr.slice(-2000)}`)); };
+      chrome.once("exit", exited);
+      const read = chunk => {
         stderr += chunk;
         const match = stderr.match(/DevTools listening on (ws:\/\/\S+)/);
-        if (match) { clearTimeout(timer); resolve(match[1]); }
-      });
+        if (match) { clearTimeout(timer); chrome.stderr.off("data", read); chrome.stderr.resume(); chrome.off("exit", exited); resolve(match[1]); }
+      };
+      chrome.stderr.on("data", read);
     });
     socket = new WebSocket(endpoint);
     await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
     let id = 0, sessionId;
-    const listeners = new Map(), errors = [];
+    const listeners = new Map(), errors = [], exceptions = [], contexts = new Map();
     const send = (method, params = {}, session, timeout = 30000) => new Promise((resolve, reject) => {
       const request = ++id;
       const timer = setTimeout(() => { pending.delete(request); reject(new Error(`CDP timed out: ${method}`)); }, timeout);
@@ -46,7 +49,12 @@ async function withChrome(run) {
         pending.delete(message.id); clearTimeout(item.timer);
         message.error ? item.reject(new Error(JSON.stringify(message.error))) : item.resolve(message.result);
       } else {
-        if (message.method === "Runtime.exceptionThrown") errors.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text);
+        if (message.method === "Runtime.executionContextCreated") contexts.set(message.params.context.id, message.params.context);
+        if (message.method === "Runtime.exceptionThrown") {
+          const details = message.params.exceptionDetails;
+          errors.push(details.exception?.description || details.text);
+          exceptions.push({ ...details, context: contexts.get(details.executionContextId) });
+        }
         for (const listener of listeners.get(message.method) || []) listener(message.params);
       }
     };
@@ -63,7 +71,7 @@ async function withChrome(run) {
       while (Date.now() < deadline) { if (await evaluate(expression)) return; await sleep(200); }
       throw new Error("Browser condition timed out: " + expression);
     };
-    await run({ page, evaluate, until, errors, on: (event, listener) => {
+    await run({ page, evaluate, until, errors, exceptions, on: (event, listener) => {
       if (!listeners.has(event)) listeners.set(event, []);
       listeners.get(event).push(listener);
     } });

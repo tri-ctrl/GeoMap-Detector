@@ -16,7 +16,7 @@ Wayback releases (latest /   ├─► mosaic tiles ─► clip to AOI ─► YO
 
 ## Run it in the browser (GitHub Pages, nothing to install)
 
-**https://rgiq2024.github.io/geovision-annotator/**
+**https://tri-ctrl.github.io/GeoMap-Detector/**
 
 Everything happens on the visitor's computer: Wayback tiles are fetched by the browser, clipped
 to each AOI on a canvas, run through YOLO11-OBB with ONNX Runtime Web (WebGPU on Chrome/Edge,
@@ -32,6 +32,28 @@ Training without a server: **Train → Download training dataset** (YOLO-OBB chi
 train on any PC, Colab or Kaggle with the commands in its `TRAIN.md`, then **Detect → Load ONNX model**.
 
 Run the static portal locally: `python scripts/export_onnx.py && cd frontend && python -m http.server 8080`.
+
+After publishing, `pages.yml` checks that the served HTML, JavaScript and sample AOIs
+match the checked-out source, and that both generated model URLs are available.
+The generated model manifest is checked separately from the source placeholder.
+Run the same check locally with Node 24:
+
+```bash
+node scripts/check_deployment.cjs --url https://tri-ctrl.github.io/GeoMap-Detector/
+```
+
+The optional browser checks use isolated temporary Chrome profiles and preserve
+your normal browser data:
+
+```bash
+node tests/browser/deployment.cjs                 # served source, AOIs, real nano/small inference on GPU/WASM
+node tests/browser/map_interactions.cjs --deployed # served source, map/image toggles and editing
+```
+
+Set `GMD_BROWSER_BIN` if Chrome is installed in a different location. For networks
+using system-managed certificates, use `node --use-system-ca` for the commands above.
+The default map check without `--deployed` uses local JavaScript overrides for testing
+unpublished changes; it does not establish deployment parity.
 
 ## Optional Python server (large jobs, GPU training)
 

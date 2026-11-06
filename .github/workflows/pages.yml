@@ -54,5 +54,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: { name: github-pages, url: "${{ steps.deploy.outputs.page_url }}" }
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
       - id: deploy
         uses: actions/deploy-pages@v4
+      - name: Verify published source and model URLs
+        env:
+          GMD_DEPLOYMENT_URL: ${{ steps.deploy.outputs.page_url }}
+          GMD_DEPLOYMENT_REVISION: ${{ github.sha }}
+        run: node scripts/check_deployment.cjs --url "$GMD_DEPLOYMENT_URL" --revision "$GMD_DEPLOYMENT_REVISION"

@@ -3,7 +3,7 @@ const { readFile } = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 
-const SOURCE_FILES = ["index.html", "app.js", "engine.js", "sample_aois/uae_airports_ports.geojson"];
+const SOURCE_FILES = ["index.html", "app.js", "engine.js", "comparison.js", "sample_aois/uae_airports_ports.geojson"];
 const DEFAULT_MODELS = ["yolo11n-obb.onnx", "yolo11s-obb.onnx"];
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 

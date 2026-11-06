@@ -40,7 +40,7 @@ async function fixture(t, change = () => {}) {
 test("published source matches and both generated models are checked under the project path", async t => {
   const { options, state } = await fixture(t);
   const result = await verifyDeployment(options);
-  assert.equal(result.revision, "test-sha"); assert.equal(result.files.length, 4); assert.equal(result.models.length, 2);
+  assert.equal(result.revision, "test-sha"); assert.equal(result.files.length, SOURCE_FILES.length); assert.equal(result.models.length, 2);
   assert.deepEqual(state.calls.filter(call => call.method === "HEAD").map(call => call.file).sort(),
     ["models/yolo11n-obb.onnx", "models/yolo11s-obb.onnx"]);
 });

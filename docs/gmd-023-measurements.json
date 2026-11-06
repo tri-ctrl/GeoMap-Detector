@@ -1,0 +1,152 @@
+{
+  "recordedAt": "2026-11-06T18:41:06.514257+00:00",
+  "repositoryRevision": "922ad8a8245a003e61c3ef677473c30c164f24d3",
+  "mode": "Read-only live provider probe; sample location, not exact user AOI reproduction",
+  "location": {
+    "source": "frontend/sample_aois/uae_airports_ports.geojson",
+    "name": "RASHID_PORT",
+    "longitude": 55.2735,
+    "latitude": 25.271,
+    "userAoi": "RASHID-NEW geometry not supplied"
+  },
+  "releaseConfig": "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json",
+  "imageRequests": [
+    {
+      "date": "2016-04-20",
+      "release": 388,
+      "zoom": 18,
+      "x": 171320,
+      "y": 112042,
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/388/18/112042/171320",
+      "status": 404,
+      "contentType": "text/html; charset=iso-8859-1",
+      "bytes": 196,
+      "accessControlAllowOrigin": null
+    },
+    {
+      "date": "2016-04-20",
+      "release": 388,
+      "zoom": 17,
+      "x": 85660,
+      "y": 56021,
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/388/17/56021/85660",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 4311,
+      "accessControlAllowOrigin": "*"
+    },
+    {
+      "date": "2016-04-20",
+      "release": 388,
+      "zoom": 16,
+      "x": 42830,
+      "y": 28010,
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/388/16/28010/42830",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 3935,
+      "accessControlAllowOrigin": "*"
+    },
+    {
+      "date": "2025-03-27",
+      "release": 6543,
+      "zoom": 18,
+      "x": 171320,
+      "y": 112042,
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/6543/18/112042/171320",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 694,
+      "accessControlAllowOrigin": "*"
+    },
+    {
+      "date": "2026-10-29",
+      "release": 43291,
+      "zoom": 18,
+      "x": 171320,
+      "y": 112042,
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/18/112042/171320",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 668,
+      "accessControlAllowOrigin": "*"
+    }
+  ],
+  "tilemapRequests": [
+    {
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112042/171320",
+      "status": 200,
+      "contentType": "application/json",
+      "accessControlAllowOrigin": "*",
+      "body": {
+        "data": [
+          0
+        ],
+        "location": {
+          "height": 1,
+          "left": 171320,
+          "top": 112042,
+          "width": 1
+        },
+        "select": [
+          388
+        ],
+        "valid": true
+      }
+    },
+    {
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/17/56021/85660",
+      "status": 200,
+      "contentType": "application/json",
+      "accessControlAllowOrigin": "*",
+      "body": {
+        "data": [
+          1
+        ],
+        "location": {
+          "height": 1,
+          "left": 85660,
+          "top": 56021,
+          "width": 1
+        },
+        "select": [
+          23383
+        ],
+        "size": [
+          4311
+        ],
+        "valid": true
+      }
+    }
+  ],
+  "reportedRun": {
+    "localTimes": "22:28:30\u201322:29:20",
+    "model": "YOLO11 small OBB",
+    "provider": "WebGPU",
+    "aoi": "RASHID-NEW",
+    "successfulClipSize": [
+      2427,
+      1403
+    ],
+    "completed": [
+      {
+        "date": "2026-10-29",
+        "objects": 79,
+        "class": "ship"
+      },
+      {
+        "date": "2025-03-27",
+        "objects": 203,
+        "class": "ship"
+      }
+    ],
+    "failedDate": "2016-04-20",
+    "tileLimit": null
+  },
+  "limitations": [
+    "Only one representative point per zoom was checked; exact RASHID-NEW polygon/extent is unknown.",
+    "Provider responses are a live snapshot, not proof of their state during the reported run.",
+    "Lower-resolution detection quality and counts have not been validated.",
+    "No application fix or deployment is included in this diagnostic record."
+  ]
+}

@@ -59,7 +59,10 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     }
     append(child) { this.children.push(child); this.queries.clear(); }
     addEventListener() {}
-    setAttribute() {}
+    setAttribute(name, value) { this.attributes = { ...this.attributes, [name]: value }; }
+    showModal() { this.open = true; }
+    close() { this.open = false; this.onclose?.(); }
+    focus() { document.activeElement = this; }
     click() { if (!this.disabled) return this.onclick?.({ target: this }); }
     remove() {}
   }
@@ -82,7 +85,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   const document = {
     querySelector: element,
     querySelectorAll: selector => selector === "#resTable tr" ? element("#resTable tbody").querySelectorAll("tr[data-i]") : lists[selector] || [],
-    createElement: () => new Element(), addEventListener() {},
+    createElement: () => new Element(), addEventListener: (event, listener) => documentEvents.set(event, listener),
     documentElement: new Element(), body: new Element(), head: new Element(),
   };
   Object.entries({ "#zoom": "18", "#conf": "0.3", "#maxTiles": "1200", "#bufKm": "3" }).forEach(([key, value]) => { element(key).value = value; });
@@ -162,7 +165,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     return { ok: true, json: async () => value };
   };
   let nextUrl = 0;
-  const events = new Map();
+  const events = new Map(), documentEvents = new Map();
   const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException,
     location: { hostname: "test.github.io" }, setTimeout: () => 0, clearTimeout() {},
     localStorage: { getItem: key => { if (key === "gv_ann") metrics.annotationReads++; return saved.get(key) ?? null; }, setItem: (key, value) => saved.set(key, value) },
@@ -187,7 +190,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     await rows[index].onclick();
   }
   const toggle = checked => { element("#showImg").checked = checked; element("#showImg").onchange(); };
-  return { element, tiles, groups, map, saved, requests, releaseRows, clickRelease, snapshot, openClip, toggle, context, events,
+  return { element, tiles, groups, map, saved, requests, releaseRows, clickRelease, snapshot, openClip, toggle, context, events, documentEvents,
     selectAoi: index => groups[0].getLayers()[index].fire("click") };
 }
 

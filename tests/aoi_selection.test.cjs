@@ -93,3 +93,47 @@ test("clearing AOIs removes run selections and a fresh import restores the defau
   await app.element("#loadSample").onclick(); assert.equal(boxes(app)[0].checked, true);
   assert.equal(app.element("#runN").textContent, 1);
 });
+test("AOIs button opens the searchable popup; Done, close and backdrop retain checked choices", async () => {
+  const app = await setup({ aois: [aoi, other] });
+  app.element("#runAoiBtn").onclick(); assert.equal(app.element("#runAoiDialog").open, true);
+  assert.equal(app.context.document.activeElement, app.element("#runAoiSearch"));
+  check(app, 1, false); app.element("#runAoiDone").onclick();
+  assert.equal(app.element("#runAoiDialog").open, false);
+  assert.equal(app.element("#runAoiBtn").attributes['aria-expanded'], 'false');
+  app.element("#runAoiBtn").onclick(); assert.equal(boxes(app)[1].checked, false);
+  app.element("#runAoiClose").onclick(); assert.equal(app.element("#runAoiDialog").open, false);
+  app.element("#runAoiBtn").onclick();
+  app.element("#runAoiDialog").onclick({ target: app.element("#runAoiDialog") });
+  assert.equal(app.element("#runAoiDialog").open, false); assert.equal(app.element("#runN").textContent, 1);
+});
+test("AOI name search filters without dropping hidden selections and controls target original rows", async () => {
+  const app = await setup({ aois: [aoi, other] }); app.element("#runAoiBtn").onclick();
+  app.element("#runAoiSearch").value = "  oThEr  "; app.element("#runAoiSearch").oninput();
+  assert.equal(boxes(app).length, 1); assert.equal(boxes(app)[0].dataset.runAoi, '1');
+  assert.equal(app.element("#runAoiMatches").textContent, "Showing 1 of 2 AOIs");
+  check(app, 0, false); assert.equal(app.element("#runN").textContent, 1);
+  app.element("#runAoiSearch").value = "no match"; app.element("#runAoiSearch").oninput();
+  assert.equal(boxes(app).length, 0); assert.match(app.element("#runAoiList").innerHTML, /No AOIs match/);
+  assert.equal(app.element("#runBtn").disabled, false);
+  app.element("#runAoiAll").onclick(); assert.equal(app.element("#runN").textContent, 2);
+  app.element("#runAoiSearch").value = ""; app.element("#runAoiSearch").oninput();
+  assert.ok(boxes(app).every(checkbox => checkbox.checked));
+});
+test("Zoom targets the filtered AOI, closes the popup and preserves processing choices", async () => {
+  const app = await setup({ aois: [aoi, other] }); check(app, 1, false);
+  app.element("#runAoiBtn").onclick(); app.element("#runAoiSearch").value = "Other"; app.element("#runAoiSearch").oninput();
+  const before = app.snapshot(); app.element("#runAoiList").querySelectorAll("[data-run-zoom]")[0].onclick();
+  assert.equal(app.snapshot().fits, before.fits + 1); assert.equal(app.tiles.length, before.tiles);
+  assert.equal(app.element("#runAoiDialog").open, false); assert.equal(app.element("#runN").textContent, 1);
+  assert.match(app.element("#aoiList").children[1].className, /active/);
+  assert.equal(app.context.document.activeElement, app.element("#map"));
+  app.element("#runAoiBtn").onclick(); assert.equal(boxes(app)[0].checked, false);
+});
+test("annotation keyboard shortcuts stay inactive while the AOI popup is open", async () => {
+  const app = await setup(); await app.openClip();
+  const selected = app.groups[2].getLayers()[0]; selected.fire("click");
+  app.element("#runAoiBtn").onclick();
+  const key = () => app.documentEvents.get("keydown")({ key: "a", target: { matches: () => false } });
+  key(); assert.equal(selected.feature.properties.status, "predicted");
+  app.element("#runAoiDone").onclick(); key(); assert.equal(selected.feature.properties.status, "verified");
+});

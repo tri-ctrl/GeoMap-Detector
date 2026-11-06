@@ -97,6 +97,14 @@ th{text-align:left;font:600 10.5px var(--f-ui);letter-spacing:.06em;text-transfo
 td{padding:7px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{background:var(--panel-2)}
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.run-aoi-dialog{width:min(560px,calc(100vw - 32px));max-height:85dvh;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);box-shadow:var(--shadow);font-family:var(--f-ui)}
+.run-aoi-dialog::backdrop{background:rgba(0,0,0,.3)}
+.run-aoi-dialog .dialog-body{padding:18px;display:flex;flex-direction:column;gap:12px}
+.run-aoi-dialog h2{margin:0;font-size:18px}
+.run-aoi-dialog .tablewrap{max-height:42dvh;overflow:auto}
+.run-aoi-dialog th{position:sticky;top:0;background:var(--panel)}
+.run-aoi-dialog td:nth-child(2){overflow-wrap:anywhere}
+.run-aoi-dialog td:first-child,.run-aoi-dialog td:last-child{width:1%;white-space:nowrap}
 .pill{display:inline-block;padding:1px 7px;border-radius:99px;font:600 11px var(--f-ui);border:1px solid currentColor}
 .pill.predicted{color:var(--muted)} .pill.verified{color:var(--ok)} .pill.corrected{color:var(--sea)}
 .pill.manual{color:var(--accent)} .pill.rejected{color:var(--bad)}
@@ -201,12 +209,6 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
     <!-- Detect -->
     <section class="tab" id="tab-det" role="tabpanel">
-      <div class="sec" role="group" aria-labelledby="runAoiLabel">
-        <div class="row"><span class="label" id="runAoiLabel" style="flex:1">AOIs to process</span><span class="hint" id="runAoiCount" aria-live="polite">0 of 0 selected</span></div>
-        <div class="row"><button class="btn ghost" id="runAoiAll">Select all</button><button class="btn ghost" id="runAoiNone">Clear</button></div>
-        <div class="list" id="runAoiList" style="max-height:190px;overflow-y:auto"></div>
-        <p class="hint" id="runAoiHint">Add AOIs in the AOIs tab to get started.</p>
-      </div>
       <div class="sec">
         <div class="row"><span class="label" style="flex:1">Model</span><span class="pill" id="engineTag" style="color:var(--sea)">In browser</span></div>
         <select id="model"></select>
@@ -243,6 +245,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <label class="row"><input type="checkbox" id="detectOn" checked style="accent-color:var(--accent)"> Run detection (untick to only clip imagery)</label>
         <label class="row"><input type="checkbox" id="tifOn" checked style="accent-color:var(--accent)"> Write GeoTIFF for each clip</label>
         <div class="row">
+          <button class="btn" id="runAoiBtn" aria-haspopup="dialog" aria-controls="runAoiDialog" aria-expanded="false">AOIs</button>
           <button class="btn primary" id="runBtn" style="flex:1;justify-content:center;padding:10px">Run on <span id="runN">0</span> AOIs</button>
           <button class="btn" id="cancelBtn" hidden>Cancel</button>
         </div>
@@ -360,6 +363,19 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
     </div>
   </main>
 </div>
+
+<dialog id="runAoiDialog" class="run-aoi-dialog" aria-labelledby="runAoiTitle" aria-describedby="runAoiHint">
+  <div class="dialog-body">
+    <div class="row"><h2 id="runAoiTitle" style="flex:1">AOIs to process</h2><button class="icon-btn" id="runAoiClose" aria-label="Close AOI selection">✕</button></div>
+    <label class="label" for="runAoiSearch">Search by AOI name</label>
+    <input type="search" id="runAoiSearch" placeholder="Search AOI names…" autofocus>
+    <div class="row"><button class="btn ghost" id="runAoiAll">Select all</button><button class="btn ghost" id="runAoiNone">Clear all</button><span class="hint" id="runAoiCount" style="margin-left:auto" aria-live="polite">0 of 0 selected</span></div>
+    <div class="hint" id="runAoiMatches" role="status" aria-live="polite"></div>
+    <div class="tablewrap"><table><thead><tr><th scope="col">Process</th><th scope="col">AOI name</th><th scope="col">Map</th></tr></thead><tbody id="runAoiList"></tbody></table></div>
+    <p class="hint" id="runAoiHint">Add AOIs in the AOIs tab to get started.</p>
+    <div class="row"><span class="hint" style="flex:1">Zoom closes this popup to show the AOI on the map.</span><button class="btn primary" id="runAoiDone">Done</button></div>
+  </div>
+</dialog>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="engine.js"></script>

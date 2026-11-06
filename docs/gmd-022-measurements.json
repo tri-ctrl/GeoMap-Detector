@@ -50,5 +50,84 @@
     "javascript": 59,
     "python": 12,
     "newAoiSelectionCases": 8
+  },
+  "popupRefinement": {
+    "checkedAt": "2026-11-06T17:22:31.094Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "e0e9d9070ee5a4c3a32fe8fc40227ffd157f59927deccf0c5f5f1732e60d4b53",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "21:22:28  Review_small: 1 release(s) 2026-10-29\n21:22:28  [1/1] Review_small \u00b7 2026-10-29\n21:22:30      z18 \u00b7 374\u00d7413 px \u00b7 0 objects \n21:22:30  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": true,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "popup": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "mobile": {
+        "width": 356,
+        "height": 446.046875,
+        "fits": true
+      },
+      "zoom": {
+        "centre": [
+          55.380999999999986,
+          25.25100000695594
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run"
+      },
+      "escapeFocus": "runAoiBtn"
+    },
+    "baseRevision": "e55555b8791fadd5f59671c1bc61908be99f733b",
+    "sourceSha256": {
+      "index.html": "2f24c3595f7c1d0edd02fa15faa96de094608a9d6822d66b7d02bd157c0b520a",
+      "app.js": "e0e9d9070ee5a4c3a32fe8fc40227ffd157f59927deccf0c5f5f1732e60d4b53",
+      "engine.js": "b30e77b48985af259fd7363a9795462aeeb1ba33c9d3fcfa37baba1ae374c0d2"
+    },
+    "automatedChecks": {
+      "javascript": 63,
+      "python": 12,
+      "aoiSelectionCases": 12
+    }
   }
 }

@@ -171,9 +171,14 @@ function renderRunAois() {
   const current = new Set(S.aois);
   for (const aoi of runAoiSelection) if (!current.has(aoi)) runAoiSelection.delete(aoi);
   const list = $("#runAoiList");
-  list.innerHTML = S.aois.map((aoi, index) => `<label class="item" style="grid-template-columns:18px minmax(0,1fr)">
-    <input type="checkbox" data-run-aoi="${index}" ${runAoiSelection.has(aoi) ? "checked" : ""} style="accent-color:var(--accent)">
-    <span class="t">${esc(aoi.properties.name)}</span></label>`).join("");
+  const query = $("#runAoiSearch").value.trim().toLocaleLowerCase();
+  const rows = S.aois.map((aoi, index) => ({ aoi, index })).filter(({ aoi }) => String(aoi.properties.name).toLocaleLowerCase().includes(query));
+  list.innerHTML = rows.map(({ aoi, index }) => `<tr>
+    <td><input type="checkbox" id="run-aoi-${index}" data-run-aoi="${index}" ${runAoiSelection.has(aoi) ? "checked" : ""} style="accent-color:var(--accent)"></td>
+    <td><label for="run-aoi-${index}">${esc(aoi.properties.name)}</label></td>
+    <td><button class="btn ghost" data-run-zoom="${index}" aria-label="Zoom to ${esc(aoi.properties.name)}">Zoom</button></td></tr>`).join("")
+    || `<tr><td colspan="3" class="muted">${S.aois.length ? "No AOIs match your search." : "No AOIs added yet."}</td></tr>`;
+  $("#runAoiMatches").textContent = `Showing ${rows.length} of ${S.aois.length} AOIs`;
   list.querySelectorAll("[data-run-aoi]").forEach(checkbox => {
     const aoi = S.aois[+checkbox.dataset.runAoi];
     checkbox.onchange = () => {
@@ -182,8 +187,26 @@ function renderRunAois() {
       updateRunSelection();
     };
   });
+  list.querySelectorAll("[data-run-zoom]").forEach(button => {
+    const aoi = S.aois[+button.dataset.runZoom];
+    button.onclick = () => {
+      const index = S.aois.indexOf(aoi);
+      if (index < 0) return;
+      closeRunAoiDialog(); selectAoi(index); $("#map").focus({ preventScroll: true });
+    };
+  });
   updateRunSelection();
 }
+function closeRunAoiDialog() { if ($("#runAoiDialog").open) $("#runAoiDialog").close(); }
+$("#runAoiBtn").onclick = () => {
+  renderRunAois();
+  if (!$("#runAoiDialog").open) { $("#runAoiBtn").focus(); $("#runAoiDialog").showModal(); }
+  $("#runAoiBtn").setAttribute("aria-expanded", "true"); $("#runAoiSearch").focus();
+};
+$("#runAoiClose").onclick = $("#runAoiDone").onclick = closeRunAoiDialog;
+$("#runAoiDialog").onclose = () => $("#runAoiBtn").setAttribute("aria-expanded", "false");
+$("#runAoiDialog").onclick = event => { if (event.target === $("#runAoiDialog")) closeRunAoiDialog(); };
+$("#runAoiSearch").oninput = renderRunAois;
 $("#runAoiAll").onclick = () => { S.aois.forEach(aoi => runAoiSelection.add(aoi)); renderRunAois(); };
 $("#runAoiNone").onclick = () => { runAoiSelection.clear(); renderRunAois(); };
 function setJobRunning(running) { jobRunning = running; updateRunSelection(); }
@@ -618,7 +641,7 @@ $("#saveAnn").onclick = async () => {
 };
 map.on("click", finishEdit);
 document.addEventListener("keydown", e => {
-  if (e.target.matches("input,select,textarea")) return;
+  if ($("#runAoiDialog").open || e.target.matches("input,select,textarea")) return;
   const k = e.key.toLowerCase();
   if (k === "a") setStatus("verified"); else if (k === "r") setStatus("rejected"); else if (k === "n") nextPending();
   else if (k === "e") editShape(); else if (k === "delete" || k === "backspace") delSel();

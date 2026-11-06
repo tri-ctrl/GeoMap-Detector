@@ -29,7 +29,7 @@ const instrumentation = `(() => {
   window.__gmd003 = { counts };
   const wrap = (object, key, counter) => {
     const original = object[key];
-    object[key] = function(...args) { counts[counter]++; return original.apply(this, args); };
+    object[key] = function(...args) { counts[counter]++; if (counter === 'fits') __gmd003.map = this; return original.apply(this, args); };
   };
   wrap(L, 'tileLayer', 'tileLayers'); wrap(L.TileLayer.prototype, 'setUrl', 'tileUrls');
   wrap(L.Map.prototype, 'fitBounds', 'fits');
@@ -140,24 +140,60 @@ let chrome, socket, watchdog;
   await evaluate("document.querySelector('#relList [data-r]').click()");
   await evaluate(`(() => {
     const fc = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { name: 'Review_small' }, geometry: { type: 'Polygon', coordinates: [[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]] } }] };
-    if (${selection}) fc.features.push({ ...fc.features[0], properties: { name: 'Do_not_run' } });
+    if (${selection}) fc.features.push({ ...fc.features[0], properties: { name: 'Do_not_run' },
+      geometry: { type:'Polygon', coordinates:fc.features[0].geometry.coordinates.map(ring => ring.map(([x,y]) => [x+0.02,y])) } });
     const files = new DataTransfer(); files.items.add(new File([JSON.stringify(fc)], 'review.geojson', { type: 'application/geo+json' }));
     const input = document.querySelector('#fileIn'); input.files = files.files; input.dispatchEvent(new Event('change'));
     document.querySelector('#detectOn').checked = false; document.querySelector('#tifOn').checked = false;
   })()`);
-  let runSelection;
+  let runSelection, popup;
   if (selection) {
     await until("document.querySelector('#runN').textContent === '2'");
-    await evaluate("document.querySelector('[data-tab=det]').click(); document.querySelector('#runAoiNone').click()");
+    await evaluate("document.querySelector('[data-tab=det]').click(); document.querySelector('#runAoiBtn').click()");
+    await until("document.querySelector('#runAoiDialog').open");
+    popup = await evaluate(`(() => {
+      const dialog=document.querySelector('#runAoiDialog'), button=document.querySelector('#runAoiBtn'), run=document.querySelector('#runBtn');
+      return { focused:document.activeElement.id, inlineSelector:document.querySelector('#tab-det #runAoiList')!==null,
+        adjacent:button.parentElement===run.parentElement, columns:[...dialog.querySelectorAll('th')].map(node=>node.textContent) };
+    })()`);
+    assert.equal(popup.focused,'runAoiSearch'); assert.equal(popup.inlineSelector,false); assert.equal(popup.adjacent,true);
+    assert.deepEqual(popup.columns,['Process','AOI name','Map']);
+    const desktop = await page('Page.captureScreenshot',{format:'png'});
+    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-popup-desktop.png'),Buffer.from(desktop.data,'base64'));
+    await page('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+    popup.mobile = await evaluate(`(() => {const r=document.querySelector('#runAoiDialog').getBoundingClientRect();return {width:r.width,height:r.height,fits:r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight};})()`);
+    assert.equal(popup.mobile.fits,true);
+    const mobile = await page('Page.captureScreenshot',{format:'png'});
+    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-popup-mobile.png'),Buffer.from(mobile.data,'base64'));
+    await page('Emulation.clearDeviceMetricsOverride');
+    await until("__gmd003.map.getSize().x === __gmd003.map.getContainer().clientWidth");
+    await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='DO_NOT';search.dispatchEvent(new Event('input'));})()");
+    assert.equal(await evaluate("document.querySelectorAll('#runAoiList [data-run-aoi]').length"),1);
+    assert.equal(await evaluate("document.querySelector('#runAoiList [data-run-aoi]').dataset.runAoi"),'1');
+    await evaluate("document.querySelector('#runAoiList [data-run-zoom]').click()");
+    await until("!document.querySelector('#runAoiDialog').open && !__gmd003.map._animatingZoom && !__gmd003.map._panAnim?._inProgress && Math.abs(__gmd003.map.getCenter().lng-55.381)<0.002");
+    popup.zoom = await evaluate("({centre:[__gmd003.map.getCenter().lng,__gmd003.map.getCenter().lat],selected:document.querySelector('#runN').textContent,focus:document.activeElement.id,active:document.querySelector('#aoiList .active .t').textContent})");
+    assert.equal(popup.zoom.active,'Do_not_run'); assert.ok(Math.abs(popup.zoom.centre[0]-55.381)<0.002,JSON.stringify(popup.zoom));
+    assert.equal(popup.zoom.selected,'2'); assert.equal(popup.zoom.focus,'map');
+    await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiNone').click()");
     assert.equal(await evaluate("document.querySelector('#runBtn').disabled"), true);
+    await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='not found';search.dispatchEvent(new Event('input'));})()");
+    assert.equal(await evaluate("document.querySelectorAll('#runAoiList [data-run-aoi]').length"),0);
+    await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='review';search.dispatchEvent(new Event('input'));})()");
     await evaluate("document.querySelector('#runAoiList input').click()");
-    runSelection = await evaluate("({ imported:document.querySelectorAll('#runAoiList input').length, selectedAtStart:document.querySelectorAll('#runAoiList input:checked').length })");
+    runSelection = { imported:2, selectedAtStart:Number(await evaluate("document.querySelector('#runN').textContent")) };
     assert.equal(runSelection.imported, 2); assert.equal(runSelection.selectedAtStart, 1);
+    await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='';search.dispatchEvent(new Event('input'));})()");
+    await page('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await page('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await until("!document.querySelector('#runAoiDialog').open");
+    popup.escapeFocus = await evaluate("document.activeElement.id"); assert.equal(popup.escapeFocus,'runAoiBtn');
+    await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiDone').click()");
   }
   await until("document.querySelector('#runN').textContent === '1'");
   await evaluate("document.querySelector('#runBtn').click()");
   if (selection) {
-    await evaluate("document.querySelector('#runAoiAll').click()");
+    await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiAll').click();document.querySelector('#runAoiDone').click()");
     runSelection.runningButtonDisabled = await evaluate("document.querySelector('#runBtn').disabled");
     assert.equal(runSelection.runningButtonDisabled, true);
   }
@@ -213,8 +249,8 @@ let chrome, socket, watchdog;
   const results = { checkedAt: new Date().toISOString(), mode: deployed ? "Deployed sources, no overrides" : "Local app/engine overrides; not a deployed-source check",
     browser: await evaluate("navigator.userAgent"), appSha256: createHash("sha256").update(appSource).digest("hex"),
     unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog,
-    ...(selection ? {runSelection} : {}) };
-  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-results.json" : "geomap-gmd003-results.json");
+    ...(selection ? {runSelection, popup} : {}) };
+  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-popup-results.json" : "geomap-gmd003-results.json");
   fs.writeFileSync(output, JSON.stringify(results, null, 2) + "\n");
   console.log(JSON.stringify(results, null, 2)); console.log("Saved browser evidence: " + output);
   await send("Browser.close");

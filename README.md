@@ -89,7 +89,11 @@ Python 3.10+. The first detection run downloads the YOLO11 OBB weights automatic
 | **Train** | Downloads a YOLO-OBB dataset built from saved annotations (1024 px chips from the same Wayback release). With the server connected, fine-tunes directly. |
 | **Export** | Job zip, reviewed detections GeoJSON, AOIs, CSV table. |
 
-In **Detect → AOIs to process**, use the checkboxes, **Select all** or **Clear**.
+In **Detect**, click **AOIs** beside **Run on … AOIs** to open the selection popup.
+Search by AOI name and use the checkboxes, **Select all** or **Clear all**; search
+filters rows without changing selections. Each row's **Zoom** button closes the
+popup and shows that AOI on the map while preserving your checked choices.
+Click **Done** to return to Detect.
 The Run button shows the checked count and stays disabled with no selection or
 while a job is running. All AOIs start checked when the page opens. Choices stay
 with their AOIs during this tab's session, including renames and removal of other

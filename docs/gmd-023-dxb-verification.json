@@ -1,0 +1,709 @@
+{
+  "recordedAt": "2026-11-06T20:12:15.830Z",
+  "repositoryRevision": "d15375ea204af357075943994b7b7203ec6c82ab",
+  "scope": "GMD-023 browser implementation; local verification, not CI or deployed evidence",
+  "reportedRun": {
+    "aoi": "DXB",
+    "model": "YOLO11 nano OBB",
+    "provider": "webgpu",
+    "completed": [
+      {
+        "date": "2026-10-29",
+        "objects": 115
+      },
+      {
+        "date": "2025-03-27",
+        "objects": 119
+      }
+    ],
+    "failed": {
+      "date": "2016-04-20",
+      "release": 388,
+      "zoom": 18,
+      "loadingSecondsFromLog": 384
+    },
+    "clipSize": [
+      9322,
+      6391
+    ],
+    "limitation": "Live checks use the repository sample DXB polygon; exact user geometry was not supplied."
+  },
+  "providerResponseProbe": {
+    "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/388/18/112057/171383",
+    "status": 404,
+    "contentType": "text/html; charset=iso-8859-1",
+    "accessControlAllowOrigin": null,
+    "location": {
+      "longitude": 55.36,
+      "latitude": 25.2525
+    },
+    "method": "Read-only Node fetch with system certificate trust; response body and headers inspected before browser verification."
+  },
+  "localTests": {
+    "node": "v24.15.0",
+    "javascript": {
+      "command": "node --test tests/*.test.cjs",
+      "passed": 89
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+      "passed": 12
+    },
+    "modelExportFlow": "pages.yml/export_onnx.py unchanged; existing fresh-export packaging and cached validation regression checks pass."
+  },
+  "webgpu": {
+    "checkedAt": "2026-11-06T20:09:50.443Z",
+    "mode": "Local source overrides; live provider/model assets; not deployed verification",
+    "forcedProvider": null,
+    "sources": {
+      "index.html": "b7b81363450a5d7cfb638c9b0581013ec453a991fd42fc6a85ef1290a46598aa",
+      "app.js": "af5ee4996929fd0a4c22822b50834bb24b521811924e35c8f813347037ad0d2b",
+      "engine.js": "3cee1ceb784c8dd49f438f8070ff0f09c17fed456ceb8918fad4c60935f676be",
+      "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+    },
+    "limitations": [
+      "Coverage is a live snapshot for the repository sample DXB polygon.",
+      "Small-clip inference is a provider/encoding smoke test, not an accuracy benchmark.",
+      "Resource counts verify this ownership path, not sustained JS/native/GPU memory or a general leak fix."
+    ],
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "absentRaster": {
+      "code": "NO_IMAGERY",
+      "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+      "zoom": 18,
+      "coverage": {
+        "total": 988,
+        "available": 0,
+        "unavailable": 988,
+        "unknown": 0,
+        "checks": 2,
+        "ms": 1603.2000000476837,
+        "status": "unavailable",
+        "errors": []
+      },
+      "ms": 1604.199999988079,
+      "canvases": 0,
+      "bitmaps": 0,
+      "requests": [
+        "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171365/38/26",
+        "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171392/11/26"
+      ]
+    },
+    "coverageControls": [
+      {
+        "release": 388,
+        "zoom": 17,
+        "total": 280,
+        "available": 280,
+        "unavailable": 0,
+        "unknown": 0,
+        "checks": 1,
+        "ms": 347.89999997615814,
+        "status": "full",
+        "errors": []
+      },
+      {
+        "release": 43291,
+        "zoom": 18,
+        "total": 988,
+        "available": 988,
+        "unavailable": 0,
+        "unknown": 0,
+        "checks": 2,
+        "ms": 690.8999999761581,
+        "status": "full",
+        "errors": []
+      }
+    ],
+    "jobLog": "00:10:01  Loading model YOLO11 nano OBB · fast…\n00:10:05  Model ready on GPU (WebGPU) · 1024 px input\n00:10:05  DXB_probe: 3 release(s) 2026-10-29, 2025-03-27, 2016-04-20\n00:10:05  [1/3] DXB_probe · 2026-10-29\n00:10:05      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:07      z18 · 374×413 px · 1 objects aircraft:1\n00:10:07  [2/3] DXB_probe · 2025-03-27\n00:10:07      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.4s\n00:10:09      z18 · 374×413 px · 0 objects \n00:10:09  [3/3] DXB_probe · 2016-04-20\n00:10:10      Coverage z18: 0/6 tiles available, 6 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:10      UNAVAILABLE: DXB_probe · 2016-04-20 · release 388 · z18 · NO_IMAGERY: No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.\n00:10:10  Finished (partial): 1 objects across 2 AOI/date clips; 1 unavailable, 0 failed, 0 with incomplete imagery. Export the zip before closing this tab.",
+    "job": {
+      "status": "partial",
+      "provider": "webgpu",
+      "summary": {
+        "job": "browser_20261106_201001_04574c1c",
+        "status": "partial",
+        "params": {
+          "release_mode": "selected",
+          "releases": [
+            43291,
+            6543,
+            388
+          ],
+          "zoom": 18,
+          "classes": [
+            "aircraft",
+            "ship",
+            "helicopter"
+          ],
+          "conf": 0.3,
+          "model": "YOLO11 nano OBB · fast",
+          "model_key": "url:yolo11n-obb.onnx",
+          "imgsz": 1024,
+          "detect": true,
+          "maxTiles": 1200,
+          "provider": "webgpu"
+        },
+        "outcomes": [
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2026-10-29",
+            "release": 43291,
+            "requestedZoom": 18,
+            "status": "completed",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 347.5,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "total": 1
+          },
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2025-03-27",
+            "release": 6543,
+            "requestedZoom": 18,
+            "status": "completed",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 358,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "total": 0
+          },
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2016-04-20",
+            "release": 388,
+            "requestedZoom": 18,
+            "status": "unavailable",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 0,
+              "unavailable": 6,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 342.10000002384186,
+              "status": "unavailable",
+              "errors": []
+            },
+            "code": "NO_IMAGERY",
+            "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ."
+          }
+        ],
+        "results": [
+          {
+            "aoi": "DXB_probe",
+            "date": "2026-10-29",
+            "release": 43291,
+            "zoom": 18,
+            "bounds": [
+              55.35999476909637,
+              25.249999166993224,
+              55.36200106143951,
+              25.25200297505772
+            ],
+            "counts": {
+              "aircraft": 1
+            },
+            "total": 1,
+            "tiles": 6,
+            "missing": 0,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 347.5,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "path": "DXB_probe/2026-10-29"
+          },
+          {
+            "aoi": "DXB_probe",
+            "date": "2025-03-27",
+            "release": 6543,
+            "zoom": 18,
+            "bounds": [
+              55.35999476909637,
+              25.249999166993224,
+              55.36200106143951,
+              25.25200297505772
+            ],
+            "counts": {},
+            "total": 0,
+            "tiles": 6,
+            "missing": 0,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 358,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "path": "DXB_probe/2025-03-27"
+          }
+        ]
+      },
+      "images": [
+        {
+          "date": "2026-10-29",
+          "size": [
+            374,
+            413
+          ],
+          "original": [
+            374,
+            413
+          ],
+          "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+          "tiffBytes": 373796
+        },
+        {
+          "date": "2025-03-27",
+          "size": [
+            374,
+            413
+          ],
+          "original": [
+            374,
+            413
+          ],
+          "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+          "tiffBytes": 330172
+        }
+      ],
+      "visible": true,
+      "text": "2 usable clip(s) · partial. Unavailable and failed dates have no detection count. Incomplete clips cover available tiles only.AOI / dateOutcomeDXB_probe2016-04-20unavailable · z18No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+      "rows": 2,
+      "canvasSizes": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "bitmaps": 14,
+      "closed": 14
+    },
+    "mobile": {
+      "visible": true,
+      "fits": true,
+      "bodyOverflow": false
+    },
+    "runtimeErrors": []
+  },
+  "wasm": {
+    "checkedAt": "2026-11-06T20:09:50.082Z",
+    "mode": "Local source overrides; live provider/model assets; not deployed verification",
+    "forcedProvider": "wasm",
+    "sources": {
+      "index.html": "b7b81363450a5d7cfb638c9b0581013ec453a991fd42fc6a85ef1290a46598aa",
+      "app.js": "af5ee4996929fd0a4c22822b50834bb24b521811924e35c8f813347037ad0d2b",
+      "engine.js": "3cee1ceb784c8dd49f438f8070ff0f09c17fed456ceb8918fad4c60935f676be",
+      "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+    },
+    "limitations": [
+      "Coverage is a live snapshot for the repository sample DXB polygon.",
+      "Small-clip inference is a provider/encoding smoke test, not an accuracy benchmark.",
+      "Resource counts verify this ownership path, not sustained JS/native/GPU memory or a general leak fix."
+    ],
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "absentRaster": {
+      "code": "NO_IMAGERY",
+      "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+      "zoom": 18,
+      "coverage": {
+        "total": 988,
+        "available": 0,
+        "unavailable": 988,
+        "unknown": 0,
+        "checks": 2,
+        "ms": 1650.5,
+        "status": "unavailable",
+        "errors": []
+      },
+      "ms": 1651.800000011921,
+      "canvases": 0,
+      "bitmaps": 0,
+      "requests": [
+        "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171365/38/26",
+        "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171392/11/26"
+      ]
+    },
+    "coverageControls": [
+      {
+        "release": 388,
+        "zoom": 17,
+        "total": 280,
+        "available": 280,
+        "unavailable": 0,
+        "unknown": 0,
+        "checks": 1,
+        "ms": 328.30000001192093,
+        "status": "full",
+        "errors": []
+      },
+      {
+        "release": 43291,
+        "zoom": 18,
+        "total": 988,
+        "available": 988,
+        "unavailable": 0,
+        "unknown": 0,
+        "checks": 2,
+        "ms": 688.8999999761581,
+        "status": "full",
+        "errors": []
+      }
+    ],
+    "jobLog": "00:10:01  Loading model YOLO11 nano OBB · fast…\n00:10:09  Model ready on CPU (WebAssembly) · 1024 px input\n00:10:09  DXB_probe: 3 release(s) 2026-10-29, 2025-03-27, 2016-04-20\n00:10:09  [1/3] DXB_probe · 2026-10-29\n00:10:10      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.2s\n00:10:11      z18 · 374×413 px · 1 objects aircraft:1\n00:10:11  [2/3] DXB_probe · 2025-03-27\n00:10:11      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:13      z18 · 374×413 px · 0 objects \n00:10:13  [3/3] DXB_probe · 2016-04-20\n00:10:14      Coverage z18: 0/6 tiles available, 6 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:14      UNAVAILABLE: DXB_probe · 2016-04-20 · release 388 · z18 · NO_IMAGERY: No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.\n00:10:14  Finished (partial): 1 objects across 2 AOI/date clips; 1 unavailable, 0 failed, 0 with incomplete imagery. Export the zip before closing this tab.",
+    "job": {
+      "status": "partial",
+      "provider": "wasm",
+      "summary": {
+        "job": "browser_20261106_201001_31f0041c",
+        "status": "partial",
+        "params": {
+          "release_mode": "selected",
+          "releases": [
+            43291,
+            6543,
+            388
+          ],
+          "zoom": 18,
+          "classes": [
+            "aircraft",
+            "ship",
+            "helicopter"
+          ],
+          "conf": 0.3,
+          "model": "YOLO11 nano OBB · fast",
+          "model_key": "url:yolo11n-obb.onnx",
+          "imgsz": 1024,
+          "detect": true,
+          "maxTiles": 1200,
+          "provider": "wasm"
+        },
+        "outcomes": [
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2026-10-29",
+            "release": 43291,
+            "requestedZoom": 18,
+            "status": "completed",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 1227.699999988079,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "total": 1
+          },
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2025-03-27",
+            "release": 6543,
+            "requestedZoom": 18,
+            "status": "completed",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 339.2000000476837,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "total": 0
+          },
+          {
+            "aoi": "DXB_probe",
+            "aoi_id": "DXB_probe",
+            "date": "2016-04-20",
+            "release": 388,
+            "requestedZoom": 18,
+            "status": "unavailable",
+            "zoom": 18,
+            "coverage": {
+              "total": 6,
+              "available": 0,
+              "unavailable": 6,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 338.30000001192093,
+              "status": "unavailable",
+              "errors": []
+            },
+            "code": "NO_IMAGERY",
+            "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ."
+          }
+        ],
+        "results": [
+          {
+            "aoi": "DXB_probe",
+            "date": "2026-10-29",
+            "release": 43291,
+            "zoom": 18,
+            "bounds": [
+              55.35999476909637,
+              25.249999166993224,
+              55.36200106143951,
+              25.25200297505772
+            ],
+            "counts": {
+              "aircraft": 1
+            },
+            "total": 1,
+            "tiles": 6,
+            "missing": 0,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 1227.699999988079,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "path": "DXB_probe/2026-10-29"
+          },
+          {
+            "aoi": "DXB_probe",
+            "date": "2025-03-27",
+            "release": 6543,
+            "zoom": 18,
+            "bounds": [
+              55.35999476909637,
+              25.249999166993224,
+              55.36200106143951,
+              25.25200297505772
+            ],
+            "counts": {},
+            "total": 0,
+            "tiles": 6,
+            "missing": 0,
+            "coverage": {
+              "total": 6,
+              "available": 6,
+              "unavailable": 0,
+              "unknown": 0,
+              "checks": 1,
+              "ms": 339.2000000476837,
+              "status": "full",
+              "errors": [],
+              "missing": 0,
+              "failures": {}
+            },
+            "path": "DXB_probe/2025-03-27"
+          }
+        ]
+      },
+      "images": [
+        {
+          "date": "2026-10-29",
+          "size": [
+            374,
+            413
+          ],
+          "original": [
+            374,
+            413
+          ],
+          "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+          "tiffBytes": 373796
+        },
+        {
+          "date": "2025-03-27",
+          "size": [
+            374,
+            413
+          ],
+          "original": [
+            374,
+            413
+          ],
+          "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+          "tiffBytes": 330172
+        }
+      ],
+      "visible": true,
+      "text": "2 usable clip(s) · partial. Unavailable and failed dates have no detection count. Incomplete clips cover available tiles only.AOI / dateOutcomeDXB_probe2016-04-20unavailable · z18No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+      "rows": 2,
+      "canvasSizes": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "bitmaps": 14,
+      "closed": 14
+    },
+    "mobile": {
+      "visible": true,
+      "fits": true,
+      "bodyOverflow": false
+    },
+    "runtimeErrors": []
+  },
+  "mapRegression": {
+    "checkedAt": "2026-11-06T20:10:04.082Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "af5ee4996929fd0a4c22822b50834bb24b521811924e35c8f813347037ad0d2b",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "00:10:00  Review_small: 1 release(s) 2026-10-29\n00:10:00  [1/1] Review_small · 2026-10-29\n00:10:01      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.3s\n00:10:03      z18 · 374×413 px · 0 objects \n00:10:03  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": true,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "childPanel": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "withinSidebar": true,
+      "normalControlsHidden": true,
+      "noModal": true,
+      "desktop": {
+        "width": 379,
+        "height": 837.234375,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 913
+      },
+      "mobile": {
+        "width": 390,
+        "height": 311.46875,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 382.328125
+      },
+      "mapControlsInteractive": true,
+      "mapDragInteractive": true,
+      "zoom": {
+        "centre": [
+          55.38100183010101,
+          25.251001075157113
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run",
+        "staysOpen": true,
+        "search": "DO_NOT"
+      },
+      "escapeFocus": "runAoiBtn"
+    }
+  },
+  "limitations": [
+    "The two provider runs and map probe used separate profiles concurrently; timing differences are not a controlled provider comparison.",
+    "Tilemap presence does not certify detection accuracy, imagery completeness inside each returned source tile or real-world change.",
+    "Resource-count checks do not establish sustained JS/native/GPU memory stability; GMD-005/GMD-008/GMD-009/GMD-012 retain their broader scope.",
+    "Optional Python processor failure policy is unchanged.",
+    "CI and GitHub Pages deployment have not been triggered or verified for this change."
+  ]
+}

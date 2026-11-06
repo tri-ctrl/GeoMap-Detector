@@ -434,7 +434,7 @@ async function runBrowser(mode, aois) {
   const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
     model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
-  const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], params, aois };
+  const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], outcomes: [], params, aois };
   S.jobId = id; S.abort = new AbortController();
   setJobRunning(true); $("#cancelBtn").hidden = false; $("#prog").style.width = "0%";
   try {
@@ -454,22 +454,42 @@ async function runBrowser(mode, aois) {
       jlog(job, `${aoi.properties.name}: ${rels.length} release(s) ${rels.slice(0, 6).map(r => r.date).join(", ")}${rels.length > 6 ? " …" : ""}`);
       rels.forEach(r => plan.push([aoi, r]));
     }
+    job.outcomes = plan.map(([aoi, rel]) => ({ aoi: aoi.properties.name, aoi_id: E.slug(aoi.properties.name),
+      date: rel.date, release: rel.release, requestedZoom: params.zoom, status: "pending" }));
     for (let i = 0; i < plan.length; i++) {
       const [aoi, rel] = plan[i], base = i / plan.length, step = 1 / plan.length;
+      if (S.abort.signal.aborted) throw new DOMException("Cancelled", "AbortError");
+      const outcome = job.outcomes[i]; outcome.status = "running";
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
-      const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal: S.abort.signal,
-        maxTiles: params.maxTiles, geotiff: $("#tifOn").checked,
-        onProgress: f => { job.progress = base + step * f; $("#prog").style.width = (job.progress * 100).toFixed(1) + "%"; } });
-      job.results.push(r);
-      jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
+      try {
+        const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal: S.abort.signal,
+          maxTiles: params.maxTiles, geotiff: $("#tifOn").checked,
+          onCoverage: coverage => { outcome.zoom = coverage.zoom; outcome.coverage = coverage;
+            jlog(job, `    Coverage z${coverage.zoom}: ${coverage.available}/${coverage.total} tiles available, ${coverage.unavailable} unavailable, ${coverage.unknown} unknown · ${coverage.checks} check(s) · ${(coverage.ms / 1000).toFixed(1)}s`); },
+          onProgress: f => { job.progress = base + step * f; $("#prog").style.width = (job.progress * 100).toFixed(1) + "%"; } });
+        job.results.push(r);
+        Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
+        jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
+        if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
+      } catch (error) {
+        if (error.name === "AbortError" || S.abort.signal.aborted) throw error;
+        Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
+          message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage });
+        jlog(job, `    ${outcome.status === "unavailable" ? "UNAVAILABLE" : "FAILED"}: ${outcome.aoi} · ${rel.date} · release ${rel.release} · z${outcome.zoom} · ${outcome.code}: ${error.message}`);
+      }
+      job.progress = base + step; $("#prog").style.width = (job.progress * 100).toFixed(1) + "%";
     }
-    job.status = "done"; job.progress = 1; $("#prog").style.width = "100%";
+    const incomplete = job.outcomes.filter(outcome => outcome.status !== "completed").length;
+    job.status = !job.results.length && job.outcomes.length ? "error" : incomplete ? "partial" : "done";
+    job.progress = 1; $("#prog").style.width = "100%";
     const tot = job.results.reduce((s, r) => s + r.total, 0);
-    jlog(job, `Finished: ${tot} objects across ${job.results.length} AOI/date clips. Export the zip before closing this tab.`);
-    toast("Job finished"); showTab("res");
+    jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. Export the zip before closing this tab.`);
+    toast(job.status === "done" ? "Job finished" : "Job finished with imagery issues. See Results."); showTab("res");
   } catch (e) {
     job.status = e.name === "AbortError" ? "cancelled" : "error";
+    job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
     jlog(job, job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
+    showTab("res");
   }
   setJobRunning(false); $("#cancelBtn").hidden = true; S.abort = null;
 }
@@ -632,9 +652,12 @@ async function loadResults(id) {
 function renderResults() {
   const tb = $("#resTable tbody");
   const compare = comparing(), rows = compare ? compareRecords : RES;
+  const job = BJOBS[$("#jobSel").value || S.jobId], issues = (job?.outcomes || []).filter(outcome => outcome.status !== "completed");
+  $("#jobOutcomes").hidden = compare || !issues.length;
+  $("#jobOutcomes").innerHTML = issues.length ? `<p class="hint">${job.results.length} usable clip(s) · ${esc(job.status)}. Unavailable and failed dates have no detection count. Incomplete clips cover available tiles only.</p><div class="tablewrap"><table><thead><tr><th>AOI / date</th><th>Outcome</th></tr></thead><tbody>${issues.map(outcome => `<tr><td>${esc(outcome.aoi)}<br><span class="mono">${esc(outcome.date)}</span></td><td>${esc(outcome.status.replace(/_/g, " "))}${outcome.zoom != null ? ` · z${outcome.zoom}` : ""}<br><span class="hint">${esc(outcome.message || (outcome.status === "partial" ? "Missing imagery tiles; counts are incomplete." : ""))}</span></td></tr>`).join("")}</tbody></table></div>` : "";
   $("#compareColumn").hidden = !compare;
   tb.innerHTML = rows.map((r, i) => `<tr class="${compare ? "" : "click"}" data-i="${i}">${compare ? `<td><input type="checkbox" data-compare-row="${i}" aria-label="Compare ${esc(r.aoi)} ${r.date} ${esc(r.model)}" ${compareChosen.includes(r.key) ? "checked" : ""} ${compareChosen.length === 2 && !compareChosen.includes(r.key) ? "disabled" : ""}></td>` : ""}<td>${esc(r.aoi)}</td><td class="mono">${r.date}</td><td class="model" title="${esc(r.model || GVCompare.modelName(r.params))}">${esc(r.model || GVCompare.modelName(r.params))}</td><td>${
-    Object.entries(r.counts).map(([k, v]) => `<span class="mono" style="color:${color(k)}">${v}</span> ${esc(k.replace(/_/g, " "))}`).join("<br>") || '<span class="muted">0</span>'}</td></tr>`).join("")
+    (Object.entries(r.counts).map(([k, v]) => `<span class="mono" style="color:${color(k)}">${v}</span> ${esc(k.replace(/_/g, " "))}`).join("<br>") || '<span class="muted">0</span>') + (r.missing ? '<br><span class="hint">Incomplete imagery</span>' : "")}</td></tr>`).join("")
     || `<tr><td colspan="${compare ? 5 : 4}" class="muted">No clips yet.</td></tr>`;
   if (compare) tb.querySelectorAll("[data-compare-row]").forEach(checkbox => { checkbox.onchange = () => {
     const key = compareRecords[+checkbox.dataset.compareRow].key;

@@ -68,6 +68,25 @@ uses a temporary local server/profile, real CDN/imagery requests and controlled
 failure fixtures after sampling. `GVEngine.diagnostics()` exposes startup marks,
 dependency timings and metadata refresh state; it does not measure detection accuracy.
 
+Historical releases may lack imagery at the selected processing zoom. Before a
+browser clip allocates its raster, the portal checks tile coverage across that
+footprint. Confirmed unavailable dates appear separately in Results; completed
+clips remain available and later dates continue. Network, timeout and decode
+failures remain separate from confirmed absence. Partly covered clips retain
+transparent missing areas and show **Incomplete imagery**, with counts limited
+to the available tiles. ZIP `summary.json` includes job status and per-date
+outcomes; missing dates have no detection count. Training exports refuse missing
+imagery rather than using those areas as negative examples.
+
+For example, the repository DXB sample has no 2016-04-20 tiles at z18, although
+the provider reports coverage at z17. Selecting a lower **Imagery zoom** is an
+explicit choice that changes image detail and needs detection-quality validation;
+the coverage check keeps your requested date and the zoom selected by the tile
+limit. Choose an available date to retain the same processing resolution.
+`node --use-system-ca tests/browser/imagery.cjs` checks live coverage, a small
+real detection job, and native PNG/TIFF/world-file/ZIP outputs in isolated Chrome;
+add `--wasm` to verify the WASM provider.
+
 ## Optional Python server (large jobs, GPU training)
 
 ```bash

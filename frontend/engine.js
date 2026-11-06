@@ -75,10 +75,10 @@ function ensureLibrary(name) {
 // Request owns its timeout and abort listener. A cancelled metadata lookup must
 // not continue walking releases or publish partially successful results.
 async function requestJSON(url, options = {}) {
-  const { signal, ...init } = options, controller = new AbortController();
+  const { signal, timeoutMs = 20000, ...init } = options, controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort(); else signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(abort, 20000);
+  const timer = setTimeout(abort, timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
     if (!response.ok) throw new Error(`Request failed (HTTP ${response.status}): ${url}`);
@@ -201,25 +201,84 @@ async function localChanges(lon, lat, z = 17, { signal } = {}) {
   return found;
 }
 let _tileCache = null;
+const checkAbort = signal => { if (signal?.aborted) throw new DOMException("Cancelled", "AbortError"); };
+class ImageryError extends Error {
+  constructor(code, message, details = {}) { super(message); this.name = "ImageryError"; this.code = code; Object.assign(this, details); }
+}
+// A tilemap response may be clipped at a provider bundle boundary. Only the
+// returned, validated rectangle is authoritative; unqueried cells stay unknown.
+async function checkCoverage(release, zoom, extent, { signal } = {}) {
+  const { left, top, width, height } = extent, states = new Uint8Array(width * height);
+  const queue = [{ left, top, width, height }], errors = [];
+  let checks = 0;
+  const started = now();
+  while (queue.length) {
+    checkAbort(signal);
+    const area = queue.shift();
+    try {
+      ++checks;
+      const data = await requestJSON(TILEMAP_URL(release, zoom, area.top, area.left) + `/${area.width}/${area.height}`, { signal, timeoutMs: 10000 });
+      const loc = data?.location;
+      if (data.valid === false || !loc || loc.left !== area.left || loc.top !== area.top
+        || !Number.isSafeInteger(loc.width) || !Number.isSafeInteger(loc.height) || loc.width < 1 || loc.height < 1
+        || loc.width > area.width || loc.height > area.height || !Array.isArray(data.data)
+        || data.data.length !== loc.width * loc.height || data.data.some(value => value !== 0 && value !== 1))
+        throw new Error("Invalid imagery coverage response");
+      for (let row = 0; row < loc.height; row++) for (let col = 0; col < loc.width; col++)
+        states[(loc.top - top + row) * width + loc.left - left + col] = data.data[row * loc.width + col] ? 1 : 2;
+      if (loc.width < area.width) queue.push({ ...area, left: area.left + loc.width, width: area.width - loc.width, height: loc.height });
+      if (loc.height < area.height) queue.push({ ...area, top: area.top + loc.height, height: area.height - loc.height });
+      // Bound pathological fragmentation. The remaining cells are unknown and
+      // fall back to normal timed image requests, never assumed to be absent.
+      if (checks >= 32) break;
+    } catch (error) { checkAbort(signal); errors.push(error.message); break; }
+  }
+  const available = states.filter(value => value === 1).length, unavailable = states.filter(value => value === 2).length;
+  const unknown = states.length - available - unavailable;
+  return { states, total: states.length, available, unavailable, unknown, checks, ms: now() - started,
+    status: unavailable === states.length ? "unavailable" : unknown ? "unknown" : unavailable ? "partial" : "full", errors };
+}
 async function fetchTile(release, z, x, y, signal) {
   const url = TILE_URL(release, z, y, x);
-  try {
-    if (_tileCache === null) _tileCache = ("caches" in global) ? await caches.open("gv-wayback-tiles").catch(() => false) : false;
-    let resp = _tileCache ? await _tileCache.match(url) : null;
-    if (!resp) {
-      for (let a = 0; a < 3; a++) {
-        try { resp = await fetch(url, { signal, mode: "cors" }); if (resp.ok || resp.status === 404) break; }
-        catch (e) { if (signal && signal.aborted) throw e; await new Promise(r => setTimeout(r, 600 * (a + 1))); }
-      }
-      if (!resp || !resp.ok) return null;
-      if (_tileCache) _tileCache.put(url, resp.clone()).catch(() => {});
-    }
-    return await createImageBitmap(await resp.blob());
-  } catch (e) { if (signal && signal.aborted) throw e; return null; }
+  checkAbort(signal);
+  if (_tileCache === null) _tileCache = ("caches" in global) ? await caches.open("gv-wayback-tiles").catch(() => false) : false;
+  let cached = _tileCache ? await _tileCache.match(url).catch(() => null) : null;
+  checkAbort(signal);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController(), abort = () => controller.abort();
+    let timedOut = false, bitmap, fromCache = Boolean(cached);
+    signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(() => { timedOut = true; abort(); }, 10000);
+    try {
+      checkAbort(signal);
+      const response = cached || await fetch(url, { signal: controller.signal, mode: "cors" });
+      cached = null;
+      if (!response.ok) throw new ImageryError(response.status === 404 ? "TILE_UNAVAILABLE" : "TILE_HTTP", `Imagery request returned HTTP ${response.status}`, { httpStatus: response.status });
+      const copy = !fromCache && _tileCache ? response.clone() : null;
+      const blob = await response.blob();
+      checkAbort(signal);
+      if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
+      try { bitmap = await createImageBitmap(blob); }
+      catch { throw new ImageryError("TILE_DECODE", "Imagery response could not be decoded"); }
+      checkAbort(signal);
+      if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
+      if (copy) _tileCache.put(url, copy).catch(() => {});
+      return { bitmap };
+    } catch (error) {
+      bitmap?.close(); checkAbort(signal);
+      if (fromCache) await _tileCache.delete(url).catch(() => {});
+      const code = timedOut ? "TILE_TIMEOUT" : error.code || "TILE_NETWORK";
+      const retry = fromCache || code === "TILE_TIMEOUT" || code === "TILE_NETWORK" || (code === "TILE_HTTP" && (error.httpStatus >= 500 || [408, 429].includes(error.httpStatus)));
+      if (attempt === 0 && retry) continue;
+      return { failure: { code, url, httpStatus: error.httpStatus || null } };
+    } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+  }
 }
 async function pool(items, n, fn) {
-  let i = 0; const run = async () => { while (i < items.length) { const k = i++; await fn(items[k], k); } };
+  let i = 0, failure;
+  const run = async () => { while (!failure && i < items.length) { const k = i++; try { await fn(items[k], k); } catch (error) { failure ||= error; } } };
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, run));
+  if (failure) throw failure; // All sibling callbacks have drained before cleanup.
 }
 function pickZoom(bb, zoom, maxTiles) {
   for (let z = zoom; z > 10; z--) {
@@ -234,24 +293,61 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
   let [gx0, gy0] = lonlatToPixel(bb[0], bb[3], z), [gx1, gy1] = lonlatToPixel(bb[2], bb[1], z);
   gx0 = Math.floor(gx0); gy0 = Math.floor(gy0); gx1 = Math.ceil(gx1); gy1 = Math.ceil(gy1);
   const w = gx1 - gx0, h = gy1 - gy0;
-  const canvas = makeCanvas(w, h), ctx = ctx2d(canvas);
+  if (w < 1 || h < 1) throw new ImageryError("INVALID_AOI", "AOI has no image area", { release, zoom: z });
   const tiles = [];
   for (let ty = Math.floor(gy0 / TILE); ty <= Math.floor((gy1 - 1) / TILE); ty++)
     for (let tx = Math.floor(gx0 / TILE); tx <= Math.floor((gx1 - 1) / TILE); tx++) tiles.push([tx, ty]);
-  let done = 0, missing = 0;
-  await pool(tiles, opt.concurrency || 12, async ([tx, ty]) => {
-    const bmp = await fetchTile(release, z, tx, ty, opt.signal);
-    if (bmp) { ctx.drawImage(bmp, tx * TILE - gx0, ty * TILE - gy0, TILE, TILE); bmp.close && bmp.close(); } else missing++;
-    if (opt.onProgress && ++done % 10 === 0) opt.onProgress(done / tiles.length);
-  });
-  if (missing === tiles.length) throw new Error("No Wayback tiles returned for this AOI and release (network or CORS blocked?)");
-  const x0 = -ORIGIN + gx0 * res, y0 = ORIGIN - gy0 * res;
-  const rings = polygonsOf(geom).flatMap(p => p.map(ring => ring.map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - x0) / res, (y0 - my) / res]; })));
-  ctx.globalCompositeOperation = "destination-in";
-  ctx.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); });
-  ctx.fillStyle = "#000"; ctx.fill("evenodd");
-  ctx.globalCompositeOperation = "source-over";
-  return { canvas, w, h, x0, y0, res, zoom: z, release, rings, tiles: tiles.length, missing };
+  const controller = new AbortController(), abort = () => controller.abort();
+  let timedOut = false, canvas, retained = false;
+  opt.signal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(() => { timedOut = true; abort(); }, 120000);
+  try {
+    checkAbort(opt.signal);
+    const extent = { left: tiles[0][0], top: tiles[0][1], width: tiles[tiles.length - 1][0] - tiles[0][0] + 1,
+      height: tiles[tiles.length - 1][1] - tiles[0][1] + 1 };
+    const { states, ...coverage } = await checkCoverage(release, z, extent, { signal: controller.signal });
+    opt.onCoverage?.({ ...coverage, zoom: z, release });
+    if (coverage.status === "unavailable") throw new ImageryError("NO_IMAGERY", `No imagery coverage for release ${release} at z${z}. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.`, { release, zoom: z, coverage });
+    canvas = makeCanvas(w, h); const ctx = ctx2d(canvas);
+    let done = 0, missing = 0; const failures = {};
+    await pool(tiles, opt.concurrency || 12, async ([tx, ty], index) => {
+      try {
+        checkAbort(controller.signal);
+        const value = states[index] === 2 ? { failure: { code: "TILE_UNAVAILABLE" } } : await fetchTile(release, z, tx, ty, controller.signal);
+        try {
+          checkAbort(controller.signal);
+          if (value.bitmap) ctx.drawImage(value.bitmap, tx * TILE - gx0, ty * TILE - gy0, TILE, TILE);
+          else { missing++; const code = value.failure.code; failures[code] = (failures[code] || 0) + 1; coverage.sampleFailure ||= value.failure; }
+        } finally { value.bitmap?.close(); }
+        ++done; if (opt.onProgress && (done % 10 === 0 || done === tiles.length)) opt.onProgress(done / tiles.length);
+      } catch (error) { controller.abort(); throw error; }
+    });
+    coverage.missing = missing; coverage.failures = failures;
+    if (missing === tiles.length) {
+      const unavailable = failures.TILE_UNAVAILABLE === tiles.length;
+      throw new ImageryError(unavailable ? "NO_IMAGERY" : "IMAGERY_FETCH_FAILED",
+        unavailable ? `No imagery tiles available for release ${release} at z${z}. Choose another date or explicitly lower Imagery zoom.`
+          : `Could not load imagery for release ${release} at z${z}: ${Object.entries(failures).map(([code, count]) => `${code}: ${count}`).join(", ")}. Coverage is not confirmed absent; check connectivity/provider access and retry.`,
+        { release, zoom: z, coverage, failures });
+    }
+    coverage.status = missing ? "partial" : "full";
+    const x0 = -ORIGIN + gx0 * res, y0 = ORIGIN - gy0 * res;
+    const rings = polygonsOf(geom).flatMap(p => p.map(ring => ring.map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - x0) / res, (y0 - my) / res]; })));
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); });
+    ctx.fillStyle = "#000"; ctx.fill("evenodd");
+    ctx.globalCompositeOperation = "source-over";
+    retained = true;
+    return { canvas, w, h, x0, y0, res, zoom: z, release, rings, tiles: tiles.length, missing, coverage };
+  } catch (error) {
+    if (opt.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    if (timedOut) throw new ImageryError("IMAGERY_TIMEOUT", `Imagery loading timed out for release ${release} at z${z}. Retry this date.`, { release, zoom: z });
+    if (error.zoom == null) error.zoom = z;
+    throw error;
+  } finally {
+    controller.abort(); clearTimeout(timer); opt.signal?.removeEventListener("abort", abort);
+    if (canvas && !retained) canvas.width = canvas.height = 1;
+  }
 }
 const pixelToLonLat = (r, px, py) => unmerc(r.x0 + px * r.res, r.y0 - py * r.res);
 const groundRes = (r, lat) => r.res * Math.cos(lat * Math.PI / 180);
@@ -401,10 +497,12 @@ function toFeatures(dets, r, props) {
 const COLORS = { aircraft: "#f2a516", ship: "#1fb3dc", helicopter: "#ff5aa0", storage_tank: "#7ad65a", large_vehicle: "#ff7a3c", small_vehicle: "#a9a9ff", harbor: "#58d2d2", bridge: "#e6e678" };
 async function previewBlob(r, dets, maxSide = 4000) {
   const s = Math.min(1, maxSide / Math.max(r.w, r.h)), c = makeCanvas(Math.round(r.w * s), Math.round(r.h * s)), g = c.getContext("2d");
-  g.fillStyle = "#000"; g.fillRect(0, 0, c.width, c.height); g.drawImage(r.canvas, 0, 0, c.width, c.height);
-  g.lineWidth = 2;
-  dets.forEach(d => { g.strokeStyle = COLORS[d.cls] || "#fff"; g.beginPath(); d.poly.forEach(([x, y], i) => i ? g.lineTo(x * s, y * s) : g.moveTo(x * s, y * s)); g.closePath(); g.stroke(); });
-  return canvasBlob(c, "image/jpeg", 0.88);
+  try {
+    g.fillStyle = "#000"; g.fillRect(0, 0, c.width, c.height); g.drawImage(r.canvas, 0, 0, c.width, c.height);
+    g.lineWidth = 2;
+    dets.forEach(d => { g.strokeStyle = COLORS[d.cls] || "#fff"; g.beginPath(); d.poly.forEach(([x, y], i) => i ? g.lineTo(x * s, y * s) : g.moveTo(x * s, y * s)); g.closePath(); g.stroke(); });
+    return await canvasBlob(c, "image/jpeg", 0.88);
+  } finally { c.width = c.height = 1; }
 }
 
 // ------------------------------------------------------------------ GeoTIFF writer (RGBA, deflate, EPSG:3857)
@@ -445,22 +543,24 @@ const worldFile = r => `${r.res}\n0.0\n0.0\n${-r.res}\n${r.x0 + r.res / 2}\n${r.
 // ------------------------------------------------------------------ process one AOI × release
 async function processClip(aoi, rel, opt) {
   if (opt.geotiff !== false) await ensureLibrary("fflate");
-  const r = await buildRaster(aoi.geometry, rel.release, opt.zoom, { signal: opt.signal, maxTiles: opt.maxTiles, onProgress: f => opt.onProgress && opt.onProgress(0.45 * f) });
-  const name = aoi.properties.name, aoi_id = slug(name);
-  const [, clat] = pixelToLonLat(r, r.w / 2, r.h / 2);
-  const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback" };
-  let dets = [];
-  if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
-  const feats = toFeatures(dets, r, props), counts = {};
-  feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
-  const bounds = rasterBounds(r);
-  const blobs = { png: await canvasBlob(r.canvas, "image/png"), preview: await previewBlob(r, dets),
-    tif: opt.geotiff === false ? null : geotiffBlob(r), pgw: worldFile(r) };
-  opt.onProgress && opt.onProgress(1);
-  r.canvas.width = r.canvas.height = 1;            // free memory
-  return { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
-    tiles: r.tiles, missing: r.missing, size: [r.w, r.h], aoiFeature: aoi,
-    fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
+  const r = await buildRaster(aoi.geometry, rel.release, opt.zoom, { signal: opt.signal, maxTiles: opt.maxTiles, onCoverage: opt.onCoverage, onProgress: f => opt.onProgress && opt.onProgress(0.45 * f) });
+  try {
+    const name = aoi.properties.name, aoi_id = slug(name);
+    const [, clat] = pixelToLonLat(r, r.w / 2, r.h / 2);
+    const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
+    let dets = [];
+    if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
+    const feats = toFeatures(dets, r, props), counts = {};
+    feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
+    const bounds = rasterBounds(r);
+    const blobs = { png: await canvasBlob(r.canvas, "image/png"), preview: await previewBlob(r, dets),
+      tif: opt.geotiff === false ? null : geotiffBlob(r), pgw: worldFile(r) };
+    checkAbort(opt.signal);
+    opt.onProgress && opt.onProgress(1);
+    return { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
+      tiles: r.tiles, missing: r.missing, coverage: r.coverage, size: [r.w, r.h], aoiFeature: aoi,
+      fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
+  } finally { r.canvas.width = r.canvas.height = 1; }
 }
 const slug = s => String(s).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "aoi";
 
@@ -480,7 +580,9 @@ async function exportJobZip(job, extra = {}) {
   }
   root.file("all_detections.geojson", JSON.stringify({ type: "FeatureCollection", features: all }));
   root.file("aois.geojson", JSON.stringify({ type: "FeatureCollection", features: job.aois }));
-  root.file("summary.json", JSON.stringify({ job: job.id, params: job.params, results: job.results.map(r => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total, path: `${r.aoi_id}/${r.date || r.release}` })), ...extra }, null, 2));
+  root.file("summary.json", JSON.stringify({ job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
+    results: job.results.map(r => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total,
+      tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: `${r.aoi_id}/${r.date || r.release}` })), ...extra }, null, 2));
   return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } }, extra.onProgress);
 }
 /** YOLO-OBB dataset from reviewed annotations (rejected objects are left unlabeled = negatives). */
@@ -499,6 +601,7 @@ async function exportDataset(annFC, opt = {}) {
     items.forEach(f => { const b = bboxOf(f.geometry); bb = [Math.min(bb[0], b[0]), Math.min(bb[1], b[1]), Math.max(bb[2], b[2]), Math.max(bb[3], b[3])]; });
     const pad = 0.0015, poly = { type: "Polygon", coordinates: [[[bb[0] - pad, bb[1] - pad], [bb[2] + pad, bb[1] - pad], [bb[2] + pad, bb[3] + pad], [bb[0] - pad, bb[3] + pad], [bb[0] - pad, bb[1] - pad]]] };
     const r = await buildRaster(poly, rel, z, { maxTiles: 1200 });
+    if (r.missing) { r.canvas.width = r.canvas.height = 1; throw new ImageryError("INCOMPLETE_TRAINING_IMAGERY", "Training export needs complete imagery. Missing tiles must not become negative examples; choose another date or retry."); }
     const objs = items.map(f => ({ k: cid[f.properties.class], pts: minRect(f.geometry.coordinates[0].slice(0, -1).map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - r.x0) / r.res, (r.y0 - my) / r.res]; })) }));
     for (const [x, y] of windows(r.h, r.w, chip, 200)) {
       const lines = objs.filter(o => { const cx = o.pts.reduce((s, p) => s + p[0], 0) / 4, cy = o.pts.reduce((s, p) => s + p[1], 0) / 4; return cx >= x && cx < x + chip && cy >= y && cy < y + chip; })
@@ -556,6 +659,6 @@ function convexHull(p) {
 
 global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup,
   diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo() }),
-  buildRaster, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset,
+  buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset,
   writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
 })(typeof window !== "undefined" ? window : globalThis);

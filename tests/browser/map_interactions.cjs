@@ -18,6 +18,7 @@ const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
 const htmlSource = fs.readFileSync(path.join(root, "frontend/index.html"), "utf8");
+const comparisonSource = fs.readFileSync(path.join(root, "frontend/comparison.js"), "utf8");
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "geomap-gmd003-"));
 const browserBin = process.env.GMD_BROWSER_BIN || [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -93,7 +94,7 @@ let chrome, socket, watchdog;
     } else if (message.method === "Fetch.requestPaused") {
       const { requestId, request } = message.params;
       const file = request.url === base ? "index.html" : new URL(request.url).pathname.split("/").pop();
-      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : htmlSource;
+      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : file === "comparison.js" ? comparisonSource : htmlSource;
       overrides.add(file);
       page("Fetch.fulfillRequest", { requestId, responseCode: 200,
         responseHeaders: [{ name: "Content-Type", value: file === "index.html" ? "text/html" : "application/javascript" }, { name: "Cache-Control", value: "no-store" }],
@@ -103,7 +104,7 @@ let chrome, socket, watchdog;
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
   await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
-  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }] });
+  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }] });
   const evaluate = async expression => {
     const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
@@ -127,7 +128,7 @@ let chrome, socket, watchdog;
     }
     await evaluate(instrumentation);
   }
-  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "engine.js", "index.html"]);
+  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "comparison.js", "engine.js", "index.html"]);
   console.log(deployed ? "Loaded actual deployed Leaflet/Draw and verified source bytes; no overrides." : "Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
   const initial = await counts();
   await evaluate("(() => { for (let i = 0; i < 5; i++) document.querySelector('#relList .active').click(); })()");

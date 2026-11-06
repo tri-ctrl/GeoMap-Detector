@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const appSource = readFileSync(path.join(__dirname, "../../frontend/app.js"), "utf8");
 const engineSource = readFileSync(path.join(__dirname, "../../frontend/engine.js"), "utf8");
+const comparisonSource = readFileSync(path.join(__dirname, "../../frontend/comparison.js"), "utf8");
 const releases = [{ release: 101, date: "2026-10-29" }, { release: 100, date: "2026-10-22" }];
 const aoi = { type: "Feature", properties: { name: "Review" }, geometry: {
   type: "Polygon", coordinates: [[[55.36, 25.25], [55.37, 25.25], [55.37, 25.26], [55.36, 25.25]]],
@@ -89,6 +90,8 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   Object.entries({ "#zoom": "18", "#conf": "0.3", "#maxTiles": "1200", "#bufKm": "3" }).forEach(([key, value]) => { element(key).value = value; });
   element("#showImg").checked = showImage;
   element("#runAoiPanel").hidden = true;
+  element("#resultView").value = "review"; element("#compareKind").value = "dates";
+  element("#compareMap").hidden = true;
   const saved = new Map([["gv_aois", JSON.stringify(aois)]]);
   if (server) { saved.set("gv_api", JSON.stringify("/server")); saved.set("gv_engine", JSON.stringify("server")); }
   if (selected) { saved.set("gv_relMode", JSON.stringify("selected")); saved.set("gv_selRel", JSON.stringify([101, 100])); }
@@ -119,8 +122,10 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   const map = new Group();
   map.setView = (position, zoom) => { map.position = position; map.zoom = zoom; return map; };
   map.getZoom = () => map.zoom;
+  map.getCenter = () => ({ lat:map.position[0], lng:map.position[1] });
+  map.hasLayer = layer => map.layers.includes(layer);
   map.fitBounds = () => { metrics.fits++; return map; };
-  map.removeLayer = layer => { if (tiles.includes(layer)) metrics.removedTiles++; };
+  map.removeLayer = layer => { if (tiles.includes(layer)) metrics.removedTiles++; map.layers=map.layers.filter(item=>item!==layer); return map; };
   const makeGroup = () => { const group = new Group(); groups.push(group); return group; };
   const L = {
     map: () => map, featureGroup: makeGroup, layerGroup: makeGroup,
@@ -172,9 +177,10 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   });
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
+  vm.runInContext(comparisonSource, context);
   context.GVEngine.getReleases = getReleases || (async () => releases);
   if (localChanges) context.GVEngine.localChanges = localChanges;
-  context.GVEngine.processClip = async (_aoi, release) => result(release);
+  context.GVEngine.processClip = async (feature, release) => ({...result(release),aoiFeature:feature});
   beforeBoot?.(context);
   vm.runInContext(appSource, context);
   await turn();

@@ -470,12 +470,13 @@ async function exportJobZip(job, extra = {}) {
   const zip = new JSZip(), root = zip.folder(job.id), all = [];
   for (const r of job.results) {
     const f = root.folder(`${r.aoi_id}/${r.date || r.release}`);
+    const fc = r.draftFC || r.fc;
     if (r.blobs.tif) f.file("image.tif", r.blobs.tif);
     f.file("image.png", r.blobs.png); f.file("image.pgw", r.blobs.pgw); f.file("image.prj", WKT_3857);
     f.file("preview_detections.jpg", r.blobs.preview);
-    f.file("detections.geojson", JSON.stringify(r.fc));
+    f.file("detections.geojson", JSON.stringify(fc));
     f.file("aoi.geojson", JSON.stringify(r.aoiFeature));
-    all.push(...r.fc.features);
+    all.push(...fc.features);
   }
   root.file("all_detections.geojson", JSON.stringify({ type: "FeatureCollection", features: all }));
   root.file("aois.geojson", JSON.stringify({ type: "FeatureCollection", features: job.aois }));

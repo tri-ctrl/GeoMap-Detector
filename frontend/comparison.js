@@ -11,6 +11,7 @@ function validatePair(records, mode) {
   if (!a.geometry || a.geometry !== b.geometry) return { error: "Choose two clips with the same AOI geometry." };
   if (mode === "dates") {
     if (!a.date || !b.date || a.date === b.date) return { error: "Choose two different imagery dates." };
+    if (a.model === "Unknown model" && a.job !== b.job) return { error: "Choose runs with recorded model names." };
     if (a.model !== b.model || (a.modelKey && b.modelKey && a.modelKey !== b.modelKey)) return { error: "Choose the same model to compare dates." };
     const pair = [...records].sort((x, y) => x.date.localeCompare(y.date));
     return { pair, roles: ["Older", "Newer"] };
@@ -52,7 +53,7 @@ async function preview(blob, size, signal) {
 class Swipe {
   constructor(map, element, leaflet = global.L) {
     this.map = map; this.element = element; this.L = leaflet; this.position = 50;
-    this.layers = []; this.urls = []; this.pending = new Set(); this.active = false;
+    this.layers = []; this.urls = []; this.pending = new Set(); this.active = false; this.generation = 0;
     // Two empty panes are map-owned and reused. Every pair owns its renderers,
     // image/vector layers, load timers and object URLs, all released by stop().
     this.panes = ["gmd-compare-left", "gmd-compare-right"].map((name, index) => {
@@ -86,7 +87,7 @@ class Swipe {
   }
   setPosition(value) { this.position = Math.max(0, Math.min(100, Number(value))); this.clip(); }
   async show(sides, style) {
-    this.stop(); this.active = true; this.element.hidden = false;
+    this.stop(); const generation = this.generation; this.active = true; this.element.hidden = false;
     this.map.on("move zoom resize viewreset", this.clip);
     try {
       const loads = sides.map((side, index) => {
@@ -110,9 +111,10 @@ class Swipe {
         return ready;
       });
       this.clip(); await Promise.all(loads);
-    } catch (error) { this.stop(); throw error; }
+    } catch (error) { if (generation === this.generation) this.stop(); throw error; }
   }
   stop() {
+    ++this.generation;
     this.active = false; this.map.off("move zoom resize viewreset", this.clip);
     for (const cancel of [...this.pending]) cancel();
     for (const layer of this.layers.reverse()) this.map.removeLayer(layer);

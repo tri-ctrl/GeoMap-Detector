@@ -2,6 +2,7 @@
  * Requires desktop Chrome (GMD_BROWSER_BIN can override its path) and network access.
  * Uses an isolated profile and substitutes local app.js/engine.js responses in the
  * public page. It does not publish code, test deployment parity, or run inference.
+ * Add --deployed to use the real served sources and verify their bytes before testing.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -11,6 +12,7 @@ const { spawn } = require("node:child_process");
 const { createHash } = require("node:crypto");
 
 const base = "https://tri-ctrl.github.io/GeoMap-Detector/";
+const deployed = process.argv.includes("--deployed");
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
@@ -66,7 +68,7 @@ let chrome, socket, watchdog;
   socket = new WebSocket(endpoint);
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   let id = 0, sessionId;
-  const pending = new Map(), errors = [], overrides = new Set();
+  const pending = new Map(), errors = [], overrides = new Set(), servedScripts = new Map();
   const send = (method, params = {}, session) => new Promise((resolve, reject) => {
     const request = ++id;
     const timer = setTimeout(() => { pending.delete(request); reject(new Error(`CDP timed out: ${method}`)); }, 30000);
@@ -83,6 +85,9 @@ let chrome, socket, watchdog;
       message.error ? item.reject(new Error(JSON.stringify(message.error))) : item.resolve(message.result);
     } else if (message.method === "Runtime.exceptionThrown") {
       errors.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text);
+    } else if (message.method === "Network.responseReceived") {
+      const file = new URL(message.params.response.url).pathname.split("/").pop();
+      if (["app.js", "engine.js"].includes(file)) servedScripts.set(file, message.params.requestId);
     } else if (message.method === "Fetch.requestPaused") {
       const { requestId, request } = message.params;
       const file = new URL(request.url).pathname.split("/").pop();
@@ -95,8 +100,8 @@ let chrome, socket, watchdog;
   };
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
-  await Promise.all([page("Page.enable"), page("Runtime.enable")]);
-  await page("Fetch.enable", { patterns: [{ urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }] });
+  await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
+  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }] });
   const evaluate = async expression => {
     const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
@@ -110,9 +115,18 @@ let chrome, socket, watchdog;
   const counts = () => evaluate("({ ...__gmd003.counts })");
   const difference = (before, after) => Object.fromEntries(Object.keys(before).map(key => [key, after[key] - before[key]]));
   await page("Page.navigate", { url: base });
-  await until("Boolean(window.__gmd003 && document.querySelectorAll('#relList [data-r]').length > 1 && document.querySelector('.leaflet-tile-loaded'))");
-  assert.deepEqual([...overrides].sort(), ["app.js", "engine.js"]);
-  console.log("Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
+  await until("Boolean(window.GVEngine && document.querySelectorAll('#relList [data-r]').length > 1 && document.querySelector('.leaflet-tile-loaded'))");
+  if (deployed) {
+    for (const [file, expected] of [["app.js", appSource], ["engine.js", engineSource]]) {
+      assert.ok(servedScripts.has(file), file + " must be served by the page");
+      const response = await page("Network.getResponseBody", { requestId: servedScripts.get(file) });
+      const actual = Buffer.from(response.body, response.base64Encoded ? "base64" : "utf8");
+      assert.equal(createHash("sha256").update(actual).digest("hex"), createHash("sha256").update(expected).digest("hex"), file + " must match local source");
+    }
+    await evaluate(instrumentation);
+  }
+  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "engine.js"]);
+  console.log(deployed ? "Loaded actual deployed Leaflet/Draw and verified source bytes; no overrides." : "Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
   const initial = await counts();
   await evaluate("(() => { for (let i = 0; i < 5; i++) document.querySelector('#relList .active').click(); })()");
   const unchangedRelease = difference(initial, await counts());
@@ -142,6 +156,9 @@ let chrome, socket, watchdog;
     document.querySelector('#resTable tbody tr[data-i]').click();
   })()`);
   await until("Boolean(__gmd003.detection && document.querySelector('.leaflet-image-layer'))");
+  // The deliberate clip fit can still be animating when its data is ready.
+  // Set the test viewport only after that animation, independently of toggles.
+  await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
   await evaluate(`(() => {
     const layer = __gmd003.detection;
     layer.fire('click', { originalEvent: new MouseEvent('click') });
@@ -151,6 +168,7 @@ let chrome, socket, watchdog;
     layer.editing.updateMarkers();
     layer._map.setView([25.251,55.361], 18, { animate: false });
   })()`);
+  await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
   const viewState = () => evaluate(`(() => {
     const layer = __gmd003.detection, map = layer._map;
     return { layer: L.stamp(layer), editing: layer.editing.enabled(), markers: document.querySelectorAll('.leaflet-editing-icon').length,
@@ -169,7 +187,7 @@ let chrome, socket, watchdog;
   assert.equal(await evaluate("document.querySelectorAll('.leaflet-image-layer').length"), 1);
   assert.deepEqual(await viewState(), beforeView);
   assert.deepEqual(errors, []);
-  const results = { checkedAt: new Date().toISOString(), mode: "Local app/engine overrides; not a deployed-source check",
+  const results = { checkedAt: new Date().toISOString(), mode: deployed ? "Deployed sources, no overrides" : "Local app/engine overrides; not a deployed-source check",
     browser: await evaluate("navigator.userAgent"), appSha256: createHash("sha256").update(appSource).digest("hex"),
     unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog };
   const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), "geomap-gmd003-results.json");

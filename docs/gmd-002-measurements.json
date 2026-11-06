@@ -1,0 +1,199 @@
+{
+  "mode": "Deployed sources, no overrides",
+  "parity": {
+    "checkedAt": "2026-11-06T08:43:18.129Z",
+    "url": "https://tri-ctrl.github.io/GeoMap-Detector/",
+    "revision": "5775a8278992551ce48806d9f03f0bb5c75e9cd3",
+    "files": [
+      {
+        "file": "index.html",
+        "bytes": 24380,
+        "sha256": "7e902c441b639a242369ec5ccf296c1d1a34c5148a983bb9e0b53d8d8823fcd3"
+      },
+      {
+        "file": "app.js",
+        "bytes": 43913,
+        "sha256": "36e93709352b82795d09cfe84f8ffe220b51b2f8644e103119a3961b47e130a5"
+      },
+      {
+        "file": "engine.js",
+        "bytes": 29527,
+        "sha256": "dedf3f45f24950f09b8e8592421655287602d3f15c717e1ebb8cf4122904befa"
+      },
+      {
+        "file": "sample_aois/uae_airports_ports.geojson",
+        "bytes": 2753,
+        "sha256": "0dbbd6a6a782020705f7c364c0418d2f94923931d7fb471030a331317ba32bcc"
+      }
+    ],
+    "models": [
+      {
+        "file": "yolo11n-obb.onnx",
+        "bytes": 11003776,
+        "imgsz": 1024,
+        "classes": 15
+      },
+      {
+        "file": "yolo11s-obb.onnx",
+        "bytes": 39195915,
+        "imgsz": 1024,
+        "classes": 15
+      }
+    ]
+  },
+  "executedScripts": [
+    {
+      "file": "app.js",
+      "sha256": "36e93709352b82795d09cfe84f8ffe220b51b2f8644e103119a3961b47e130a5"
+    },
+    {
+      "file": "engine.js",
+      "sha256": "dedf3f45f24950f09b8e8592421655287602d3f15c717e1ebb8cf4122904befa"
+    }
+  ],
+  "aois": {
+    "restored": 6,
+    "afterTwoSampleLoads": 6,
+    "distinctPreserved": 8,
+    "annotationsPreserved": true
+  },
+  "modelFailures": [
+    {
+      "url": "models/__gmd002_missing.onnx",
+      "message": "Could not download ONNX model models/__gmd002_missing.onnx (HTTP 404). Export the models with scripts/export_onnx.py before serving the portal. For GitHub Pages, enable Settings → Pages → Source: GitHub Actions and rerun the publish workflow. You can also use Load ONNX model."
+    },
+    {
+      "url": "./",
+      "message": "The server returned an HTML page instead of ONNX model ./. Export the models with scripts/export_onnx.py before serving the portal. For GitHub Pages, enable Settings → Pages → Source: GitHub Actions and rerun the publish workflow. You can also use Load ONNX model."
+    }
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "webgpuAdapterAvailable": true,
+  "models": [
+    {
+      "file": "yolo11n-obb.onnx",
+      "provider": "webgpu",
+      "forcedWasm": false,
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "classes": 15,
+      "finite": true,
+      "detections": 0,
+      "coldFetches": 1,
+      "warmFetches": 0,
+      "sameSession": true
+    },
+    {
+      "file": "yolo11n-obb.onnx",
+      "provider": "wasm",
+      "forcedWasm": true,
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "classes": 15,
+      "finite": true,
+      "detections": 0,
+      "coldFetches": 1,
+      "warmFetches": 0,
+      "sameSession": true
+    },
+    {
+      "file": "yolo11s-obb.onnx",
+      "provider": "webgpu",
+      "forcedWasm": false,
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "classes": 15,
+      "finite": true,
+      "detections": 0,
+      "coldFetches": 1,
+      "warmFetches": 0,
+      "sameSession": true
+    },
+    {
+      "file": "yolo11s-obb.onnx",
+      "provider": "wasm",
+      "forcedWasm": true,
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "classes": 15,
+      "finite": true,
+      "detections": 0,
+      "coldFetches": 1,
+      "warmFetches": 0,
+      "sameSession": true
+    }
+  ],
+  "runtimeErrors": [],
+  "checkedAt": "2026-11-06T08:44:07.720Z",
+  "ci": {
+    "freshExport": {
+      "runId": 42098782846,
+      "url": "https://github.com/tri-ctrl/GeoMap-Detector/actions/runs/42098782846",
+      "revision": "a4b93b47dc8c0a0324fbdb298b449a4e7ee72ed2",
+      "conclusion": "success",
+      "cache": "miss",
+      "exportedModels": 2,
+      "verifiedModels": 2
+    },
+    "cacheHit": {
+      "runId": 42186675319,
+      "url": "https://github.com/tri-ctrl/GeoMap-Detector/actions/runs/42186675319",
+      "revision": "5775a8278992551ce48806d9f03f0bb5c75e9cd3",
+      "conclusion": "success",
+      "cache": "hit",
+      "exportSkipped": true,
+      "verifiedModels": 2,
+      "javascriptTests": 18,
+      "pythonTests": 12
+    },
+    "cacheKey": "onnx-yolo11-obb-1024-v1-30a7e6a116135b037859a1c14dc976e9298f3cbbbd96714273eb8b384939bdf1"
+  },
+  "mapInteractions": {
+    "checkedAt": "2026-11-06T08:52:13.198Z",
+    "mode": "Deployed sources, no overrides",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "36e93709352b82795d09cfe84f8ffe220b51b2f8644e103119a3961b47e130a5",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "12:52:08  Review_small: 1 release(s) 2026-10-29\n12:52:08  [1/1] Review_small · 2026-10-29\n12:52:12      z18 · 374×413 px · 0 objects \n12:52:12  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab."
+  }
+}

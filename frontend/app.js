@@ -45,6 +45,7 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   trn:["Train","Turn reviewed objects into a training set and a better model."],
   exp:["Export","GeoJSON and AOI-clipped images for every location and date."] };
 function showTab(id) {
+  if (id !== "res" && comparing()) exitComparison();
   closeRunAoiPanel({ restoreFocus: false });
   $$(".rail [data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
   $$(".tab").forEach(t => t.classList.toggle("on", t.id === "tab-" + id));
@@ -429,9 +430,9 @@ async function runBrowser(mode, aois) {
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
-  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_");
+  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + crypto.randomUUID().slice(0, 8);
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
-    model: m ? m.label : null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
+    model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
   const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], params, aois };
   S.jobId = id; S.abort = new AbortController();
   setJobRunning(true); $("#cancelBtn").hidden = false; $("#prog").style.width = "0%";
@@ -441,6 +442,7 @@ async function runBrowser(mode, aois) {
       jlog(job, `Loading model ${m.label}…`);
       model = await E.loadModel({ key: m.key, url: m.url, buffer: m.buffer, names: m.names, imgsz: m.imgsz, signal: S.abort.signal });
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
+      params.provider = model.provider; params.imgsz = model.imgsz;
     }
     const plan = [];
     for (const aoi of job.aois) {
@@ -500,17 +502,24 @@ async function loadJobs() {
 $("#jobSel").onchange = () => { S.jobId = $("#jobSel").value; loadResults(S.jobId); };
 $("#jobRefresh").onclick = loadJobs;
 async function loadResults(id) {
-  if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id }));
-  else { const j = await (await fetch(api("/api/jobs/" + id))).json(); RES = (j.results || []).map(r => ({ ...r, job: id })); }
+  if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params }));
+  else { const j = await (await fetch(api("/api/jobs/" + id))).json(); RES = (j.results || []).map(r => ({ ...r, job: id, params: j.params || {} })); }
   renderResults();
 }
 function renderResults() {
   const tb = $("#resTable tbody");
-  tb.innerHTML = RES.map((r, i) => `<tr class="click" data-i="${i}"><td>${esc(r.aoi)}</td><td class="mono">${r.date}</td><td>${
+  const compare = comparing(), rows = compare ? compareRecords : RES;
+  $("#compareColumn").hidden = !compare;
+  tb.innerHTML = rows.map((r, i) => `<tr class="${compare ? "" : "click"}" data-i="${i}">${compare ? `<td><input type="checkbox" data-compare-row="${i}" aria-label="Compare ${esc(r.aoi)} ${r.date} ${esc(r.model)}" ${compareChosen.includes(r.key) ? "checked" : ""} ${compareChosen.length === 2 && !compareChosen.includes(r.key) ? "disabled" : ""}></td>` : ""}<td>${esc(r.aoi)}</td><td class="mono">${r.date}</td><td class="model" title="${esc(r.model || GVCompare.modelName(r.params))}">${esc(r.model || GVCompare.modelName(r.params))}</td><td>${
     Object.entries(r.counts).map(([k, v]) => `<span class="mono" style="color:${color(k)}">${v}</span> ${esc(k.replace(/_/g, " "))}`).join("<br>") || '<span class="muted">0</span>'}</td></tr>`).join("")
-    || `<tr><td colspan="3" class="muted">No clips yet.</td></tr>`;
-  tb.querySelectorAll("tr[data-i]").forEach(tr => tr.onclick = () => openClip(+tr.dataset.i));
-  drawTrend();
+    || `<tr><td colspan="${compare ? 5 : 4}" class="muted">No clips yet.</td></tr>`;
+  if (compare) tb.querySelectorAll("[data-compare-row]").forEach(checkbox => { checkbox.onchange = () => {
+    const key = compareRecords[+checkbox.dataset.compareRow].key;
+    compareChosen = checkbox.checked ? [...compareChosen.filter(value => value !== key), key].slice(-2) : compareChosen.filter(value => value !== key);
+    renderResults(); showComparison();
+  }; });
+  else tb.querySelectorAll("tr[data-i]").forEach(tr => tr.onclick = () => openClip(+tr.dataset.i));
+  if (compare) $("#trendSec").hidden = true; else drawTrend();
 }
 function drawTrend() {
   const byAoi = {}; RES.forEach(r => (byAoi[r.aoi] = byAoi[r.aoi] || []).push(r));
@@ -539,6 +548,7 @@ function renderClipImage() {
   L.imageOverlay(src, clipBounds(r)).addTo(clipLayer);
 }
 async function openClip(i) {
+  stopComparison();
   const r = RES[i]; S.clip = r;
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
   renderClipImage();
@@ -546,7 +556,9 @@ async function openClip(i) {
   const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);
   map.fitBounds(b);
   const rel = S.releases.find(x => x.release === r.release); if (rel) setWayback(rel);
-  const fc = r.browser ? BJOBS[r.job].results.find(x => x.aoi_id === r.aoi_id && x.release === r.release).fc : await (await fetch(base + "detections.geojson")).json();
+  const source = r.browser ? BJOBS[r.job].results.find(x => x.aoi_id === r.aoi_id && x.release === r.release) : null;
+  // Keep model predictions immutable; a separate job-owned draft retains edits.
+  const fc = source ? (source.draftFC ||= JSON.parse(JSON.stringify(source.fc))) : await (await fetch(base + "detections.geojson")).json();
   const ann = await getAnnotations(), byId = Object.fromEntries(ann.features.map(f => [f.id, f]));
   fc.features = fc.features.map(f => byId[f.id] || f);
   const have = new Set(fc.features.map(f => f.id));
@@ -646,6 +658,7 @@ $("#saveAnn").onclick = async () => {
 };
 map.on("click", finishEdit);
 document.addEventListener("keydown", e => {
+  if (comparing()) { if (e.key === "Escape") exitComparison(); return; }
   if (!$("#runAoiPanel").hidden) {
     if (e.key === "Escape") { e.preventDefault(); closeRunAoiPanel(); }
     return;

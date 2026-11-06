@@ -104,6 +104,13 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .run-aoi-panel th{position:sticky;top:0;background:var(--panel)}
 .run-aoi-panel td:nth-child(2){overflow-wrap:anywhere}
 .run-aoi-panel td:first-child,.run-aoi-panel td:last-child{width:1%;white-space:nowrap}
+#compareControls[hidden],#resultJobControls[hidden],#compareMap[hidden],.compare-check[hidden]{display:none}
+.compare-map{position:absolute;inset:0;z-index:650;pointer-events:none;--compare-x:50%}
+.compare-line{position:absolute;top:0;bottom:0;left:var(--compare-x);width:2px;background:#fff;box-shadow:0 0 3px #16202b}
+.compare-handle{position:absolute;left:var(--compare-x);top:50%;transform:translate(-50%,-50%);width:40px;height:48px;justify-content:center;pointer-events:auto;touch-action:none;cursor:ew-resize;background:var(--panel);box-shadow:var(--shadow)}
+.compare-badge{position:absolute;top:12px;max-width:42%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:var(--shadow);font-size:12px;overflow-wrap:anywhere}
+.compare-badge.left{left:12px}.compare-badge.right{right:12px}
+#resTable .model{font-size:11px;overflow-wrap:anywhere}
 .pill{display:inline-block;padding:1px 7px;border-radius:99px;font:600 11px var(--f-ui);border:1px solid currentColor}
 .pill.predicted{color:var(--muted)} .pill.verified{color:var(--ok)} .pill.corrected{color:var(--sea)}
 .pill.manual{color:var(--accent)} .pill.rejected{color:var(--bad)}
@@ -267,8 +274,19 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
     <!-- Results -->
     <section class="tab" id="tab-res" role="tabpanel">
       <div class="sec">
+        <label class="label" for="resultView">View</label>
+        <select id="resultView"><option value="review">Review results</option><option value="compare">Compare results</option></select>
+      </div>
+      <div class="sec" id="resultJobControls">
         <span class="label">Job</span>
         <div class="row"><select id="jobSel" style="flex:1"></select><button class="btn" id="jobRefresh">Refresh</button></div>
+      </div>
+      <div class="sec" id="compareControls" hidden>
+        <label class="label" for="compareKind">Compare by</label>
+        <select id="compareKind"><option value="dates">Dates · same AOI and model</option><option value="models">Models · same AOI and date</option></select>
+        <div class="row"><button class="btn" id="compareRefresh">Refresh runs</button><button class="btn ghost" id="compareClear">Clear pair</button><button class="btn ghost" id="compareExit">Back to review</button></div>
+        <p class="hint" id="compareHint" role="status" aria-live="polite">Select two clips in the table.</p>
+        <p class="hint" id="compareSettings"></p>
       </div>
       <div class="sec" id="trendSec" hidden>
         <span class="label">Objects per imagery date</span>
@@ -279,8 +297,8 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <span class="label" style="flex:1">AOI × date clips</span>
           <label class="row hint"><input type="checkbox" id="showImg" checked style="accent-color:var(--accent)"> clipped image</label>
         </div>
-        <div class="tablewrap"><table id="resTable"><thead><tr><th>AOI</th><th>Date</th><th>Counts</th></tr></thead><tbody></tbody></table></div>
-        <p class="hint">Select a row to load its clipped imagery and detections, then review them in Annotate.</p>
+        <div class="tablewrap"><table id="resTable"><thead><tr><th class="compare-check" id="compareColumn" hidden>Compare</th><th>AOI</th><th>Date</th><th>Model</th><th>Counts</th></tr></thead><tbody></tbody></table></div>
+        <p class="hint" id="resultHint">Select a row to load its clipped imagery and detections, then review them in Annotate.</p>
       </div>
     </section>
 
@@ -365,6 +383,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
   <main class="mapwrap">
     <div id="map"></div>
+    <div id="compareMap" class="compare-map" hidden>
+      <div class="compare-badge left" id="compareLeftLabel"></div><div class="compare-badge right" id="compareRightLabel"></div>
+      <div class="compare-line"></div>
+      <button type="button" class="btn compare-handle" data-compare-handle role="slider" aria-label="Comparison divider; move to reveal left or right result" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">↔</button>
+    </div>
     <div class="legend" id="legend"></div>
     <div class="hud">
       <span><span class="label">Imagery</span> <b id="hudRel">—</b></span>
@@ -376,6 +399,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="engine.js"></script>
+<script src="comparison.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

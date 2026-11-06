@@ -146,36 +146,64 @@ let chrome, socket, watchdog;
     const input = document.querySelector('#fileIn'); input.files = files.files; input.dispatchEvent(new Event('change'));
     document.querySelector('#detectOn').checked = false; document.querySelector('#tifOn').checked = false;
   })()`);
-  let runSelection, popup;
+  let runSelection, childPanel;
   if (selection) {
     await until("document.querySelector('#runN').textContent === '2'");
     await evaluate("document.querySelector('[data-tab=det]').click(); document.querySelector('#runAoiBtn').click()");
-    await until("document.querySelector('#runAoiDialog').open");
-    popup = await evaluate(`(() => {
-      const dialog=document.querySelector('#runAoiDialog'), button=document.querySelector('#runAoiBtn'), run=document.querySelector('#runBtn');
+    await until("!document.querySelector('#runAoiPanel').hidden");
+    childPanel = await evaluate(`(() => {
+      const panel=document.querySelector('#runAoiPanel'), button=document.querySelector('#runAoiBtn'), run=document.querySelector('#runBtn');
       return { focused:document.activeElement.id, inlineSelector:document.querySelector('#tab-det #runAoiList')!==null,
-        adjacent:button.parentElement===run.parentElement, columns:[...dialog.querySelectorAll('th')].map(node=>node.textContent) };
+        adjacent:button.parentElement===run.parentElement, columns:[...panel.querySelectorAll('th')].map(node=>node.textContent),
+        withinSidebar:Boolean(panel.closest('aside.panel')), normalControlsHidden:getComputedStyle(document.querySelector('#tab-det')).display==='none',
+        noModal:!document.querySelector('dialog:modal') };
     })()`);
-    assert.equal(popup.focused,'runAoiSearch'); assert.equal(popup.inlineSelector,false); assert.equal(popup.adjacent,true);
-    assert.deepEqual(popup.columns,['Process','AOI name','Map']);
+    assert.equal(childPanel.focused,'runAoiSearch'); assert.equal(childPanel.inlineSelector,false); assert.equal(childPanel.adjacent,true);
+    assert.equal(childPanel.withinSidebar,true); assert.equal(childPanel.normalControlsHidden,true); assert.equal(childPanel.noModal,true);
+    assert.deepEqual(childPanel.columns,['Process','AOI name','Map']);
+    const layout = () => evaluate(`(() => {
+      const panel=document.querySelector('#runAoiPanel').getBoundingClientRect(), sidebar=document.querySelector('aside.panel').getBoundingClientRect(),
+        map=document.querySelector('#map'), view=map.getBoundingClientRect();
+      return {width:panel.width,height:panel.height,withinSidebar:panel.left>=sidebar.left&&panel.right<=sidebar.right+1&&panel.bottom<=sidebar.bottom+1,
+        mapUncovered:panel.right<=view.left+1||panel.top>=view.bottom-1,
+        mapHit:map.contains(document.elementFromPoint(view.left+view.width/2,view.top+view.height/2)),mapHeight:view.height};
+    })()`);
+    childPanel.desktop = await layout(); assert.equal(childPanel.desktop.withinSidebar,true);
+    assert.equal(childPanel.desktop.mapUncovered,true); assert.equal(childPanel.desktop.mapHit,true);
     const desktop = await page('Page.captureScreenshot',{format:'png'});
-    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-popup-desktop.png'),Buffer.from(desktop.data,'base64'));
+    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-panel-desktop.png'),Buffer.from(desktop.data,'base64'));
     await page('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
-    popup.mobile = await evaluate(`(() => {const r=document.querySelector('#runAoiDialog').getBoundingClientRect();return {width:r.width,height:r.height,fits:r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight};})()`);
-    assert.equal(popup.mobile.fits,true);
+    await until("__gmd003.map.getSize().x === __gmd003.map.getContainer().clientWidth");
+    childPanel.mobile = await layout(); assert.equal(childPanel.mobile.withinSidebar,true);
+    assert.equal(childPanel.mobile.mapUncovered,true); assert.equal(childPanel.mobile.mapHit,true); assert.ok(childPanel.mobile.mapHeight>0);
     const mobile = await page('Page.captureScreenshot',{format:'png'});
-    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-popup-mobile.png'),Buffer.from(mobile.data,'base64'));
+    fs.writeFileSync(path.join(os.tmpdir(),'geomap-gmd022-panel-mobile.png'),Buffer.from(mobile.data,'base64'));
     await page('Emulation.clearDeviceMetricsOverride');
     await until("__gmd003.map.getSize().x === __gmd003.map.getContainer().clientWidth");
+    await until("!__gmd003.map._animatingZoom && !__gmd003.map._panAnim?._inProgress");
+    const zoomBefore = await evaluate("__gmd003.map.getZoom()");
+    const zoomControl = await evaluate("(() => {const r=document.querySelector('.leaflet-control-zoom-in').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()");
+    await page('Input.dispatchMouseEvent',{type:'mousePressed',...zoomControl,button:'left',clickCount:1});
+    await page('Input.dispatchMouseEvent',{type:'mouseReleased',...zoomControl,button:'left',clickCount:1});
+    await until(`__gmd003.map.getZoom()===${zoomBefore+1} && !__gmd003.map._animatingZoom`);
+    assert.equal(await evaluate("document.querySelector('#runAoiPanel').hidden"),false);
+    const pan = await evaluate("(() => {const r=document.querySelector('#map').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,lng:__gmd003.map.getCenter().lng};})()");
+    await page('Input.dispatchMouseEvent',{type:'mousePressed',x:pan.x,y:pan.y,button:'left',clickCount:1});
+    await page('Input.dispatchMouseEvent',{type:'mouseMoved',x:pan.x+70,y:pan.y,button:'left',buttons:1});
+    await page('Input.dispatchMouseEvent',{type:'mouseReleased',x:pan.x+70,y:pan.y,button:'left',clickCount:1});
+    await until(`Math.abs(__gmd003.map.getCenter().lng-${pan.lng})>0.00001 && !__gmd003.map._panAnim?._inProgress`);
+    assert.equal(await evaluate("document.querySelector('#runAoiPanel').hidden"),false);
+    childPanel.mapControlsInteractive=true; childPanel.mapDragInteractive=true;
     await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='DO_NOT';search.dispatchEvent(new Event('input'));})()");
     assert.equal(await evaluate("document.querySelectorAll('#runAoiList [data-run-aoi]').length"),1);
     assert.equal(await evaluate("document.querySelector('#runAoiList [data-run-aoi]').dataset.runAoi"),'1');
     await evaluate("document.querySelector('#runAoiList [data-run-zoom]').click()");
-    await until("!document.querySelector('#runAoiDialog').open && !__gmd003.map._animatingZoom && !__gmd003.map._panAnim?._inProgress && Math.abs(__gmd003.map.getCenter().lng-55.381)<0.002");
-    popup.zoom = await evaluate("({centre:[__gmd003.map.getCenter().lng,__gmd003.map.getCenter().lat],selected:document.querySelector('#runN').textContent,focus:document.activeElement.id,active:document.querySelector('#aoiList .active .t').textContent})");
-    assert.equal(popup.zoom.active,'Do_not_run'); assert.ok(Math.abs(popup.zoom.centre[0]-55.381)<0.002,JSON.stringify(popup.zoom));
-    assert.equal(popup.zoom.selected,'2'); assert.equal(popup.zoom.focus,'map');
-    await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiNone').click()");
+    await until("!document.querySelector('#runAoiPanel').hidden && !__gmd003.map._animatingZoom && !__gmd003.map._panAnim?._inProgress && Math.abs(__gmd003.map.getCenter().lng-55.381)<0.002");
+    childPanel.zoom = await evaluate("({centre:[__gmd003.map.getCenter().lng,__gmd003.map.getCenter().lat],selected:document.querySelector('#runN').textContent,focus:document.activeElement.id,active:document.querySelector('#aoiList .active .t').textContent,staysOpen:!document.querySelector('#runAoiPanel').hidden,search:document.querySelector('#runAoiSearch').value})");
+    assert.equal(childPanel.zoom.active,'Do_not_run'); assert.ok(Math.abs(childPanel.zoom.centre[0]-55.381)<0.002,JSON.stringify(childPanel.zoom));
+    assert.equal(childPanel.zoom.selected,'2'); assert.equal(childPanel.zoom.focus,'map'); assert.equal(childPanel.zoom.staysOpen,true);
+    assert.equal(childPanel.zoom.search,'DO_NOT');
+    await evaluate("document.querySelector('#runAoiNone').click()");
     assert.equal(await evaluate("document.querySelector('#runBtn').disabled"), true);
     await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='not found';search.dispatchEvent(new Event('input'));})()");
     assert.equal(await evaluate("document.querySelectorAll('#runAoiList [data-run-aoi]').length"),0);
@@ -186,8 +214,8 @@ let chrome, socket, watchdog;
     await evaluate("(() => {const search=document.querySelector('#runAoiSearch'); search.value='';search.dispatchEvent(new Event('input'));})()");
     await page('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await page('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
-    await until("!document.querySelector('#runAoiDialog').open");
-    popup.escapeFocus = await evaluate("document.activeElement.id"); assert.equal(popup.escapeFocus,'runAoiBtn');
+    await until("document.querySelector('#runAoiPanel').hidden");
+    childPanel.escapeFocus = await evaluate("document.activeElement.id"); assert.equal(childPanel.escapeFocus,'runAoiBtn');
     await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiDone').click()");
   }
   await until("document.querySelector('#runN').textContent === '1'");
@@ -249,8 +277,8 @@ let chrome, socket, watchdog;
   const results = { checkedAt: new Date().toISOString(), mode: deployed ? "Deployed sources, no overrides" : "Local app/engine overrides; not a deployed-source check",
     browser: await evaluate("navigator.userAgent"), appSha256: createHash("sha256").update(appSource).digest("hex"),
     unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog,
-    ...(selection ? {runSelection, popup} : {}) };
-  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-popup-results.json" : "geomap-gmd003-results.json");
+    ...(selection ? {runSelection, childPanel} : {}) };
+  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-panel-results.json" : "geomap-gmd003-results.json");
   fs.writeFileSync(output, JSON.stringify(results, null, 2) + "\n");
   console.log(JSON.stringify(results, null, 2)); console.log("Saved browser evidence: " + output);
   await send("Browser.close");

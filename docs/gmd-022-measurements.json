@@ -129,5 +129,102 @@
       "python": 12,
       "aoiSelectionCases": 12
     }
+  },
+  "childPanelRefinement": {
+    "checkedAt": "2026-11-06T17:51:06.057Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "bacedd549b0e799b762277a4771c913a610e580c206bba737445c29ba8e7ece9",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "21:51:03  Review_small: 1 release(s) 2026-10-29\n21:51:03  [1/1] Review_small \u00b7 2026-10-29\n21:51:05      z18 \u00b7 374\u00d7413 px \u00b7 0 objects \n21:51:05  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": true,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "childPanel": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "withinSidebar": true,
+      "normalControlsHidden": true,
+      "noModal": true,
+      "desktop": {
+        "width": 379,
+        "height": 837.234375,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 913
+      },
+      "mobile": {
+        "width": 390,
+        "height": 311.46875,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 382.328125
+      },
+      "mapControlsInteractive": true,
+      "mapDragInteractive": true,
+      "zoom": {
+        "centre": [
+          55.38100183010101,
+          25.251001075157113
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run",
+        "staysOpen": true,
+        "search": "DO_NOT"
+      },
+      "escapeFocus": "runAoiBtn"
+    },
+    "baseRevision": "661fd106a5729be6a8155a01eedaf7bae4763c24",
+    "sourceSha256": {
+      "index.html": "496cdbe7f1cac45d693ebb18907a6ebab9c5f73768d74edcedf67338fe3952d4",
+      "app.js": "bacedd549b0e799b762277a4771c913a610e580c206bba737445c29ba8e7ece9",
+      "engine.js": "b30e77b48985af259fd7363a9795462aeeb1ba33c9d3fcfa37baba1ae374c0d2"
+    },
+    "automatedChecks": {
+      "javascript": 64,
+      "python": 12,
+      "aoiSelectionCases": 13
+    }
   }
 }

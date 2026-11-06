@@ -45,6 +45,7 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   trn:["Train","Turn reviewed objects into a training set and a better model."],
   exp:["Export","GeoJSON and AOI-clipped images for every location and date."] };
 function showTab(id) {
+  closeRunAoiPanel({ restoreFocus: false });
   $$(".rail [data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
   $$(".tab").forEach(t => t.classList.toggle("on", t.id === "tab-" + id));
   $("#panelTitle").textContent = TITLES[id][0]; $("#panelSub").textContent = TITLES[id][1];
@@ -192,20 +193,24 @@ function renderRunAois() {
     button.onclick = () => {
       const index = S.aois.indexOf(aoi);
       if (index < 0) return;
-      closeRunAoiDialog(); selectAoi(index); $("#map").focus({ preventScroll: true });
+      selectAoi(index); $("#map").focus({ preventScroll: true });
     };
   });
   updateRunSelection();
 }
-function closeRunAoiDialog() { if ($("#runAoiDialog").open) $("#runAoiDialog").close(); }
+function closeRunAoiPanel({ restoreFocus = true } = {}) {
+  if ($("#runAoiPanel").hidden) return;
+  $("#runAoiPanel").hidden = true; $("#tab-det").classList.add("on");
+  $("#runAoiBtn").setAttribute("aria-expanded", "false");
+  if (restoreFocus) $("#runAoiBtn").focus({ preventScroll: true });
+}
 $("#runAoiBtn").onclick = () => {
+  showTab("det");
   renderRunAois();
-  if (!$("#runAoiDialog").open) { $("#runAoiBtn").focus(); $("#runAoiDialog").showModal(); }
+  $("#tab-det").classList.remove("on"); $("#runAoiPanel").hidden = false;
   $("#runAoiBtn").setAttribute("aria-expanded", "true"); $("#runAoiSearch").focus();
 };
-$("#runAoiClose").onclick = $("#runAoiDone").onclick = closeRunAoiDialog;
-$("#runAoiDialog").onclose = () => $("#runAoiBtn").setAttribute("aria-expanded", "false");
-$("#runAoiDialog").onclick = event => { if (event.target === $("#runAoiDialog")) closeRunAoiDialog(); };
+$("#runAoiClose").onclick = $("#runAoiDone").onclick = closeRunAoiPanel;
 $("#runAoiSearch").oninput = renderRunAois;
 $("#runAoiAll").onclick = () => { S.aois.forEach(aoi => runAoiSelection.add(aoi)); renderRunAois(); };
 $("#runAoiNone").onclick = () => { runAoiSelection.clear(); renderRunAois(); };
@@ -641,7 +646,11 @@ $("#saveAnn").onclick = async () => {
 };
 map.on("click", finishEdit);
 document.addEventListener("keydown", e => {
-  if ($("#runAoiDialog").open || e.target.matches("input,select,textarea")) return;
+  if (!$("#runAoiPanel").hidden) {
+    if (e.key === "Escape") { e.preventDefault(); closeRunAoiPanel(); }
+    return;
+  }
+  if (e.target.matches("input,select,textarea")) return;
   const k = e.key.toLowerCase();
   if (k === "a") setStatus("verified"); else if (k === "r") setStatus("rejected"); else if (k === "n") nextPending();
   else if (k === "e") editShape(); else if (k === "delete" || k === "backspace") delSel();

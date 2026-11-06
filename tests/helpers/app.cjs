@@ -60,8 +60,6 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     append(child) { this.children.push(child); this.queries.clear(); }
     addEventListener() {}
     setAttribute(name, value) { this.attributes = { ...this.attributes, [name]: value }; }
-    showModal() { this.open = true; }
-    close() { this.open = false; this.onclose?.(); }
     focus() { document.activeElement = this; }
     click() { if (!this.disabled) return this.onclick?.({ target: this }); }
     remove() {}
@@ -90,6 +88,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   };
   Object.entries({ "#zoom": "18", "#conf": "0.3", "#maxTiles": "1200", "#bufKm": "3" }).forEach(([key, value]) => { element(key).value = value; });
   element("#showImg").checked = showImage;
+  element("#runAoiPanel").hidden = true;
   const saved = new Map([["gv_aois", JSON.stringify(aois)]]);
   if (server) { saved.set("gv_api", JSON.stringify("/server")); saved.set("gv_engine", JSON.stringify("server")); }
   if (selected) { saved.set("gv_relMode", JSON.stringify("selected")); saved.set("gv_selRel", JSON.stringify([101, 100])); }

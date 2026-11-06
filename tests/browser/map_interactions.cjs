@@ -13,6 +13,7 @@ const { createHash } = require("node:crypto");
 
 const base = "https://tri-ctrl.github.io/GeoMap-Detector/";
 const deployed = process.argv.includes("--deployed");
+const selection = process.argv.includes("--selection");
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
@@ -139,15 +140,36 @@ let chrome, socket, watchdog;
   await evaluate("document.querySelector('#relList [data-r]').click()");
   await evaluate(`(() => {
     const fc = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { name: 'Review_small' }, geometry: { type: 'Polygon', coordinates: [[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]] } }] };
+    if (${selection}) fc.features.push({ ...fc.features[0], properties: { name: 'Do_not_run' } });
     const files = new DataTransfer(); files.items.add(new File([JSON.stringify(fc)], 'review.geojson', { type: 'application/geo+json' }));
     const input = document.querySelector('#fileIn'); input.files = files.files; input.dispatchEvent(new Event('change'));
     document.querySelector('#detectOn').checked = false; document.querySelector('#tifOn').checked = false;
   })()`);
+  let runSelection;
+  if (selection) {
+    await until("document.querySelector('#runN').textContent === '2'");
+    await evaluate("document.querySelector('[data-tab=det]').click(); document.querySelector('#runAoiNone').click()");
+    assert.equal(await evaluate("document.querySelector('#runBtn').disabled"), true);
+    await evaluate("document.querySelector('#runAoiList input').click()");
+    runSelection = await evaluate("({ imported:document.querySelectorAll('#runAoiList input').length, selectedAtStart:document.querySelectorAll('#runAoiList input:checked').length })");
+    assert.equal(runSelection.imported, 2); assert.equal(runSelection.selectedAtStart, 1);
+  }
   await until("document.querySelector('#runN').textContent === '1'");
   await evaluate("document.querySelector('#runBtn').click()");
+  if (selection) {
+    await evaluate("document.querySelector('#runAoiAll').click()");
+    runSelection.runningButtonDisabled = await evaluate("document.querySelector('#runBtn').disabled");
+    assert.equal(runSelection.runningButtonDisabled, true);
+  }
   await until("/Finished:|ERROR:/.test(document.querySelector('#jobLog').textContent)");
   const jobLog = await evaluate("document.querySelector('#jobLog').textContent");
   assert.ok(!jobLog.includes("ERROR:"), jobLog);
+  if (selection) {
+    assert.match(jobLog, /\[1\/1\] Review_small/); assert.doesNotMatch(jobLog, /Do_not_run/);
+    assert.match(jobLog, /across 1 AOI\/date clips/);
+    runSelection.excludedAoiProcessed = false; runSelection.jobClips = 1;
+    assert.equal(await evaluate("document.querySelector('#runN').textContent"), '2');
+  }
   await evaluate(`(async () => {
     const release = (await GVEngine.getReleases())[0].release;
     localStorage.setItem('gv_ann', JSON.stringify({ type: 'FeatureCollection', features: [{
@@ -190,8 +212,9 @@ let chrome, socket, watchdog;
   assert.deepEqual(errors, []);
   const results = { checkedAt: new Date().toISOString(), mode: deployed ? "Deployed sources, no overrides" : "Local app/engine overrides; not a deployed-source check",
     browser: await evaluate("navigator.userAgent"), appSha256: createHash("sha256").update(appSource).digest("hex"),
-    unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog };
-  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), "geomap-gmd003-results.json");
+    unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog,
+    ...(selection ? {runSelection} : {}) };
+  const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-results.json" : "geomap-gmd003-results.json");
   fs.writeFileSync(output, JSON.stringify(results, null, 2) + "\n");
   console.log(JSON.stringify(results, null, 2)); console.log("Saved browser evidence: " + output);
   await send("Browser.close");

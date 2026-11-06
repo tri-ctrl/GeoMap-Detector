@@ -201,6 +201,12 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
     <!-- Detect -->
     <section class="tab" id="tab-det" role="tabpanel">
+      <div class="sec" role="group" aria-labelledby="runAoiLabel">
+        <div class="row"><span class="label" id="runAoiLabel" style="flex:1">AOIs to process</span><span class="hint" id="runAoiCount" aria-live="polite">0 of 0 selected</span></div>
+        <div class="row"><button class="btn ghost" id="runAoiAll">Select all</button><button class="btn ghost" id="runAoiNone">Clear</button></div>
+        <div class="list" id="runAoiList" style="max-height:190px;overflow-y:auto"></div>
+        <p class="hint" id="runAoiHint">Add AOIs in the AOIs tab to get started.</p>
+      </div>
       <div class="sec">
         <div class="row"><span class="label" style="flex:1">Model</span><span class="pill" id="engineTag" style="color:var(--sea)">In browser</span></div>
         <select id="model"></select>

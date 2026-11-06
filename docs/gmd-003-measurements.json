@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-11-06T07:02:54.026Z",
+  "mode": "Local app/engine overrides; not a deployed-source check",
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "appSha256": "36e93709352b82795d09cfe84f8ffe220b51b2f8644e103119a3961b47e130a5",
+  "unchangedRelease": {
+    "tileLayers": 0,
+    "tileUrls": 0,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "changedRelease": {
+    "tileLayers": 0,
+    "tileUrls": 1,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "imageToggle": {
+    "tileLayers": 0,
+    "tileUrls": 0,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "editingPreserved": true,
+  "runtimeErrors": [],
+  "jobLog": "11:02:48  Review_small: 1 release(s) 2026-10-29\n11:02:48  [1/1] Review_small · 2026-10-29\n11:02:53      z18 · 374×413 px · 0 objects \n11:02:53  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab."
+}

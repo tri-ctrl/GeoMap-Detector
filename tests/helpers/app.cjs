@@ -36,7 +36,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     }
     get innerHTML() { return this._html; }
     set innerHTML(html) {
-      this._html = html; this.queries.clear();
+      this._html = html; this.children = []; this.queries.clear();
       this.options = [...html.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/g)].map(match => ({
         value: (match[1].match(/value=["']([^"']*)["']/) || [null, match[2]])[1],
       }));
@@ -44,10 +44,11 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     }
     querySelectorAll(selector) {
       if (!this.queries.has(selector)) {
-        const attribute = selector.match(/\[data-([a-z]+)\]/);
+        const attribute = selector.match(/\[data-([a-z-]+)\]/);
         const html = this._html + this.children.map(child => child.innerHTML).join("");
         const children = attribute ? [...html.matchAll(new RegExp(`<[^>]+\\bdata-${attribute[1]}="([^"]*)"[^>]*>`, "g"))].map(match => {
-          const child = new Element({ dataset: { [attribute[1]]: match[1] }, checked: /\bchecked\b/.test(match[0]) });
+          const dataKey = attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+          const child = new Element({ dataset: { [dataKey]: match[1] }, checked: /\bchecked\b/.test(match[0]) });
           const classes = (match[0].match(/class="([^"]*)"/) || [null, ""])[1];
           classes.split(/\s+/).forEach(name => child.classes.add(name));
           return child;
@@ -59,6 +60,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     append(child) { this.children.push(child); this.queries.clear(); }
     addEventListener() {}
     setAttribute() {}
+    click() { if (!this.disabled) return this.onclick?.({ target: this }); }
     remove() {}
   }
   const element = selector => {

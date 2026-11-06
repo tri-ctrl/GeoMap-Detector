@@ -83,11 +83,19 @@ Python 3.10+. The first detection run downloads the YOLO11 OBB weights automatic
 |---|---|
 | **AOIs** | Drop GeoJSON, KML, zipped Shapefile or CSV (`name,lat,lon`). Points become square AOIs (buffer in km). Or draw. *Load UAE sample* adds DXB, SHJ, AUH, DWC, Jebel Ali Port, Port Rashid. |
 | **Wayback** | Browse every release on the map. Choose what to process: **Latest**, **All changes** (per AOI, every release where the imagery actually changed — a time series), or **Selected** releases. *Changes at AOI* marks the dates that exist for the active AOI. |
-| **Detect** | Model, classes (aircraft, ship, helicopter, storage tank, vehicles, harbor, bridge…), confidence, zoom (z18 ≈ 0.54 m/px in the UAE). Runs every AOI × every release. |
+| **Detect** | Choose AOIs to process, model, classes (aircraft, ship, helicopter, storage tank, vehicles, harbor, bridge…), confidence and zoom (z18 ≈ 0.54 m/px in the UAE). Runs checked AOIs × the releases selected by your Wayback settings. |
 | **Results** | Per AOI and date: object counts, a bar chart of objects per imagery date, clipped image overlay with detections. |
 | **Annotate** | Click objects: Accept `A`, Reject `R`, Next `N`, Edit shape `E`, change class, delete; draw missed objects (box/polygon); add your own classes. *Save to training set*. |
 | **Train** | Downloads a YOLO-OBB dataset built from saved annotations (1024 px chips from the same Wayback release). With the server connected, fine-tunes directly. |
 | **Export** | Job zip, reviewed detections GeoJSON, AOIs, CSV table. |
+
+In **Detect → AOIs to process**, use the checkboxes, **Select all** or **Clear**.
+The Run button shows the checked count and stays disabled with no selection or
+while a job is running. All AOIs start checked when the page opens. Choices stay
+with their AOIs during this tab's session, including renames and removal of other
+AOIs; map selection controls the view independently. Imports join an all-AOI
+selection, but stay unchecked when a subset is chosen. Each run uses a snapshot,
+so changes while it runs apply to the next job. Both processing engines use the subset.
 
 ## Outputs
 

@@ -20,6 +20,8 @@ const S = {
   models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null, abort: null,
 };
 const BJOBS = {};                       // browser jobs (kept in memory until the tab closes)
+const runAoiSelection = new Set(S.aois);
+let jobRunning = false;
 let localHits = new Set(), localLookup = null, pageActive = true;
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
@@ -118,8 +120,10 @@ function normalizeFeatures(fc) {
 }
 function addAois(feats) {
   const active = S.aois[S.activeAoi], existing = E.uniqueAois(S.aois), base = existing.length;
+  const selectNew = existing.every(aoi => runAoiSelection.has(aoi));
   const incoming = feats.map((f, i) => ({ type: "Feature", properties: { ...f.properties, name: String(aoiName(f, base + i)) }, geometry: f.geometry }));
   S.aois = E.uniqueAois(existing.concat(incoming));
+  if (selectNew) S.aois.forEach(aoi => runAoiSelection.add(aoi));
   const activeIndex = S.aois.indexOf(active);
   S.activeAoi = activeIndex >= 0 ? activeIndex : null;
   const added = S.aois.length - base, skipped = feats.length - added;
@@ -148,8 +152,41 @@ function renderAois() {
   list.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { S.aois.splice(+b.dataset.del, 1); S.activeAoi = null; saveAois(); renderAois(); });
   list.querySelectorAll("[data-ren]").forEach(b => b.onclick = () => renameAoi(+b.dataset.ren, b.closest(".item")));
   $("#aoiCount").textContent = S.aois.length ? `(${S.aois.length})` : "";
-  $("#runN").textContent = S.aois.length;
+  renderRunAois();
 }
+const chosenRunAois = () => S.aois.filter(aoi => runAoiSelection.has(aoi));
+function updateRunSelection() {
+  const count = chosenRunAois().length;
+  $("#runN").textContent = count;
+  $("#runAoiCount").textContent = `${count} of ${S.aois.length} selected`;
+  $("#runAoiHint").textContent = !S.aois.length ? "Add AOIs in the AOIs tab to get started."
+    : !count ? "Select at least one AOI to enable Run."
+    : "Checked AOIs will use your Wayback date settings. Map selection controls the view.";
+  $("#runBtn").disabled = jobRunning || count === 0;
+  $("#runAoiAll").disabled = $("#runAoiNone").disabled = !S.aois.length;
+}
+function renderRunAois() {
+  // References distinguish equal names and survive renames/reindexing. They are
+  // tab-local UI state; no persistent AOI IDs or saved-data migration is needed.
+  const current = new Set(S.aois);
+  for (const aoi of runAoiSelection) if (!current.has(aoi)) runAoiSelection.delete(aoi);
+  const list = $("#runAoiList");
+  list.innerHTML = S.aois.map((aoi, index) => `<label class="item" style="grid-template-columns:18px minmax(0,1fr)">
+    <input type="checkbox" data-run-aoi="${index}" ${runAoiSelection.has(aoi) ? "checked" : ""} style="accent-color:var(--accent)">
+    <span class="t">${esc(aoi.properties.name)}</span></label>`).join("");
+  list.querySelectorAll("[data-run-aoi]").forEach(checkbox => {
+    const aoi = S.aois[+checkbox.dataset.runAoi];
+    checkbox.onchange = () => {
+      if (!S.aois.includes(aoi)) return;
+      checkbox.checked ? runAoiSelection.add(aoi) : runAoiSelection.delete(aoi);
+      updateRunSelection();
+    };
+  });
+  updateRunSelection();
+}
+$("#runAoiAll").onclick = () => { S.aois.forEach(aoi => runAoiSelection.add(aoi)); renderRunAois(); };
+$("#runAoiNone").onclick = () => { runAoiSelection.clear(); renderRunAois(); };
+function setJobRunning(running) { jobRunning = running; updateRunSelection(); }
 function renameAoi(i, el) {
   const t = el.querySelector(".t"), inp = document.createElement("input"); inp.type = "text"; inp.value = S.aois[i].properties.name;
   t.replaceWith(inp); inp.focus(); inp.select();
@@ -348,24 +385,28 @@ $("#conf").oninput = () => $("#confV").textContent = (+$("#conf").value).toFixed
 const logEl = $("#jobLog");
 function jlog(job, msg) { job.log.push(`${new Date().toTimeString().slice(0, 8)}  ${msg}`); if (S.jobId === job.id) { logEl.textContent = job.log.join("\n"); logEl.scrollTop = logEl.scrollHeight; } }
 $("#runBtn").onclick = async () => {
+  if (jobRunning) return;
   if (!S.aois.length) return toast("Add at least one AOI");
+  const chosen = chosenRunAois();
+  if (!chosen.length) return toast("Select at least one AOI in Detect");
   const mode = relMode();
   if (mode === "selected" && !S.selRel.size) { showTab("img"); return toast("Tick at least one release"); }
-  if (isServer()) return runServer(mode);
-  runBrowser(mode);
+  const aois = JSON.parse(JSON.stringify(chosen));
+  if (isServer()) return runServer(mode, aois);
+  return runBrowser(mode, aois);
 };
 $("#cancelBtn").onclick = () => { if (S.abort) S.abort.abort(); };
 
-async function runBrowser(mode) {
+async function runBrowser(mode, aois) {
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
   const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_");
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
     model: m ? m.label : null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
-  const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], params, aois: JSON.parse(JSON.stringify(S.aois)) };
+  const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], params, aois };
   S.jobId = id; S.abort = new AbortController();
-  $("#runBtn").disabled = true; $("#cancelBtn").hidden = false; $("#prog").style.width = "0%";
+  setJobRunning(true); $("#cancelBtn").hidden = false; $("#prog").style.width = "0%";
   try {
     let model = null;
     if (detectOn) {
@@ -399,14 +440,14 @@ async function runBrowser(mode) {
     job.status = e.name === "AbortError" ? "cancelled" : "error";
     jlog(job, job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
   }
-  $("#runBtn").disabled = false; $("#cancelBtn").hidden = true; S.abort = null;
+  setJobRunning(false); $("#cancelBtn").hidden = true; S.abort = null;
 }
-async function runServer(mode) {
-  const body = { aois: { type: "FeatureCollection", features: S.aois }, release_mode: mode, releases: [...S.selRel],
+async function runServer(mode, aois) {
+  const body = { aois: { type: "FeatureCollection", features: aois }, release_mode: mode, releases: [...S.selRel],
     zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value, model: $("#model").value, detect: $("#detectOn").checked };
-  $("#runBtn").disabled = true;
+  setJobRunning(true);
   try { S.jobId = (await postJSON("/api/jobs", body)).job_id; store.set("job", S.jobId); pollJob(); }
-  catch (e) { toast(e.message); $("#runBtn").disabled = false; }
+  catch (e) { toast(e.message); setJobRunning(false); }
 }
 async function pollJob() {
   try {
@@ -414,7 +455,7 @@ async function pollJob() {
     $("#prog").style.width = (j.progress * 100).toFixed(1) + "%";
     logEl.textContent = j.log.join("\n") || j.status; logEl.scrollTop = logEl.scrollHeight;
     if (j.status === "running" || j.status === "queued") return setTimeout(pollJob, 1500);
-    $("#runBtn").disabled = false;
+    setJobRunning(false);
     if (j.status === "done") { toast("Job finished"); showTab("res"); }
   } catch { setTimeout(pollJob, 3000); }
 }

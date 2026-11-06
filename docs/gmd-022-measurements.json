@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-11-06T11:34:52.621Z",
+  "mode": "Local app/engine overrides; not a deployed-source check",
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "appSha256": "107de67ed9330c00ed124b51e73c687d7b8d9dc9bc86450517de72e1abea0c1c",
+  "unchangedRelease": {
+    "tileLayers": 0,
+    "tileUrls": 0,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "changedRelease": {
+    "tileLayers": 0,
+    "tileUrls": 1,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "imageToggle": {
+    "tileLayers": 0,
+    "tileUrls": 0,
+    "fits": 0,
+    "geoJSON": 0,
+    "annotationReads": 0,
+    "annotationFetches": 0,
+    "detectionFetches": 0
+  },
+  "editingPreserved": true,
+  "runtimeErrors": [],
+  "jobLog": "15:34:48  Review_small: 1 release(s) 2026-10-29\n15:34:48  [1/1] Review_small \u00b7 2026-10-29\n15:34:51      z18 \u00b7 374\u00d7413 px \u00b7 0 objects \n15:34:51  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+  "runSelection": {
+    "imported": 2,
+    "selectedAtStart": 1,
+    "runningButtonDisabled": true,
+    "excludedAoiProcessed": false,
+    "jobClips": 1
+  },
+  "baseRevision": "640fc53d3e453b441584cb26c43e032fc2a07ed9",
+  "sourceSha256": {
+    "index.html": "ed5cffa5bafa0a834fb18eac49388e30a1a03cd015fb29350825c074aafcd251",
+    "app.js": "107de67ed9330c00ed124b51e73c687d7b8d9dc9bc86450517de72e1abea0c1c",
+    "engine.js": "b30e77b48985af259fd7363a9795462aeeb1ba33c9d3fcfa37baba1ae374c0d2"
+  },
+  "automatedChecks": {
+    "javascript": 59,
+    "python": 12,
+    "newAoiSelectionCases": 8
+  }
+}

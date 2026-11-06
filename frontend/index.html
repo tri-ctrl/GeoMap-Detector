@@ -105,7 +105,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .run-aoi-panel td:nth-child(2){overflow-wrap:anywhere}
 .run-aoi-panel td:first-child,.run-aoi-panel td:last-child{width:1%;white-space:nowrap}
 #compareControls[hidden],#resultJobControls[hidden],#compareMap[hidden],.compare-check[hidden]{display:none}
-.compare-map{position:absolute;inset:0;z-index:650;pointer-events:none;--compare-x:50%}
+.compare-map{position:absolute;inset:0;z-index:650;pointer-events:none;overflow:hidden;--compare-x:50%}
 .compare-line{position:absolute;top:0;bottom:0;left:var(--compare-x);width:2px;background:#fff;box-shadow:0 0 3px #16202b}
 .compare-handle{position:absolute;left:var(--compare-x);top:50%;transform:translate(-50%,-50%);width:40px;height:48px;justify-content:center;pointer-events:auto;touch-action:none;cursor:ew-resize;background:var(--panel);box-shadow:var(--shadow)}
 .compare-badge{position:absolute;top:12px;max-width:42%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:var(--shadow);font-size:12px;overflow-wrap:anywhere}

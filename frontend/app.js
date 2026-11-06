@@ -22,6 +22,7 @@ const S = {
 const BJOBS = {};                       // browser jobs (kept in memory until the tab closes)
 const runAoiSelection = new Set(S.aois);
 let jobRunning = false;
+let browserJobSequence = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
@@ -430,7 +431,7 @@ async function runBrowser(mode, aois) {
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
-  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + crypto.randomUUID().slice(0, 8);
+  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
     model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
   const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], params, aois };
@@ -491,7 +492,129 @@ async function pollJob() {
 }
 
 // ---------------------------------------------------------------- results
-let RES = [];
+let RES = [], clipGeneration = 0;
+let compareRecords = [], compareChosen = [], catalogController = null, pairController = null;
+let catalogGeneration = 0, compareGeneration = 0, compareView = null, compareSaved = null;
+function comparing() { return $("#resultView").value === "compare"; }
+function outputBase(job, path) { return api("/outputs/" + encodeURIComponent(job) + "/" + path.split("/").map(encodeURIComponent).join("/") + "/"); }
+function compareRecord(r, params, job, index, browser) {
+  return { ...r, params, job, browser, key: `${browser ? "browser" : "server"}:${job}:${index}`,
+    model: GVCompare.modelName(params), modelKey: params.detect === false ? "imagery" : params.model_key || params.model || null,
+    geometry: GVCompare.geometryKey(r.aoiFeature), source: r };
+}
+function stopComparison({ resumeEdit = true } = {}) {
+  ++compareGeneration; pairController?.abort(); pairController = null; compareView?.stop();
+  if (compareSaved) {
+    const previous = compareSaved; compareSaved = null;
+    if (previous.image) clipLayer.addTo(map); if (previous.detections) detLayer.addTo(map);
+    map.setView(previous.centre, previous.zoom, { animate: false });
+    $("#hudRel").textContent = previous.hud; $("#legend").style.visibility = previous.legend;
+    if (resumeEdit && previous.editing && S.sel === previous.editing && detLayer.getLayers().includes(previous.editing)) {
+      S.editing = previous.editing; previous.editing.editing.enable();
+    }
+  }
+}
+function exitComparison() {
+  ++catalogGeneration; catalogController?.abort(); catalogController = null;
+  stopComparison(); compareChosen = []; compareRecords = [];
+  $("#resultView").value = "review"; $("#compareControls").hidden = true; $("#resultJobControls").hidden = false;
+  $("#showImg").disabled = false; $("#resultHint").textContent = "Select a row to review its clipped imagery and detections.";
+  renderResults();
+}
+async function refreshCompareCatalog() {
+  catalogController?.abort(); const controller = catalogController = new AbortController(), generation = ++catalogGeneration;
+  stopComparison(); $("#compareHint").textContent = "Loading available runs…"; $("#compareRefresh").disabled = true;
+  const records = [], failures = [];
+  for (const job of Object.values(BJOBS)) job.results.forEach((r, index) => records.push(compareRecord(r, job.params, job.id, index, true)));
+  try {
+    if (S.online) {
+      const jobs = await E.requestJSON(api("/api/jobs"), { signal: controller.signal });
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, async () => {
+        while (next < jobs.length && !controller.signal.aborted) {
+          const id = jobs[next++].id;
+          try {
+            const job = await E.requestJSON(api("/api/jobs/" + encodeURIComponent(id)), { signal: controller.signal });
+            let params = job.params;
+            if (!params) { try { params = (await E.requestJSON(outputBase(id, "") + "summary.json", { signal: controller.signal })).params; } catch (error) { if (controller.signal.aborted) throw error; } }
+            const geometries = new Map(), paths = new Map();
+            for (const r of job.results || []) paths.set(r.path, (paths.get(r.path) || 0) + 1);
+            for (const [index, r] of (job.results || []).entries()) {
+              if (controller.signal.aborted) break;
+              if (!r.path || paths.get(r.path) > 1) { failures.push(id + ": ambiguous clip path"); continue; }
+              const record = compareRecord(r, params || {}, id, index, false);
+              const key = JSON.stringify([r.aoi_id, r.bounds]);
+              if (!geometries.has(key)) geometries.set(key, await E.requestJSON(outputBase(id, r.path) + "aoi.geojson", { signal: controller.signal }));
+              record.aoiFeature = geometries.get(key); record.geometry = GVCompare.geometryKey(record.aoiFeature);
+              records.push(record);
+            }
+          } catch (error) { if (!controller.signal.aborted) failures.push(id + ": " + error.message); }
+        }
+      }));
+    }
+    if (controller.signal.aborted || generation !== catalogGeneration || !comparing()) return;
+    compareRecords = records; compareChosen = compareChosen.filter(key => records.some(r => r.key === key));
+    renderResults();
+    $("#compareHint").textContent = failures.length ? `${failures.length} run/clip lookup(s) unavailable. Refresh to retry. Select two available clips.`
+      : records.length < 2 ? "At least two completed clips are needed. Run the same AOI on different dates or models first."
+      : "Select two clips with the same AOI. Date comparison orders older left and newer right.";
+    if (compareChosen.length === 2) showComparison();
+  } catch (error) { if (!controller.signal.aborted && generation === catalogGeneration) $("#compareHint").textContent = "Could not load comparison runs: " + error.message; }
+  finally { if (generation === catalogGeneration) $("#compareRefresh").disabled = false; }
+}
+async function comparisonAsset(record, signal) {
+  let fc, blob;
+  if (record.browser) { fc = record.source.fc; blob = record.source.blobs.png; }
+  else {
+    const base = outputBase(record.job, record.path);
+    fc = await E.requestJSON(base + "detections.geojson", { signal });
+    const response = await fetch(base + "image.png", { signal });
+    if (!response.ok) throw new Error(`Comparison image unavailable (HTTP ${response.status})`);
+    blob = await response.blob();
+  }
+  if (!fc || fc.type !== "FeatureCollection" || !Array.isArray(fc.features) || !blob) throw new Error("This clip has no usable imagery/detections.");
+  return { fc, preview: await GVCompare.preview(blob, record.size, signal), bounds: clipBounds(record) };
+}
+async function showComparison() {
+  stopComparison(); $("#compareSettings").textContent = "";
+  const selected = compareChosen.map(key => compareRecords.find(r => r.key === key)).filter(Boolean);
+  const validation = GVCompare.validatePair(selected, $("#compareKind").value || "dates");
+  if (validation.error) { $("#compareHint").textContent = validation.error; return; }
+  const generation = ++compareGeneration, controller = pairController = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000);
+  $("#compareHint").textContent = "Preparing comparison…";
+  try {
+    // Sequential preparation bounds retained decoded images; originals stay in exports.
+    const left = await comparisonAsset(validation.pair[0], controller.signal), right = await comparisonAsset(validation.pair[1], controller.signal);
+    if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
+    compareSaved = { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent,
+      image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: S.editing, legend: $("#legend").style.visibility };
+    finishEdit(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
+    compareView ||= new GVCompare.Swipe(map, $("#compareMap"));
+    await compareView.show([left, right], feature => ({ color: color(feature.properties.class), weight: 2, fillOpacity: 0.08 }));
+    if (generation !== compareGeneration) return;
+    const [a, b] = validation.pair;
+    $("#compareLeftLabel").textContent = `${validation.roles[0]} · ${a.date} · ${a.model} · ${left.fc.features.length} objects`;
+    $("#compareRightLabel").textContent = `${validation.roles[1]} · ${b.date} · ${b.model} · ${right.fc.features.length} objects`;
+    $("#hudRel").textContent = `${a.date} ↔ ${b.date}`;
+    $("#compareHint").textContent = `${a.aoi} · drag the map divider to compare. Model predictions are read-only.`;
+    $("#compareSettings").textContent = GVCompare.settingsNote(a, b) + " Full-resolution images remain in exports.";
+    map.fitBounds(left.bounds);
+  } catch (error) {
+    if (generation === compareGeneration) { stopComparison(); $("#compareHint").textContent = controller.signal.aborted ? "Comparison timed out. Refresh or select the pair again." : error.message; }
+  } finally { clearTimeout(timer); }
+}
+$("#resultView").onchange = () => {
+  if (!comparing()) return exitComparison();
+  ++clipGeneration;
+  $("#resultJobControls").hidden = true; $("#compareControls").hidden = false; $("#showImg").disabled = true;
+  $("#resultHint").textContent = "Select two checkboxes to compare available runs. Model names are shown for each clip.";
+  renderResults(); refreshCompareCatalog();
+};
+$("#compareRefresh").onclick = refreshCompareCatalog;
+$("#compareClear").onclick = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = "Select two clips in the table."; };
+$("#compareKind").onchange = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = "Select two clips in the table."; };
+$("#compareExit").onclick = exitComparison;
 async function loadJobs() {
   const opts = Object.values(BJOBS).reverse().map(j => `<option value="${j.id}">${j.id.replace("browser_", "This browser · ")} · ${j.status}</option>`);
   if (S.online) { try { (await (await fetch(api("/api/jobs"))).json()).forEach(j => opts.push(`<option value="${j.id}">Server · ${j.id} · ${j.status}</option>`)); } catch {} }
@@ -502,7 +625,7 @@ async function loadJobs() {
 $("#jobSel").onchange = () => { S.jobId = $("#jobSel").value; loadResults(S.jobId); };
 $("#jobRefresh").onclick = loadJobs;
 async function loadResults(id) {
-  if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params }));
+  if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params, source: r }));
   else { const j = await (await fetch(api("/api/jobs/" + id))).json(); RES = (j.results || []).map(r => ({ ...r, job: id, params: j.params || {} })); }
   renderResults();
 }
@@ -548,7 +671,7 @@ function renderClipImage() {
   L.imageOverlay(src, clipBounds(r)).addTo(clipLayer);
 }
 async function openClip(i) {
-  stopComparison();
+  stopComparison({ resumeEdit: false }); finishEdit(); const generation = ++clipGeneration;
   const r = RES[i]; S.clip = r;
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
   renderClipImage();
@@ -556,10 +679,12 @@ async function openClip(i) {
   const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);
   map.fitBounds(b);
   const rel = S.releases.find(x => x.release === r.release); if (rel) setWayback(rel);
-  const source = r.browser ? BJOBS[r.job].results.find(x => x.aoi_id === r.aoi_id && x.release === r.release) : null;
+  const source = r.browser ? r.source : null;
   // Keep model predictions immutable; a separate job-owned draft retains edits.
   const fc = source ? (source.draftFC ||= JSON.parse(JSON.stringify(source.fc))) : await (await fetch(base + "detections.geojson")).json();
+  if (generation !== clipGeneration || comparing()) return;
   const ann = await getAnnotations(), byId = Object.fromEntries(ann.features.map(f => [f.id, f]));
+  if (generation !== clipGeneration || comparing()) return;
   fc.features = fc.features.map(f => byId[f.id] || f);
   const have = new Set(fc.features.map(f => f.id));
   ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
@@ -732,6 +857,6 @@ showTab(store.get("tab", "aoi"));
 E.markStartup("appReady");
 loadReleases();
 (async () => { await checkApi(); await loadModels(); updEngineUI(); })();
-window.addEventListener("pagehide", () => { pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh(); });
+window.addEventListener("pagehide", () => { pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh(); if (comparing()) exitComparison(); compareView?.destroy(); compareView = null; });
 window.addEventListener("pageshow", event => { if (event.persisted) { pageActive = true; loadReleases(); } });
 })();

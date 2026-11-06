@@ -16,6 +16,7 @@ const deployed = process.argv.includes("--deployed");
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
+const htmlSource = fs.readFileSync(path.join(root, "frontend/index.html"), "utf8");
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "geomap-gmd003-"));
 const browserBin = process.env.GMD_BROWSER_BIN || [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -90,18 +91,18 @@ let chrome, socket, watchdog;
       if (["app.js", "engine.js"].includes(file)) servedScripts.set(file, message.params.requestId);
     } else if (message.method === "Fetch.requestPaused") {
       const { requestId, request } = message.params;
-      const file = new URL(request.url).pathname.split("/").pop();
-      const content = file === "app.js" ? instrumentation + appSource : engineSource;
+      const file = request.url === base ? "index.html" : new URL(request.url).pathname.split("/").pop();
+      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : htmlSource;
       overrides.add(file);
       page("Fetch.fulfillRequest", { requestId, responseCode: 200,
-        responseHeaders: [{ name: "Content-Type", value: "application/javascript" }, { name: "Cache-Control", value: "no-store" }],
+        responseHeaders: [{ name: "Content-Type", value: file === "index.html" ? "text/html" : "application/javascript" }, { name: "Cache-Control", value: "no-store" }],
         body: Buffer.from(content).toString("base64") }).catch(error => errors.push(error.message));
     }
   };
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
   await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
-  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }] });
+  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }] });
   const evaluate = async expression => {
     const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
@@ -125,7 +126,7 @@ let chrome, socket, watchdog;
     }
     await evaluate(instrumentation);
   }
-  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "engine.js"]);
+  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "engine.js", "index.html"]);
   console.log(deployed ? "Loaded actual deployed Leaflet/Draw and verified source bytes; no overrides." : "Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
   const initial = await counts();
   await evaluate("(() => { for (let i = 0; i < 5; i++) document.querySelector('#relList .active').click(); })()");
@@ -159,11 +160,11 @@ let chrome, socket, watchdog;
   // The deliberate clip fit can still be animating when its data is ready.
   // Set the test viewport only after that animation, independently of toggles.
   await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
-  await evaluate(`(() => {
+  await evaluate(`(async () => {
     const layer = __gmd003.detection;
     layer.fire('click', { originalEvent: new MouseEvent('click') });
     const select = document.querySelector('#selClass'); select.value = 'ship'; select.dispatchEvent(new Event('change'));
-    document.querySelector('#bEdit').click();
+    await document.querySelector('#bEdit').onclick();
     layer.setLatLngs([layer.getLatLngs()[0].map(point => [point.lat + 0.00001, point.lng])]);
     layer.editing.updateMarkers();
     layer._map.setView([25.251,55.361], 18, { animate: false });

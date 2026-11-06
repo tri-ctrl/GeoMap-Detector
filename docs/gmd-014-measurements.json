@@ -1,0 +1,1041 @@
+{
+  "mode": "Local static project paths; not deployed verification",
+  "checkedAt": "2026-11-06T11:14:43.467Z",
+  "baselineRevision": "c7259df1c62955fc34ff2e66fc7305c6a19f532e",
+  "sources": {
+    "baseline": {
+      "index.html": "7e902c441b639a242369ec5ccf296c1d1a34c5148a983bb9e0b53d8d8823fcd3",
+      "app.js": "36e93709352b82795d09cfe84f8ffe220b51b2f8644e103119a3961b47e130a5",
+      "engine.js": "dedf3f45f24950f09b8e8592421655287602d3f15c717e1ebb8cf4122904befa"
+    },
+    "candidate": {
+      "index.html": "dab2fb4e0d8029ec95ae84627faac10bd5df9d50bcb1a5137b853e7be80d3e03",
+      "app.js": "9ba91f701fd051ad2f4fe6972a80261dcda0b1068ab29b3c93c3f6009fcf8a5c",
+      "engine.js": "b30e77b48985af259fd7363a9795462aeeb1ba33c9d3fcfa37baba1ae374c0d2"
+    }
+  },
+  "method": {
+    "viewport": [
+      1440,
+      1000
+    ],
+    "httpCacheDisabled": true,
+    "samplesPerCondition": 5,
+    "cold": "Temporary profile localStorage cleared before navigation",
+    "warm": "Same profile after cold navigation; IndexedDB and tile cache unused",
+    "network": "Real CDN, Wayback configuration and tiles; local app/manifest responses; sequential samples without throttling",
+    "firstTile": "First observed loaded Leaflet tile; not full map completion",
+    "claims": "Compare medians/ranges; this is not a leak or accuracy benchmark"
+  },
+  "samples": [
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "fcpMs": 620,
+      "firstTileMs": 6077.5,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "fcpMs": 584,
+      "firstTileMs": 2956.199999988079,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "fcpMs": 208,
+      "firstTileMs": 2836.7000000476837,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 195.4000000357628,
+          "metadataReady": 573.4000000357628,
+          "mapFirstTile": 2836.600000023842
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963695094,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "fcpMs": 200,
+      "firstTileMs": 2593.100000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 241.19999998807907,
+          "metadataReady": 243.80000001192093,
+          "mapFirstTile": 2593
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963698010,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "fcpMs": 372,
+      "firstTileMs": 2990.600000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 370.19999998807907,
+          "metadataReady": 738.3999999761581,
+          "mapFirstTile": 2990.600000023842
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963700791,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "fcpMs": 604,
+      "firstTileMs": 2533.400000035763,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 600,
+          "metadataReady": 604.6000000238419,
+          "mapFirstTile": 2533.400000035763
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963705503,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "fcpMs": 316,
+      "firstTileMs": 2717.100000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "fcpMs": 236,
+      "firstTileMs": 2924.199999988079,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "fcpMs": 232,
+      "firstTileMs": 2695.399999976158,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "fcpMs": 232,
+      "firstTileMs": 2287.300000011921,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "fcpMs": 236,
+      "firstTileMs": 2477.100000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 224.80000001192093,
+          "metadataReady": 677.6000000238419,
+          "mapFirstTile": 2477
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963717910,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "fcpMs": 248,
+      "firstTileMs": 2230,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 239.80000001192093,
+          "metadataReady": 242.69999998807907,
+          "mapFirstTile": 2230
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963720534,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "fcpMs": 216,
+      "firstTileMs": 2550.399999976158,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 263.19999998807907,
+          "metadataReady": 662.1000000238419,
+          "mapFirstTile": 2550.399999976158
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963722856,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "fcpMs": 224,
+      "firstTileMs": 2566.100000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 210.30000001192093,
+          "metadataReady": 212.89999997615814,
+          "mapFirstTile": 2566
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963725423,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "fcpMs": 236,
+      "firstTileMs": 2537.300000011921,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "fcpMs": 228,
+      "firstTileMs": 2525.899999976158,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "fcpMs": 220,
+      "firstTileMs": 2569.100000023842,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "fcpMs": 228,
+      "firstTileMs": 2586.300000011921,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js",
+          "bytes": 12470
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js",
+          "bytes": 12965
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js",
+          "bytes": 88135
+        },
+        {
+          "url": "/baseline/engine.js",
+          "bytes": 29527
+        },
+        {
+          "url": "/baseline/app.js",
+          "bytes": 43913
+        },
+        {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+          "bytes": 25201
+        }
+      ],
+      "cachedReleaseList": false
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "fcpMs": 236,
+      "firstTileMs": 2551.5,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 224,
+          "metadataReady": 595.3999999761581,
+          "mapFirstTile": 2551.5
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963738869,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "fcpMs": 252,
+      "firstTileMs": 2505,
+      "longestTaskMs": 0,
+      "scripts": [
+        {
+          "url": "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "bytes": 0
+        },
+        {
+          "url": "/candidate/engine.js",
+          "bytes": 36801
+        },
+        {
+          "url": "/candidate/app.js",
+          "bytes": 47745
+        }
+      ],
+      "diagnostics": {
+        "startup": {
+          "appReady": 238.4000000357628,
+          "metadataReady": 241.60000002384186,
+          "mapFirstTile": 2504.900000035763
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1793963741740,
+          "refreshing": false,
+          "error": null
+        }
+      },
+      "cachedReleaseList": true
+    }
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "navigationDialogs": [],
+  "failedRefresh": {
+    "message": "Showing saved release list. Refresh failed. Try Refresh dates.",
+    "diagnostics": {
+      "startup": {
+        "appReady": 258.5999999642372,
+        "metadataReady": 262,
+        "mapFirstTile": 2725.800000011921
+      },
+      "dependencies": {},
+      "metadata": {
+        "source": "cache",
+        "fetchedAt": 1793963744253,
+        "refreshing": false,
+        "error": "Request failed (HTTP 503): https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
+      }
+    },
+    "release": "2026-10-29"
+  },
+  "lookup": {
+    "text": "2 historical imagery updates near Review_small \u00b7 centre tile at zoom 17. Orange labels are updates; the active row is the viewed map.",
+    "badges": [
+      "Imagery update near Review_small",
+      "Imagery update near Review_small"
+    ],
+    "active": 1
+  },
+  "staleLookupRejected": true,
+  "firstUseDrawing": true,
+  "artifacts": {
+    "size": [
+      281,
+      207
+    ],
+    "tiffHeader": [
+      73,
+      73,
+      42,
+      0
+    ],
+    "worldFileLines": 6,
+    "zipBefore": "undefined",
+    "files": [
+      "gmd014/",
+      "gmd014/Review_small/",
+      "gmd014/Review_small/2026-10-29/",
+      "gmd014/Review_small/2026-10-29/image.tif",
+      "gmd014/Review_small/2026-10-29/image.png",
+      "gmd014/Review_small/2026-10-29/image.pgw",
+      "gmd014/Review_small/2026-10-29/image.prj",
+      "gmd014/Review_small/2026-10-29/preview_detections.jpg",
+      "gmd014/Review_small/2026-10-29/detections.geojson",
+      "gmd014/Review_small/2026-10-29/aoi.geojson",
+      "gmd014/all_detections.geojson",
+      "gmd014/aois.geojson",
+      "gmd014/summary.json"
+    ],
+    "ortBefore": "undefined"
+  },
+  "inference": [
+    {
+      "provider": "webgpu",
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "finite": true,
+      "wasmPaths": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/",
+      "numThreads": 1
+    },
+    {
+      "provider": "wasm",
+      "dimensions": [
+        1,
+        20,
+        21504
+      ],
+      "finite": true,
+      "wasmPaths": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/",
+      "numThreads": 1
+    }
+  ],
+  "browserExceptions": [],
+  "environmentExceptions": [],
+  "runtimeErrors": [],
+  "summary": [
+    {
+      "mode": "baseline",
+      "cache": "cold",
+      "n": 5,
+      "fcpMedianMs": 236,
+      "firstTileMedianMs": 2695.399999976158,
+      "firstTileRangeMs": [
+        2537.300000011921,
+        6077.5
+      ]
+    },
+    {
+      "mode": "baseline",
+      "cache": "warm",
+      "n": 5,
+      "fcpMedianMs": 232,
+      "firstTileMedianMs": 2586.300000011921,
+      "firstTileRangeMs": [
+        2287.300000011921,
+        2956.199999988079
+      ]
+    },
+    {
+      "mode": "candidate",
+      "cache": "cold",
+      "n": 5,
+      "fcpMedianMs": 236,
+      "firstTileMedianMs": 2551.5,
+      "firstTileRangeMs": [
+        2477.100000023842,
+        2990.600000023842
+      ]
+    },
+    {
+      "mode": "candidate",
+      "cache": "warm",
+      "n": 5,
+      "fcpMedianMs": 248,
+      "firstTileMedianMs": 2533.400000035763,
+      "firstTileRangeMs": [
+        2230,
+        2593.100000023842
+      ]
+    }
+  ],
+  "liveLookup": {
+    "aoi": "DXB",
+    "count": 23,
+    "ms": 14645.199999988079,
+    "releases": [
+      {
+        "release": 10842,
+        "date": "2026-05-28"
+      },
+      {
+        "release": 22869,
+        "date": "2026-03-26"
+      },
+      {
+        "release": 51127,
+        "date": "2025-11-20"
+      },
+      {
+        "release": 49999,
+        "date": "2025-07-31"
+      },
+      {
+        "release": 34007,
+        "date": "2025-02-27"
+      },
+      {
+        "release": 56450,
+        "date": "2024-10-10"
+      },
+      {
+        "release": 64776,
+        "date": "2023-08-31"
+      },
+      {
+        "release": 46399,
+        "date": "2023-05-03"
+      },
+      {
+        "release": 45134,
+        "date": "2022-12-14"
+      },
+      {
+        "release": 7110,
+        "date": "2022-11-02"
+      },
+      {
+        "release": 26083,
+        "date": "2022-02-02"
+      },
+      {
+        "release": 48624,
+        "date": "2021-11-30"
+      },
+      {
+        "release": 9812,
+        "date": "2021-02-24"
+      },
+      {
+        "release": 20753,
+        "date": "2020-11-18"
+      },
+      {
+        "release": 16062,
+        "date": "2020-03-23"
+      },
+      {
+        "release": 21485,
+        "date": "2020-01-30"
+      },
+      {
+        "release": 10768,
+        "date": "2018-01-31"
+      },
+      {
+        "release": 1052,
+        "date": "2017-04-19"
+      },
+      {
+        "release": 31026,
+        "date": "2017-02-27"
+      },
+      {
+        "release": 23383,
+        "date": "2014-12-03"
+      },
+      {
+        "release": 22692,
+        "date": "2014-10-01"
+      },
+      {
+        "release": 4230,
+        "date": "2014-03-26"
+      },
+      {
+        "release": 10,
+        "date": "2014-02-20"
+      }
+    ]
+  },
+  "liveLookupCheckedAt": "2026-11-06T11:16:48.217Z",
+  "mapInteractions": {
+    "checkedAt": "2026-11-06T11:06:28.136Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "9ba91f701fd051ad2f4fe6972a80261dcda0b1068ab29b3c93c3f6009fcf8a5c",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "15:06:24  Review_small: 1 release(s) 2026-10-29\n15:06:24  [1/1] Review_small \u00b7 2026-10-29\n15:06:27      z18 \u00b7 374\u00d7413 px \u00b7 0 objects \n15:06:27  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab."
+  }
+}

@@ -192,8 +192,10 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <input type="search" id="relSearch" placeholder="Filter by year, e.g. 2023" style="flex:1">
           <button class="btn" id="relLocal" title="Find releases whose imagery changed over the active AOI">Changes at AOI</button>
         </div>
+        <div class="row"><span class="hint" id="releaseStatus" role="status" aria-live="polite">Loading release list…</span><button class="btn ghost" id="relRefresh">Refresh dates</button></div>
+        <p class="hint" id="localChangeStatus" role="status" aria-live="polite">Select an AOI, then find its historical imagery updates.</p>
         <div class="list releases" id="relList"><div class="item"><span class="s">Loading Wayback releases…</span></div></div>
-        <p class="hint">Click a release to view it on the map. Tick releases to process in <b>Selected</b> mode.</p>
+        <p class="hint">Orange labels mark historical imagery updates near the queried AOI; several dates can qualify. The active row is the map date. Checkboxes choose dates to process in <b>Selected</b> mode. Dates are publication dates, not image capture dates.</p>
       </div>
     </section>
 
@@ -354,10 +356,6 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="engine.js"></script>
 <script src="app.js"></script>
 </body>

@@ -120,7 +120,12 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     eachLayer(fn) { this.layers.forEach(fn); return this; }
   }
   const map = new Group();
-  map.setView = (position, zoom) => { map.position = position; map.zoom = zoom; return map; };
+  // Leaflet accepts both coordinate arrays and LatLng objects (including the
+  // value returned by getCenter when a comparison restores the previous view).
+  map.setView = (position, zoom) => {
+    map.position = Array.isArray(position) ? [...position] : [position.lat, position.lng];
+    map.zoom = zoom; return map;
+  };
   map.getZoom = () => map.zoom;
   map.getCenter = () => ({ lat:map.position[0], lng:map.position[1] });
   map.hasLayer = layer => map.layers.includes(layer);

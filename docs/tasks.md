@@ -44,6 +44,12 @@ Implementation order:
 2. Establish GMD-016 identities, GMD-005 allocation limits and GMD-010 model ownership. Implement GMD-008 persistence, then GMD-015 bounded native-image/output writers before GMD-006 mosaics. Integrate GMD-009 eviction/display controls and GMD-007 worker processing once their prerequisites are available. Encoding must not recreate a full-AOI canvas after processing became bounded.
 3. Improve GMD-011 rendering, GMD-013 imagery caching and GMD-014 startup using the contracts above; deliver GMD-018 dataset isolation and the independent GMD-019 backend work. GMD-017 optimization follows the measured worker/quality baseline. Expand GMD-021 throughout and complete its final matrix against delivered features. Full sequencing and per-task increments are in [the fix plan](./gmd-fix-plan.md).
 
+Comparison test regression verification (2026-11-06):
+
+- Reproduced the two failures in `tests/comparison.test.cjs`. The shared map fixture stored `setView` arguments unchanged, producing an array versus `{lat, lng}` mismatch during view restoration. It now normalizes both accepted coordinate formats; the annotation/model comparison check verifies two successive restore cycles, including the next `getCenter` call.
+- The swipe fixture attaches two image overlays and two vector groups, while tracking two renderers separately as owned resources. The replacement test now distinguishes four attached layers from six owned resources. It verifies that cancellation removes the old pair without disposing any resources from the new pair, and that destruction removes all owned resources, listeners and object URLs.
+- Local verification with Node **24.15.0**: `node --test tests/*.test.cjs` — **72 passed**. `python3 -m unittest discover -s tests -p 'test_*.py' -v` — **12 passed**; syntax and whitespace checks pass. This correction changes test fixtures/assertions only; CI/deployment verification remains pending. Existing task statuses, application behavior and the Pages model export/cache flow are preserved.
+
 GMD-023 diagnosis and planned fix (2026-11-06):
 
 - User logs: YOLO11 small initializes on WebGPU; RASHID-NEW at zoom 18 produces 79 ships for 2026-10-29 and 203 for 2025-03-27, each at 2427 × 1403 px. Only 2016-04-20 fails, with `No Wayback tiles returned`. The model load succeeds and 282 detections from two completed clips remain in memory/exportable; no 2016 result exists.

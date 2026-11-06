@@ -58,12 +58,15 @@ test('same-date model runs compare across jobs; source predictions stay unchange
   assert.equal(processed[2].fc.features[0].properties.status,'predicted');
   assert.equal(processed[2].draftFC.features[0].properties.status,'verified');
   await app.element('#bEdit').onclick();const previousPosition=app.map.position,previousZoom=app.map.zoom;
-  await enter(app,'models');await pick(app,0);await pick(app,2);
-  assert.equal(views[0].sides[1].fc.features[0].properties.status,'predicted');
-  assert.match(app.element('#compareLeftLabel').textContent,/Model A.*YOLO nano/);
-  assert.match(app.element('#compareRightLabel').textContent,/Model B.*YOLO small/);
-  app.element('#compareExit').onclick();assert.equal(selected.editing.active,true);
-  assert.equal(app.map.zoom,previousZoom);assert.deepEqual(app.map.position,previousPosition);
+  // A second round trip also checks getCenter after setView received a LatLng.
+  for(let cycle=0;cycle<2;cycle++){
+    await enter(app,'models');await pick(app,0);await pick(app,2);
+    assert.equal(views[0].sides[1].fc.features[0].properties.status,'predicted');
+    assert.match(app.element('#compareLeftLabel').textContent,/Model A.*YOLO nano/);
+    assert.match(app.element('#compareRightLabel').textContent,/Model B.*YOLO small/);
+    app.element('#compareExit').onclick();assert.equal(selected.editing.active,true);
+    assert.equal(app.map.zoom,previousZoom);assert.deepEqual(app.map.position,previousPosition);
+  }
 });
 test('late image preparation after exit cannot replace the normal map',async()=>{
   const pending=deferred(),{app,views}=await browserApp({pendingPreview:pending});
@@ -94,19 +97,20 @@ test('server results expose recorded models and fetch only selected images/detec
 });
 
 function swipeFixture({loads=true}={}){
-  const urls=[],revoked=[],layers=new Set(),panes=new Map(),handlers=new Map(),handleEvents=new Map();
+  const urls=[],revoked=[],removed=[],layers=new Set(),panes=new Map(),handlers=new Map(),handleEvents=new Map();
   const handle={addEventListener:(name,fn)=>handleEvents.set(name,fn),removeEventListener:name=>handleEvents.delete(name),setAttribute(name,value){this[name]=value},setPointerCapture(){},hasPointerCapture:()=>false};
   const element={hidden:true,style:{setProperty(name,value){this[name]=value}},querySelector:()=>handle};
   const map={getPane:name=>panes.get(name),createPane:name=>{const pane={style:{}};panes.set(name,pane);return pane},
     getSize:()=>({x:1000,y:600}),containerPointToLayerPoint:([x,y])=>({x:x-100,y:y-50}),
-    on:(names,fn)=>handlers.set(names,fn),off:names=>handlers.delete(names),getContainer:()=>({getBoundingClientRect:()=>({left:0,width:1000})}),removeLayer:layer=>layers.delete(layer)};
+    on:(names,fn)=>handlers.set(names,fn),off:names=>handlers.delete(names),getContainer:()=>({getBoundingClientRect:()=>({left:0,width:1000})}),
+    removeLayer:layer=>{removed.push(layer);return layers.delete(layer)}};
   const images=[];
   const layer=()=>({events:new Map(),on(name,fn){this.events.set(name,fn);return this},off(name){this.events.delete(name);return this},addTo(){layers.add(this);if(this.image&&loads)queueMicrotask(()=>this.events.get('load')?.());return this}});
   const L={imageOverlay:()=>{const image=layer();image.image=true;images.push(image);return image},svg:layer,geoJSON:layer};
   const context=vm.createContext({DOMException,setTimeout,clearTimeout,URL:{createObjectURL:()=>{const url='blob:'+urls.length;urls.push(url);return url},revokeObjectURL:url=>revoked.push(url)}});
   vm.runInContext(source,context);const swipe=new context.GVCompare.Swipe(map,element,L);
   const sides=[0,1].map(()=>({preview:{blob:{}},bounds:[],fc:{}}));
-  return{swipe,sides,panes,images,handle,handleEvents,layers,handlers,urls,revoked,element};
+  return{swipe,sides,panes,images,handle,handleEvents,layers,handlers,urls,revoked,removed,element};
 }
 test('swipe clips imagery and vectors in map coordinates, supports keys and releases all per-pair resources',async()=>{
   const f=swipeFixture();await f.swipe.show(f.sides,()=>({}));
@@ -119,9 +123,22 @@ test('swipe clips imagery and vectors in map coordinates, supports keys and rele
 });
 test('rapid replacement cancels old image loads without disposing the newer pair',async()=>{
   const f=swipeFixture({loads:false}),old=f.swipe.show(f.sides,()=>({}));
+  const oldLayers=[...f.swipe.layers];
   const rejection=assert.rejects(old,{name:'AbortError'});
   const current=f.swipe.show(f.sides,()=>({}));
+  const currentLayers=[...f.swipe.layers];
   f.images.slice(-2).forEach(image=>image.events.get('load')());await current;await rejection;
-  assert.equal(f.swipe.active,true);assert.equal(f.layers.size,6);f.swipe.destroy();
-  assert.equal(f.revoked.length,4);
+  assert.equal(f.swipe.active,true);
+  // This fixture attaches images and vector groups; its SVG renderers are
+  // owned resources without simulating Leaflet's automatic renderer attachment.
+  assert.equal(f.layers.size,4);assert.equal(currentLayers.length,6);
+  assert.deepEqual([...f.swipe.layers],currentLayers);
+  assert.ok(oldLayers.every(layer=>f.removed.includes(layer)));
+  assert.ok(currentLayers.every(layer=>!f.removed.includes(layer)));
+  assert.ok(f.images.slice(-2).every(image=>f.layers.has(image)));
+  assert.deepEqual(f.revoked,f.urls.slice(0,2));
+  f.swipe.destroy();
+  assert.equal(f.layers.size,0);assert.equal(f.handlers.size,0);assert.equal(f.handleEvents.size,0);
+  assert.ok(currentLayers.every(layer=>f.removed.includes(layer)));
+  assert.deepEqual(f.revoked,f.urls);
 });

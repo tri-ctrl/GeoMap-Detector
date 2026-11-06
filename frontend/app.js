@@ -56,10 +56,14 @@ const map = L.map("map").setView([25.25, 55.36], 11);
 const ATTR = "Esri World Imagery Wayback · Esri, Maxar, Earthstar Geographics, GIS User Community";
 let wbLayer = null;
 function setWayback(rel) {
+  if (wbLayer && S.viewRel && S.viewRel.release === rel.release) return;
   S.viewRel = rel;
-  if (wbLayer) map.removeLayer(wbLayer);
-  wbLayer = L.tileLayer(E.TILE_URL(rel.release, "{z}", "{y}", "{x}"), { maxZoom: 21, maxNativeZoom: 19, attribution: ATTR }).addTo(map);
-  wbLayer.bringToBack();
+  const url = E.TILE_URL(rel.release, "{z}", "{y}", "{x}");
+  if (wbLayer) wbLayer.setUrl(url);
+  else {
+    wbLayer = L.tileLayer(url, { maxZoom: 21, maxNativeZoom: 19, attribution: ATTR }).addTo(map);
+    wbLayer.bringToBack();
+  }
   $("#hudRel").textContent = rel.date;
   renderReleases();
 }
@@ -400,13 +404,20 @@ function drawTrend() {
 }
 const objURLs = new WeakMap();
 const blobURL = b => { if (!objURLs.has(b)) objURLs.set(b, URL.createObjectURL(b)); return objURLs.get(b); };
+const clipBounds = r => [[r.bounds[1], r.bounds[0]], [r.bounds[3], r.bounds[2]]];
+function renderClipImage() {
+  clipLayer.clearLayers();
+  const r = S.clip;
+  if (!r || !$("#showImg").checked) return;
+  const src = r.browser ? blobURL(r.blobs.png) : api(`/outputs/${r.job}/${r.path}/image.png`);
+  L.imageOverlay(src, clipBounds(r)).addTo(clipLayer);
+}
 async function openClip(i) {
   const r = RES[i]; S.clip = r;
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
-  clipLayer.clearLayers();
-  const b = [[r.bounds[1], r.bounds[0]], [r.bounds[3], r.bounds[2]]];
+  renderClipImage();
+  const b = clipBounds(r);
   const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);
-  if ($("#showImg").checked) L.imageOverlay(r.browser ? blobURL(r.blobs.png) : base + "image.png", b).addTo(clipLayer);
   map.fitBounds(b);
   const rel = S.releases.find(x => x.release === r.release); if (rel) setWayback(rel);
   const fc = r.browser ? BJOBS[r.job].results.find(x => x.aoi_id === r.aoi_id && x.release === r.release).fc : await (await fetch(base + "detections.geojson")).json();
@@ -416,7 +427,7 @@ async function openClip(i) {
   ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
   S.annFC = fc; renderDetections(); renderAnnCtx(); toast(`${fc.features.length} objects · ${r.aoi} · ${r.date}`);
 }
-$("#showImg").onchange = () => { if (S.clip) openClip(RES.indexOf(S.clip)); };
+$("#showImg").onchange = renderClipImage;
 
 // ---------------------------------------------------------------- annotations
 async function getAnnotations() {

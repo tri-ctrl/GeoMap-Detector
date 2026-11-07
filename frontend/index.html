@@ -121,6 +121,10 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)} .dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
 .spark{width:100%;height:auto}
+.trend-bar{cursor:pointer;outline:none}
+.trend-bar:hover .trend-fill,.trend-bar:focus-visible .trend-fill{fill:var(--sea)}
+.trend-bar.selected .trend-fill{stroke:var(--fg);stroke-width:2}
+.trend-bar:focus-visible .trend-hit{stroke:var(--sea);stroke-width:2}
 #map{height:100%;background:var(--bg)}
 .mapwrap{position:relative;min-width:0}
 .hud{position:absolute;z-index:500;left:12px;bottom:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;

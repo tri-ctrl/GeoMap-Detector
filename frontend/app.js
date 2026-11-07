@@ -668,20 +668,28 @@ function renderResults() {
   if (compare) $("#trendSec").hidden = true; else drawTrend();
 }
 function drawTrend() {
-  const byAoi = {}; RES.forEach(r => (byAoi[r.aoi] = byAoi[r.aoi] || []).push(r));
-  const multi = Object.values(byAoi).filter(a => a.length > 1);
-  $("#trendSec").hidden = !multi.length; if (!multi.length) return;
+  const byAoi = new Map(), trend = $("#trend");
+  RES.forEach((row, index) => { if (!byAoi.has(row.aoi)) byAoi.set(row.aoi, []); byAoi.get(row.aoi).push({ row, index }); });
+  const multi = [...byAoi.values()].filter(rows => rows.length > 1);
+  $("#trendSec").hidden = !multi.length; if (!multi.length) { trend.innerHTML = ""; return; }
   const W = 340, H = 120, P = { l: 28, r: 8, t: 10, b: 22 };
-  $("#trend").innerHTML = multi.slice(0, 6).map(arr => {
-    arr = arr.slice().sort((a, b) => a.date.localeCompare(b.date));
-    const max = Math.max(1, ...arr.map(a => a.total)), n = arr.length, bw = (W - P.l - P.r) / n, ih = H - P.t - P.b;
+  trend.innerHTML = multi.slice(0, 6).map(arr => {
+    arr = arr.slice().sort((a, b) => a.row.date.localeCompare(b.row.date));
+    const max = Math.max(1, ...arr.map(a => a.row.total)), n = arr.length, bw = (W - P.l - P.r) / n, ih = H - P.t - P.b;
     const ticks = [...new Set([0, Math.round(max / 2), max])];
     const grid = ticks.map(t => { const y = H - P.b - ih * t / max; return `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${P.l - 5}" y="${y + 3}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="var(--f-mono)">${t}</text>`; }).join("");
-    const bars = arr.map((a, i) => { const h = ih * a.total / max, x = P.l + i * bw + bw * 0.15;
-      return `<rect x="${x.toFixed(1)}" y="${(H - P.b - h).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(h, 0.5).toFixed(1)}" rx="2" fill="var(--accent)"><title>${a.date}: ${a.total}</title></rect>`; }).join("");
-    const xl = [...new Set([0, n - 1])].map(i => `<text x="${i === 0 ? P.l : W - P.r}" y="${H - 6}" text-anchor="${i === 0 ? "start" : "end"}" font-size="9" fill="var(--muted)" font-family="var(--f-mono)">${arr[i].date}</text>`).join("");
-    return `<div><div class="hint" style="font-weight:600;color:var(--fg)">${esc(arr[0].aoi)}</div><svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Objects per date at ${esc(arr[0].aoi)}">${grid}${bars}${xl}</svg></div>`;
+    const bars = arr.map(({ row, index }, i) => { const h = ih * row.total / max, x = P.l + i * bw + bw * 0.15;
+      const details = [`${row.aoi} · ${row.date}`, GVCompare.modelName(row.params), `Total: ${row.total}`,
+        ...Object.entries(row.counts).map(([name, count]) => `${count} ${name.replace(/_/g, " ")}`),
+        ...(row.missing ? ["Incomplete imagery; counts cover available tiles only."] : [])];
+      return `<g class="trend-bar${S.clip === row ? " selected" : ""}" data-trend-i="${index}" role="button" tabindex="0" aria-pressed="${S.clip === row}" aria-label="${esc(details.join("; "))}"><title>${esc(details.join("\n"))}</title><rect class="trend-fill" x="${x.toFixed(1)}" y="${(H - P.b - h).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(h, 0.5).toFixed(1)}" rx="2" fill="var(--accent)"/><rect class="trend-hit" x="${(P.l + i * bw).toFixed(1)}" y="${P.t}" width="${bw.toFixed(1)}" height="${ih}" fill="transparent"/></g>`; }).join("");
+    const xl = [...new Set([0, n - 1])].map(i => `<text x="${i === 0 ? P.l : W - P.r}" y="${H - 6}" text-anchor="${i === 0 ? "start" : "end"}" font-size="9" fill="var(--muted)" font-family="var(--f-mono)">${arr[i].row.date}</text>`).join("");
+    return `<div><div class="hint" style="font-weight:600;color:var(--fg)">${esc(arr[0].row.aoi)}</div><svg class="spark" viewBox="0 0 ${W} ${H}" role="group" aria-label="Objects per date at ${esc(arr[0].row.aoi)}">${grid}${bars}${xl}</svg></div>`;
   }).join("");
+  trend.querySelectorAll("[data-trend-i]").forEach(bar => {
+    bar.onclick = () => { if (!comparing()) return openClip(+bar.dataset.trendI); };
+    bar.onkeydown = event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); return bar.onclick(); } };
+  });
 }
 const objURLs = new WeakMap();
 const blobURL = b => { if (!objURLs.has(b)) objURLs.set(b, URL.createObjectURL(b)); return objURLs.get(b); };
@@ -697,6 +705,10 @@ async function openClip(i) {
   stopComparison({ resumeEdit: false }); finishEdit(); const generation = ++clipGeneration;
   const r = RES[i]; S.clip = r;
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
+  $("#trend").querySelectorAll("[data-trend-i]").forEach(bar => {
+    const selected = +bar.dataset.trendI === i;
+    bar.classList.toggle("selected", selected); bar.setAttribute("aria-pressed", String(selected));
+  });
   renderClipImage();
   const b = clipBounds(r);
   const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);

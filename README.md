@@ -122,6 +122,12 @@ AOIs; map selection controls the view independently. Imports join an all-AOI
 selection, but stay unchecked when a subset is chosen. Each run uses a snapshot,
 so changes while it runs apply to the next job. Both processing engines use the subset.
 
+In **Results → Objects per imagery date**, hover a bar to see its AOI, date,
+model, total and per-class counts. Click a bar to open that clip on the map and
+highlight its row in **AOI × date clips**. Selecting a table row also highlights
+its bar. Bars support Tab, Enter and Space, including clips with zero objects;
+incomplete imagery is identified in the hover description.
+
 ## Outputs
 
 ```

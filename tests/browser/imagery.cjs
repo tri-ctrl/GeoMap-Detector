@@ -103,6 +103,37 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     for (const image of results.job.images) { assert.deepEqual(image.size, image.original); assert.ok(image.tiffBytes > 0); assert.equal(image.world.trim().split('\n').length, 6); }
     assert.ok(results.job.canvasSizes.every(([width, height]) => width === 1 && height === 1));
     assert.equal(results.job.bitmaps, results.job.closed);
+    // GMD-024: chronological bars keep the original result-row identity. The
+    // oldest successful clip here has zero detections and must still be usable.
+    results.trend = await evaluate(`(() => {
+      const bars=[...document.querySelectorAll('#trend [data-trend-i]')],oldest=bars[0];oldest.scrollIntoView({block:'center'});
+      const rect=oldest.getBoundingClientRect();return {indices:bars.map(bar=>Number(bar.dataset.trendI)),
+        titles:bars.map(bar=>bar.querySelector('title').textContent),point:{x:rect.left+rect.width/2,y:rect.top+rect.height/2}};
+    })()`);
+    assert.deepEqual(results.trend.indices, [1, 0]);
+    for (let index = 0; index < 2; index++) {
+      const clip = results.job.summary.results[results.trend.indices[index]], title = results.trend.titles[index];
+      assert.ok(title.includes(clip.date)); assert.ok(title.includes(results.job.summary.params.model));
+      assert.ok(title.includes('Total: ' + clip.total));
+      for (const [name, count] of Object.entries(clip.counts)) assert.ok(title.includes(count + ' ' + name.replace(/_/g, ' ')));
+    }
+    const beforeHover = requests.length;
+    await page('Input.dispatchMouseEvent', { type: 'mouseMoved', ...results.trend.point });
+    await until("Boolean(document.querySelector('#trend [data-trend-i]:hover'))");
+    results.trend.hoverRequests = requests.length - beforeHover; assert.equal(results.trend.hoverRequests, 0);
+    await page('Input.dispatchMouseEvent', { type: 'mousePressed', ...results.trend.point, button: 'left', clickCount: 1 });
+    await page('Input.dispatchMouseEvent', { type: 'mouseReleased', ...results.trend.point, button: 'left', clickCount: 1 });
+    await until("document.querySelector('#annCtx').textContent.includes('2025-03-27') && Boolean(document.querySelector('#resTable tr.sel[data-i=\"1\"]'))");
+    results.trend.mouseSelection = await evaluate("({pressed:document.querySelector('#trend [data-trend-i=\"1\"]').getAttribute('aria-pressed'),imagery:Boolean(document.querySelector('.leaflet-image-layer')),date:document.querySelector('#hudRel').textContent})");
+    assert.equal(results.trend.mouseSelection.pressed, 'true'); assert.equal(results.trend.mouseSelection.imagery, true);
+    assert.equal(results.trend.mouseSelection.date, '2025-03-27');
+    await evaluate("document.querySelector('#trend [data-trend-i=\"0\"]').focus()");
+    await page('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await page('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await until("document.querySelector('#annCtx').textContent.includes('2026-10-29') && document.querySelector('#trend [data-trend-i=\"0\"]').getAttribute('aria-pressed')==='true'");
+    results.trend.keyboardSelection = await evaluate("({row:Number(document.querySelector('#resTable tr.sel').dataset.i),date:document.querySelector('#hudRel').textContent})");
+    assert.equal(results.trend.keyboardSelection.row, 0); assert.equal(results.trend.keyboardSelection.date, '2026-10-29');
+    console.log('Chart hover, pointer and keyboard checks passed: ' + JSON.stringify(results.trend));
     await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
     results.mobile = await evaluate(`(() => {const issues=document.querySelector('#jobOutcomes'),panel=document.querySelector('aside.panel');return {visible:!issues.hidden,
       fits:issues.getBoundingClientRect().width<=panel.getBoundingClientRect().width,bodyOverflow:document.documentElement.scrollWidth>innerWidth};})()`);

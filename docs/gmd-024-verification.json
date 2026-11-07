@@ -1,0 +1,67 @@
+{
+  "recordedAt": "2026-11-07T19:37:21.231Z",
+  "repositoryRevision": "787fbe4e76a0b2a59c6b31578c09239b9e33fb88",
+  "task": "GMD-024",
+  "status": "Ready for CI",
+  "mode": "Local source overrides; live provider/model assets; not deployed verification",
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "checkedAt": "2026-11-07T19:35:04.525Z",
+  "sources": {
+    "index.html": "2a9775df364ea7a66f6d6dae6c7791c0e554c7c28ec848ba100f70557a3e4f27",
+    "app.js": "10cedb874be61576724c449596ae4f50e2b48f6917e87899c83d292af1013b2f",
+    "engine.js": "3cee1ceb784c8dd49f438f8070ff0f09c17fed456ceb8918fad4c60935f676be",
+    "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+  },
+  "checks": {
+    "javascript": {
+      "command": "node --test tests/*.test.cjs",
+      "passed": 95
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+      "passed": 12
+    },
+    "browserCommand": "node --use-system-ca tests/browser/imagery.cjs",
+    "trend": {
+      "indices": [
+        1,
+        0
+      ],
+      "titles": [
+        "DXB_probe · 2025-03-27\nYOLO11 nano OBB · fast\nTotal: 0",
+        "DXB_probe · 2026-10-29\nYOLO11 nano OBB · fast\nTotal: 1\n1 aircraft"
+      ],
+      "point": {
+        "x": 186.92420959472656,
+        "y": 310.87953186035156
+      },
+      "hoverRequests": 0,
+      "mouseSelection": {
+        "pressed": "true",
+        "imagery": true,
+        "date": "2025-03-27"
+      },
+      "keyboardSelection": {
+        "row": 0,
+        "date": "2026-10-29"
+      }
+    },
+    "preservedSmokeChecks": {
+      "provider": "webgpu",
+      "jobStatus": "partial",
+      "usableClips": 2,
+      "pngsPreserveNativeDimensions": true,
+      "mobile": {
+        "visible": true,
+        "fits": true,
+        "bodyOverflow": false
+      }
+    },
+    "runtimeErrors": []
+  },
+  "limitations": [
+    "Local source overrides do not establish deployed parity.",
+    "Native SVG title presentation depends on the browser; full descriptions are also accessible labels.",
+    "No throughput, detection-quality or sustained-memory benchmark is claimed."
+  ]
+}

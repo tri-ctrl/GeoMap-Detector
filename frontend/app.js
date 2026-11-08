@@ -27,6 +27,7 @@ let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
 let pendingLiveRelease = null;
 let volatileLiveDraft = null;
+let suspendedClip = null, unsavedAois = false;
 let persistenceReady = false, durable = false, readOnly = false, queuePaused = false, storageError = null;
 let writing = false, restoring = false;
 let writingDone = Promise.resolve();
@@ -34,7 +35,8 @@ let storageShutdown = Promise.resolve();
 const pendingWrites = [];
 const DB = window.GVStorage?.create({ onState: state => {
   if (["ownership-lost", "version-change", "connection-closed"].includes(state.reason)) {
-    finishEdit();
+    finishEdit(); cancelAnnotationDraw();
+    if (clipView && !clipView.ready) disposeClipView();
     readOnly = true; queuePaused = true; storageError = new Error("Storage ownership changed. Reload this tab to recover.");
     if (activeBrowserJob) { activeBrowserJob.suspending = true; activeBrowserJob.controller?.abort(); }
     renderStorage(); updateRunSelection();
@@ -82,12 +84,19 @@ function saveDraft() {
   if (!dirty || !S.annFC || readOnly || restoring || BJOBS[S.clip?.job]?.deleting) return;
   if (S.clip?.browser) S.clip.source.draftFC = S.annFC;
   if (!S.clip) volatileLiveDraft = S.annFC;
-  const scope = S.clip ? (S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path) : "live";
+  const scope = draftScope(S.clip), entry = retainDraft(scope, S.annFC, S.clip, true);
+  const revision = ++entry.revision;
   const fc = JSON.parse(JSON.stringify(S.annFC)), jobId = S.clip?.job || null, original = S.annFC, source = S.clip?.source;
   persistWrite(async () => {
     await DB.saveDraft(scope, jobId, fc);
-    if (source && S.clip?.source !== source) delete source.draftFC;
-    if (S.annFC === original && JSON.stringify(original) === JSON.stringify(fc)) dirty = false;
+    if (draftCache.get(scope) === entry && entry.revision === revision) {
+      entry.dirty = false;
+      if (S.annFC !== original) {
+        draftCache.delete(scope);
+        if (source?.draftFC === original) delete source.draftFC;
+        if (volatileLiveDraft === original) volatileLiveDraft = null;
+      } else dirty = false;
+    }
   }, jobId || "live").catch(() => {});
 }
 async function readClip(source, options) {
@@ -103,7 +112,17 @@ const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const saveBlob = (name, blob) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000); };
+const downloadURLs = new Map();
+const saveBlob = (name, blob) => {
+  const a = document.createElement("a"), url = URL.createObjectURL(blob);
+  const release = () => { const timer = downloadURLs.get(url); if (timer === undefined) return; clearTimeout(timer); downloadURLs.delete(url); URL.revokeObjectURL(url); };
+  // Downloads have a separate delayed lease; a hidden/replaced map view cannot
+  // revoke a URL before the browser has consumed the download.
+  downloadURLs.set(url, setTimeout(release, 10000));
+  try { a.href = url; a.download = name; document.body.append(a); a.click(); }
+  catch (error) { release(); throw error; }
+  finally { a.remove(); }
+};
 const download = (name, text, type = "application/geo+json") => saveBlob(name, new Blob([text], { type }));
 const postJSON = async (p, body) => { const r = await fetch(api(p), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); };
 
@@ -216,7 +235,7 @@ function addAois(feats) {
   toast(`${added} AOI${added === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
 }
 function saveAois() {
-  if (!durable) { if (!store.set("aois", S.aois)) { dirty = true; toast("AOIs could not be saved. Export them before closing.", 5000); } return; }
+  if (!durable) { unsavedAois = !store.set("aois", S.aois); if (unsavedAois) toast("AOIs could not be saved. Export them before closing.", 5000); return; }
   const ids = new Set();
   S.aois.forEach(feature => { if (!feature._gmd_id || ids.has(feature._gmd_id)) feature._gmd_id = window.GVStorage.uuid(); ids.add(feature._gmd_id); });
   const features = JSON.parse(JSON.stringify(S.aois));
@@ -338,15 +357,21 @@ drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 $("#clearAoi").onclick = () => { if (readOnly || !persistenceReady) return; S.aois = []; S.activeAoi = null; saveAois(); renderAois(); };
 $("#loadSample").onclick = async () => { try { addAois(normalizeFeatures(await (await fetch("sample_aois/uae_airports_ports.geojson")).json())); } catch { toast("Sample file not found next to the portal"); } };
 
-let drawMode = null, drawRequest = 0, drawTool = null;
+let drawMode = null, drawRequest = 0, drawTool = null, drawPurpose = null, drawingView = null;
+function cancelAnnotationDraw() {
+  if (drawPurpose !== "ann") return;
+  ++drawRequest; drawTool?.disable(); drawTool = null; drawMode = drawPurpose = null; drawingView = null;
+}
 async function startDraw(kind, purpose) {
-  if (readOnly || !persistenceReady) return;
+  if (readOnly || !persistenceReady || !pageActive || comparing()) return;
+  if (purpose === "ann" && clipView && !canAnnotate()) return toast("Wait for the clip to finish loading");
   const request = ++drawRequest;
-  drawTool?.disable();
+  drawTool?.disable(); drawPurpose = purpose;
+  const owner = purpose === "ann" ? clipView : null;
   try {
     await E.ensureLibrary("draw");
-    if (request !== drawRequest || !pageActive) return;
-    drawMode = purpose;
+    if (request !== drawRequest || !pageActive || readOnly || !persistenceReady || (purpose === "ann" && (owner !== clipView || comparing()))) return;
+    drawMode = purpose; drawingView = owner;
     drawTool = new (kind === "rect" ? L.Draw.Rectangle : L.Draw.Polygon)(map, { shapeOptions: { color: purpose === "aoi" ? "#f2a516" : color($("#drawClass").value), weight: 2 }, showArea: false });
     drawTool.enable();
   } catch (error) { if (request === drawRequest) toast(error.message, 5000); }
@@ -356,8 +381,8 @@ $("#drawPoly").onclick = () => startDraw("poly", "aoi");
 map.on("draw:created", e => {
   const g = e.layer.toGeoJSON().geometry;
   if (drawMode === "aoi") addAois([{ type: "Feature", properties: { name: "AOI " + (S.aois.length + 1) }, geometry: g }]);
-  else if (drawMode === "ann") addManualObject(g);
-  drawMode = null; drawTool = null;
+  else if (drawMode === "ann" && drawingView === clipView && pageActive && !comparing()) addManualObject(g);
+  drawMode = drawPurpose = null; drawTool = drawingView = null;
 });
 
 // ---------------------------------------------------------------- Wayback releases
@@ -757,32 +782,65 @@ async function pollJob(id, base) {
 }
 
 // ---------------------------------------------------------------- results
-let RES = [], clipGeneration = 0;
+let RES = [], clipGeneration = 0, clipView = null, editRequest = 0;
+let jobsGeneration = 0, resultsGeneration = 0, jobsController = null, resultsController = null;
+const draftCache = new Map();
+const viewMetrics = { created: 0, disposed: 0, imageURLsCreated: 0, imageURLsRevoked: 0, staleReads: 0 };
+const draftScope = clip => clip ? clip.storeId || "server:" + clip.job + ":" + clip.path : "live";
+function retainDraft(scope, fc, clip, changed = false) {
+  let entry = draftCache.get(scope);
+  if (!entry || entry.fc !== fc) { entry = { fc, job: clip?.job || null, source: clip?.source, dirty: false, revision: 0 }; draftCache.set(scope, entry); }
+  if (changed) entry.dirty = true;
+  return entry;
+}
+function currentView(view) { return clipView === view && !view.disposed && !view.controller.signal.aborted && pageActive && !comparing(); }
+const viewAbort = () => new DOMException("Clip view was replaced", "AbortError");
+function requireView(view) { if (!currentView(view)) throw viewAbort(); }
+function viewRead(view, promise) {
+  const signal = view.controller.signal;
+  return new Promise((resolve, reject) => {
+    const cancelled = () => { signal.removeEventListener("abort", cancelled); reject(viewAbort()); };
+    if (signal.aborted) cancelled(); else signal.addEventListener("abort", cancelled, { once: true });
+    // IndexedDB cannot cancel an individual read. Consume late completion and
+    // reject ownership before exposing data; it must never mutate a draft/view.
+    Promise.resolve(promise).then(value => {
+      signal.removeEventListener("abort", cancelled);
+      if (!currentView(view)) { viewMetrics.staleReads++; reject(viewAbort()); } else resolve(value);
+    }, error => { signal.removeEventListener("abort", cancelled); reject(error); });
+  });
+}
 let compareRecords = [], compareChosen = [], catalogController = null, pairController = null;
+let pairTimer = null;
 let catalogGeneration = 0, compareGeneration = 0, compareView = null, compareSaved = null;
 function comparing() { return $("#resultView").value === "compare"; }
 function outputBase(job, path) { return api("/outputs/" + encodeURIComponent(job) + "/" + path.split("/").map(encodeURIComponent).join("/") + "/"); }
+function resultMetadata(result) { const { fc, draftFC, blobs, ...metadata } = result; return metadata; }
 function compareRecord(r, params, job, index, browser) {
-  return { ...r, params, job, browser, key: `${browser ? "browser" : "server"}:${job}:${index}`,
+  return { ...resultMetadata(r), params, job, browser, key: `${browser ? "browser" : "server"}:${job}:${index}`,
     model: GVCompare.modelName(params), modelKey: params.detect === false ? "imagery" : params.model_key || params.model || null,
     geometry: GVCompare.geometryKey(r.aoiFeature), source: r };
 }
-function stopComparison({ resumeEdit = true } = {}) {
-  ++compareGeneration; pairController?.abort(); pairController = null; compareView?.stop();
+function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
+  ++compareGeneration; pairController?.abort(); pairController = null; clearTimeout(pairTimer); pairTimer = null; compareView?.stop();
   if (compareSaved) {
     const previous = compareSaved; compareSaved = null;
     if (previous.image) clipLayer.addTo(map); if (previous.detections) detLayer.addTo(map);
-    map.setView(previous.centre, previous.zoom, { animate: false });
+    if (restoreView && previous.view === clipView && !clipView?.disposed && pageActive) map.setView(previous.centre, previous.zoom, { animate: false });
     $("#hudRel").textContent = previous.hud; $("#legend").style.visibility = previous.legend;
-    if (resumeEdit && previous.editing && S.sel === previous.editing && detLayer.getLayers().includes(previous.editing)) {
-      S.editing = previous.editing; previous.editing.editing.enable();
+    if (restoreView && resumeEdit && canAnnotate() && previous.view === clipView && previous.editing && S.sel === previous.editing && detLayer.getLayers().includes(previous.editing)) {
+      activateEditor(previous.editing);
     }
+  }
+  if (restoreView && !comparing() && clipView?.ready && pageActive) {
+    renderClipImage();
+    const editing = clipView.resumeEditing; clipView.resumeEditing = null;
+    if (resumeEdit && canAnnotate() && editing && S.sel === editing && detLayer.getLayers().includes(editing)) activateEditor(editing);
   }
 }
 function exitComparison() {
   ++catalogGeneration; catalogController?.abort(); catalogController = null;
-  stopComparison(); compareChosen = []; compareRecords = [];
   $("#resultView").value = "review"; $("#compareControls").hidden = true; $("#resultJobControls").hidden = false;
+  stopComparison(); compareChosen = []; compareRecords = [];
   $("#showImg").disabled = false; $("#resultHint").textContent = "Select a row to review its clipped imagery and detections.";
   renderResults();
 }
@@ -837,6 +895,7 @@ async function comparisonAsset(record, signal) {
     if (!response.ok) throw new Error(`Comparison image unavailable (HTTP ${response.status})`);
     blob = await response.blob();
   }
+  if (signal.aborted) throw viewAbort();
   if (!fc || fc.type !== "FeatureCollection" || !Array.isArray(fc.features) || !blob) throw new Error("This clip has no usable imagery/detections.");
   return { fc, preview: await GVCompare.preview(blob, record.size, signal), bounds: clipBounds(record) };
 }
@@ -846,18 +905,20 @@ async function showComparison() {
   const validation = GVCompare.validatePair(selected, $("#compareKind").value || "dates");
   if (validation.error) { $("#compareHint").textContent = validation.error; return; }
   const generation = ++compareGeneration, controller = pairController = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = pairTimer = setTimeout(() => controller.abort(), 45000);
   $("#compareHint").textContent = "Preparing comparison…";
   try {
     // Sequential preparation bounds retained decoded images; originals stay in exports.
-    const left = await comparisonAsset(validation.pair[0], controller.signal), right = await comparisonAsset(validation.pair[1], controller.signal);
+    const left = await comparisonAsset(validation.pair[0], controller.signal);
+    if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
+    const right = await comparisonAsset(validation.pair[1], controller.signal);
     if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
-    compareSaved = { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent,
-      image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: S.editing, legend: $("#legend").style.visibility };
-    finishEdit(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
+    compareSaved = { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent, view: clipView,
+      image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: clipView?.resumeEditing || S.editing, legend: $("#legend").style.visibility };
+    finishEdit(); releaseClipImage(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
     compareView ||= new GVCompare.Swipe(map, $("#compareMap"));
     await compareView.show([left, right], feature => ({ color: color(feature.properties.class), weight: 2, fillOpacity: 0.08 }));
-    if (generation !== compareGeneration) return;
+    if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
     const [a, b] = validation.pair;
     $("#compareLeftLabel").textContent = `${validation.roles[0]} · ${a.date} · ${a.model} · ${left.fc.features.length} objects`;
     $("#compareRightLabel").textContent = `${validation.roles[1]} · ${b.date} · ${b.model} · ${right.fc.features.length} objects`;
@@ -867,11 +928,13 @@ async function showComparison() {
     map.fitBounds(left.bounds);
   } catch (error) {
     if (generation === compareGeneration) { stopComparison(); $("#compareHint").textContent = controller.signal.aborted ? "Comparison timed out. Refresh or select the pair again." : error.message; }
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); if (pairTimer === timer) pairTimer = null; }
 }
 $("#resultView").onchange = () => {
   if (!comparing()) return exitComparison();
-  ++clipGeneration;
+  cancelAnnotationDraw(); ++editRequest;
+  if (clipView && !clipView.ready) disposeClipView();
+  else if (clipView) { clipView.resumeEditing = S.editing; finishEdit(); saveDraft(); }
   $("#resultJobControls").hidden = true; $("#compareControls").hidden = false; $("#showImg").disabled = true;
   $("#resultHint").textContent = "Select two checkboxes to compare available runs. Model names are shown for each clip.";
   renderResults(); refreshCompareCatalog();
@@ -881,19 +944,36 @@ $("#compareClear").onclick = () => { compareChosen = []; stopComparison(); rende
 $("#compareKind").onchange = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = "Select two clips in the table."; };
 $("#compareExit").onclick = exitComparison;
 async function loadJobs() {
+  jobsController?.abort(); const controller = jobsController = new AbortController(), generation = ++jobsGeneration;
+  let serverJobs = [];
+  if (S.online) { try { serverJobs = await E.requestJSON(api("/api/jobs"), { signal: controller.signal }); } catch {} }
+  if (!pageActive || controller.signal.aborted || generation !== jobsGeneration) return;
   const opts = Object.values(BJOBS).reverse().map(j => `<option value="${j.id}">${j.id.replace("browser_", "This browser · ")} · ${j.status}</option>`);
-  if (S.online) { try { (await (await fetch(api("/api/jobs"))).json()).forEach(j => opts.push(`<option value="${j.id}">Server · ${j.id} · ${j.status}</option>`)); } catch {} }
+  if (Array.isArray(serverJobs)) serverJobs.forEach(j => opts.push(`<option value="${esc(j.id)}">Server · ${esc(j.id)} · ${esc(j.status)}</option>`));
   $("#jobSel").innerHTML = opts.join("") || "<option value=''>No jobs yet. Run one in Detect.</option>";
   if (S.jobId && [...$("#jobSel").options].some(o => o.value === S.jobId)) $("#jobSel").value = S.jobId;
-  if ($("#jobSel").value) loadResults($("#jobSel").value); else { RES = []; renderResults(); }
+  if ($("#jobSel").value) return loadResults($("#jobSel").value);
+  RES = []; renderResults();
 }
-$("#jobSel").onchange = () => { ++viewEpoch; S.jobId = $("#jobSel").value; loadResults(S.jobId); };
+$("#jobSel").onchange = () => {
+  ++viewEpoch; ++jobsGeneration; jobsController?.abort();
+  if (clipView && !clipView.ready) disposeClipView();
+  S.jobId = $("#jobSel").value; return loadResults(S.jobId);
+};
 $("#jobRefresh").onclick = loadJobs;
 async function loadResults(id) {
-  if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params, source: r }));
-  else { const j = await (await fetch(api("/api/jobs/" + id))).json(); RES = (j.results || []).map(r => ({ ...r, job: id, params: j.params || {} })); }
-  renderResults();
-  $("#deleteJob").disabled = readOnly || !BJOBS[id] || pendingJob(BJOBS[id]);
+  resultsController?.abort(); const controller = resultsController = new AbortController(), generation = ++resultsGeneration;
+  const base = S.api || "";
+  try {
+    let rows;
+    if (BJOBS[id]) rows = BJOBS[id].results.map(r => ({ ...resultMetadata(r), browser: true, job: id, params: BJOBS[id].params, source: r }));
+    else { const j = await E.requestJSON(base + "/api/jobs/" + encodeURIComponent(id), { signal: controller.signal }); rows = (j.results || []).map(r => ({ ...resultMetadata(r), job: id, params: j.params || {} })); }
+    if (!pageActive || controller.signal.aborted || generation !== resultsGeneration) return;
+    RES = rows; renderResults();
+    $("#deleteJob").disabled = readOnly || !BJOBS[id] || pendingJob(BJOBS[id]);
+  } catch (error) {
+    if (pageActive && !controller.signal.aborted && generation === resultsGeneration) { RES = []; renderResults(); $("#resultHint").textContent = "Could not load this job. Refresh to retry. " + error.message; }
+  }
 }
 function renderResults() {
   const tb = $("#resTable tbody");
@@ -910,7 +990,7 @@ function renderResults() {
     compareChosen = checkbox.checked ? [...compareChosen.filter(value => value !== key), key].slice(-2) : compareChosen.filter(value => value !== key);
     renderResults(); showComparison();
   }; });
-  else tb.querySelectorAll("tr[data-i]").forEach(tr => tr.onclick = () => openClip(+tr.dataset.i));
+  else tb.querySelectorAll("tr[data-i]").forEach(tr => { const index = +tr.dataset.i, record = rows[index]; tr.onclick = () => { if (RES[index] === record) return openClip(index); }; });
   if (compare) $("#trendSec").hidden = true; else drawTrend();
 }
 function drawTrend() {
@@ -933,74 +1013,153 @@ function drawTrend() {
     return `<div><div class="hint" style="font-weight:600;color:var(--fg)">${esc(arr[0].row.aoi)}</div><svg class="spark" viewBox="0 0 ${W} ${H}" role="group" aria-label="Objects per date at ${esc(arr[0].row.aoi)}">${grid}${bars}${xl}</svg></div>`;
   }).join("");
   trend.querySelectorAll("[data-trend-i]").forEach(bar => {
-    bar.onclick = () => { if (!comparing()) return openClip(+bar.dataset.trendI); };
+    const index = +bar.dataset.trendI, record = RES[index];
+    bar.onclick = () => { if (!comparing() && RES[index] === record) return openClip(index); };
     bar.onkeydown = event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); return bar.onclick(); } };
   });
 }
-let displayURL = null, displayBlob = null;
-function releaseClipImage() { clipLayer.clearLayers(); if (displayURL) URL.revokeObjectURL(displayURL); displayURL = displayBlob = null; }
-const blobURL = blob => {
-  if (displayBlob !== blob) { releaseClipImage(); displayBlob = blob; displayURL = URL.createObjectURL(blob); }
-  return displayURL;
-};
 const clipBounds = r => [[r.bounds[1], r.bounds[0]], [r.bounds[3], r.bounds[2]]];
-function renderClipImage() {
-  clipLayer.clearLayers();
-  const r = S.clip;
-  if (!r || !$("#showImg").checked) return;
-  if (r.browser && !r.blobs?.png) return;
-  const src = r.browser ? blobURL(r.blobs.png) : api(`/outputs/${r.job}/${r.path}/image.png`);
-  L.imageOverlay(src, clipBounds(r)).addTo(clipLayer);
+function makeClipView(clip) {
+  viewMetrics.created++;
+  return { generation: ++clipGeneration, clip, scope: draftScope(clip), controller: new AbortController(),
+    serverBase: S.api || "", annotationServer: isServer(), disposed: false, ready: false, loading: true, image: null, url: null, timer: null, fc: null, resumeEditing: null };
 }
-async function openClip(i) {
-  stopComparison({ resumeEdit: false }); finishEdit(); saveDraft(); const generation = ++clipGeneration;
-  const previous = S.clip;
-  if (durable && previous?.browser && !pendingWrites.length) { delete previous.source.draftFC; delete previous.source.fc; delete previous.source.blobs; }
-  releaseClipImage();
-  if (previous?.browser) delete previous.blobs;
-  const r = RES[i]; S.clip = r; S.annFC = null; S.sel = null; detLayer.clearLayers();
+function releaseClipImage(view = clipView) {
+  if (!view) return;
+  if (view.image) {
+    // Leaflet's remove event detaches getEvents() listeners from the map.
+    // Clearing all listeners before removal would suppress that cleanup.
+    clipLayer.removeLayer(view.image); view.image.off();
+    const element = view.image.getElement?.();
+    if (element) { element.onload = element.onerror = null; element.removeAttribute("src"); }
+    view.image = null;
+  }
+  // Remove the layer before revoking its lease. Revoked URLs are never cached.
+  if (view.url) { URL.revokeObjectURL(view.url); viewMetrics.imageURLsRevoked++; view.url = null; }
+}
+function clearSelection() {
+  S.sel = null; S.editing = null;
+  $("#selCard").innerHTML = '<span class="hint">Click an object on the map.</span>';
+}
+function clearDetectionLayers() {
+  ++editRequest;
+  const layers = detLayer.getLayers();
+  layers.forEach(layer => { layer.editing?.disable(); layer.unbindTooltip?.(); });
+  detLayer.clearLayers(); layers.forEach(layer => layer.off()); clearSelection();
+}
+function disposeClipView({ preserveDraft = true } = {}) {
+  const view = clipView;
+  if (preserveDraft) { finishEdit(); if (S.annFC && view?.ready) { retainDraft(view.scope, S.annFC, view.clip, dirty); saveDraft(); } }
+  cancelAnnotationDraw(); ++editRequest;
+  if (view && !view.disposed) {
+    view.disposed = true; view.controller.abort(); clearTimeout(view.timer); view.timer = null;
+    releaseClipImage(view); view.resumeEditing = null;
+    const entry = draftCache.get(view.scope), source = view.clip?.source;
+    if (!preserveDraft || (durable && !entry?.dirty)) {
+      draftCache.delete(view.scope);
+      if (source?.draftFC === view.fc) delete source.draftFC;
+      if (volatileLiveDraft === view.fc) volatileLiveDraft = null;
+    }
+    if (durable && source?.persisted) { delete source.fc; delete source.blobs; }
+    if (view.clip) { delete view.clip.blobs; delete view.clip.fc; delete view.clip.draftFC; }
+    view.fc = null; view.clip = null; viewMetrics.disposed++;
+  }
+  clearDetectionLayers(); clipView = null; S.clip = S.annFC = null;
+  $("#annCtx").innerHTML = '<span class="hint">Open a clip from Results, or annotate on the live Wayback layer.</span>';
+  updStats();
+}
+function renderClipImage() {
+  const view = clipView, r = view?.clip;
+  if (!view?.ready || !r || !currentView(view) || !$("#showImg").checked) { releaseClipImage(view); return; }
+  if (view.image) return;
+  if (r.browser && !r.blobs?.png) return;
+  if (r.browser) { view.url = URL.createObjectURL(r.blobs.png); viewMetrics.imageURLsCreated++; }
+  const src = view.url || view.serverBase + `/outputs/${r.job}/${r.path}/image.png`;
+  const image = view.image = L.imageOverlay(src, clipBounds(r));
+  image.on("error", () => {
+    if (!currentView(view) || view.image !== image) return;
+    releaseClipImage(view); toast("Clip imagery could not be displayed. Detections are still available; toggle the image to retry.", 5000);
+  });
+  image.addTo(clipLayer);
+}
+function validateFeatures(fc) {
+  if (fc?.type !== "FeatureCollection" || !Array.isArray(fc.features) || !fc.features.every(f => f?.type === "Feature" && f.geometry && f.properties))
+    throw new Error("This clip has invalid detection data. Select the row to retry.");
+  return fc;
+}
+function commitClipView(view, fc, payload) {
+  requireView(view);
+  const r = view.clip;
+  view.ready = true; view.loading = false; view.fc = fc; clearTimeout(view.timer); view.timer = null;
+  if (payload) r.blobs = payload.blobs;
+  const entry = retainDraft(view.scope, fc, r);
+  if (r?.browser) r.source.draftFC = fc;
+  S.annFC = fc; dirty = entry.dirty;
+  renderClipImage(); renderDetections(); renderAnnCtx();
+}
+async function openClip(i, { record = RES[i], fitView = true, selectDate = true } = {}) {
+  const r = record; if (!r || !persistenceReady || !pageActive || comparing() || BJOBS[r.job]?.deleting) return;
+  stopComparison({ resumeEdit: false, restoreView: false }); disposeClipView();
+  const view = clipView = makeClipView(r); S.clip = r;
+  $("#annCtx").textContent = `Loading ${r.aoi} · ${r.date}…`;
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
   $("#trend").querySelectorAll("[data-trend-i]").forEach(bar => {
     const selected = +bar.dataset.trendI === i;
     bar.classList.toggle("selected", selected); bar.setAttribute("aria-pressed", String(selected));
   });
-  const b = clipBounds(r);
-  const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);
-  map.fitBounds(b);
-  const rel = S.releases.find(x => x.release === r.release); if (rel) setWayback(rel);
-  const source = r.browser ? r.source : null;
-  // Keep model predictions immutable; a separate job-owned draft retains edits.
-  let payload;
-  try { if (source) payload = await readClip(source, { images: true }); }
-  catch (error) { if (generation === clipGeneration) toast(error.message, 5000); return; }
-  if (generation !== clipGeneration || comparing()) return;
-  if (payload) r.blobs = payload.blobs;
-  renderClipImage();
-  const fc = source ? (source.draftFC ||= payload.draftFC || JSON.parse(JSON.stringify(payload.fc))) : await (await fetch(base + "detections.geojson")).json();
-  if (generation !== clipGeneration || comparing()) return;
-  const scope = r.storeId || "server:" + r.job + ":" + r.path;
-  const savedDraft = !source && durable ? await DB.draft(scope) : null;
-  if (savedDraft) { fc.features = savedDraft.features; }
-  // New reviews are scoped to the exact run/clip. Ambiguous legacy reviews
-  // remain available for training/export without overwriting another model.
-  const ann = durable ? await DB.reviews(scope) : await getAnnotations(), byId = Object.fromEntries(ann.features.map(f => [f.id, f]));
-  if (generation !== clipGeneration || comparing()) return;
-  const hasDraft = Boolean(payload?.draftFC || savedDraft);
-  if (!hasDraft) fc.features = fc.features.map(f => byId[f.id] || f);
-  const have = new Set(fc.features.map(f => f.id));
-  if (!hasDraft) ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
-  S.annFC = fc; if (durable) dirty = false; S.sel = null; renderDetections(); renderAnnCtx(); toast(`${fc.features.length} objects · ${r.aoi} · ${r.date}`);
+  if (fitView) map.fitBounds(clipBounds(r));
+  const rel = S.releases.find(x => x.release === r.release); if (selectDate && rel) setWayback(rel);
+  view.timer = setTimeout(() => { view.timedOut = true; view.controller.abort(); }, 30000);
+  try {
+    const source = r.browser ? r.source : null, signal = view.controller.signal;
+    const payload = source ? await viewRead(view, readClip(source, { images: true })) : null;
+    requireView(view);
+    // Work on a private candidate until every read is current. In particular a
+    // late review read must not mutate a job-owned draft after this view exits.
+    const saved = draftCache.get(view.scope)?.fc || payload?.draftFC
+      || (!source && durable ? await viewRead(view, DB.draft(view.scope)) : null);
+    requireView(view);
+    const raw = saved || (source ? payload.fc : await viewRead(view, E.requestJSON(view.serverBase + `/outputs/${r.job}/${r.path}/detections.geojson`, { signal })));
+    requireView(view); validateFeatures(raw);
+    const fc = JSON.parse(JSON.stringify(raw));
+    if (!saved) {
+      const ann = await viewRead(view, durable ? DB.reviews(view.scope) : getAnnotations({ signal, base: view.serverBase, server: view.annotationServer }));
+      requireView(view); validateFeatures(ann);
+      const byId = new Map(ann.features.map(feature => [feature.id, feature]));
+      fc.features = fc.features.map(feature => byId.get(feature.id) || feature);
+      const have = new Set(fc.features.map(feature => feature.id));
+      ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
+    }
+    requireView(view);
+    // Reuse the live draft object only at commit, after checking ownership.
+    const entry = draftCache.get(view.scope);
+    commitClipView(view, entry?.fc || fc, payload);
+    toast(`${S.annFC.features.length} objects · ${r.aoi} · ${r.date}`);
+  } catch (error) {
+    if (clipView !== view || view.disposed || !pageActive || comparing()) return;
+    view.loading = false;
+    releaseClipImage(view); clearDetectionLayers(); S.annFC = null;
+    if (error.name !== "AbortError" || view.timedOut) {
+      const message = view.timedOut ? "Clip loading timed out. Select the row to retry." : error.message;
+      $("#annCtx").textContent = message; toast(message, 5000);
+    }
+  } finally { clearTimeout(view.timer); view.timer = null; }
 }
 $("#showImg").onchange = renderClipImage;
 $("#openLiveDraft").onclick = async () => {
-  finishEdit(); saveDraft(); stopComparison({ resumeEdit: false }); const generation = ++clipGeneration;
-  const fc = durable ? await DB.draft("live") : volatileLiveDraft;
-  if (generation !== clipGeneration || comparing()) return;
-  if (!fc) return toast("No saved live-map draft yet");
-  releaseClipImage();
-  S.clip = null; S.sel = null; S.annFC = fc; if (durable) dirty = false; renderDetections();
-  restoreLiveDate(fc);
-  $("#annCtx").textContent = "Live map · recovered draft"; showTab("ann");
+  if (!pageActive) return;
+  if (comparing()) exitComparison();
+  disposeClipView(); const view = clipView = makeClipView(null);
+  view.timer = setTimeout(() => { view.timedOut = true; view.controller.abort(); }, 30000);
+  try {
+    const fc = draftCache.get("live")?.fc || (durable ? await viewRead(view, DB.draft("live")) : volatileLiveDraft);
+    requireView(view);
+    if (!fc) { disposeClipView(); return toast("No saved live-map draft yet"); }
+    commitClipView(view, validateFeatures(fc)); restoreLiveDate(fc);
+    $("#annCtx").textContent = "Live map · recovered draft"; showTab("ann");
+  } catch (error) {
+    if (clipView === view && !view.disposed && pageActive && !comparing()) { disposeClipView(); toast(view.timedOut ? "Live draft loading timed out. Try again." : error.message, 5000); }
+  } finally { clearTimeout(view.timer); view.timer = null; }
 };
 function restoreLiveDate(fc) {
   const releases = [...new Set(fc.features.map(f => f.properties.release).filter(r => r != null))];
@@ -1010,16 +1169,16 @@ function restoreLiveDate(fc) {
 }
 
 // ---------------------------------------------------------------- annotations
-async function getAnnotations() {
+async function getAnnotations({ signal, base = S.api || "", server = isServer() } = {}) {
   const local = durable ? await DB.reviews() : store.get("ann", { type: "FeatureCollection", features: [] });
-  if (!isServer()) return local;
-  try { const srv = await (await fetch(api("/api/annotations"))).json(); const exact = new Set(srv.features.map(f => JSON.stringify(f))); return { type: "FeatureCollection", features: srv.features.concat(local.features.filter(f => !exact.has(JSON.stringify(f)))) }; }
-  catch { return local; }
+  if (!server) return local;
+  try { const srv = validateFeatures(await E.requestJSON(base + "/api/annotations", { signal })); const exact = new Set(srv.features.map(f => JSON.stringify(f))); return { type: "FeatureCollection", features: srv.features.concat(local.features.filter(f => !exact.has(JSON.stringify(f)))) }; }
+  catch (error) { if (signal?.aborted) throw error; return local; }
 }
-async function upsertLocal(features) {
+async function upsertLocal(features, clip = S.clip) {
   if (durable) {
-    const scope = S.clip ? S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path : "live";
-    const jobId = S.clip?.job || null, aoiId = S.clip?.source?.aoiFeature?._gmd_id || null;
+    const scope = draftScope(clip);
+    const jobId = clip?.job || null, aoiId = clip?.source?.aoiFeature?._gmd_id || null;
     const records = JSON.parse(JSON.stringify(features));
     records.forEach(f => { f.properties = { ...f.properties, gmd_clip_id: scope, gmd_job_id: jobId, gmd_aoi_id: aoiId }; });
     await persistWrite(() => DB.saveReviews(scope, jobId, aoiId, records));
@@ -1034,22 +1193,34 @@ async function upsertLocal(features) {
 const STYLE = f => { const p = f.properties, c = color(p.class), rej = p.status === "rejected";
   return { color: rej ? "#c23b3b" : c, weight: S.sel && S.sel.feature === f ? 3.5 : 2, dashArray: rej ? "4 4" : null, fillColor: c, fillOpacity: p.status === "predicted" ? 0.08 : rej ? 0 : 0.22 }; };
 function renderDetections() {
-  detLayer.clearLayers(); if (!S.annFC) return;
+  if (!clipView && S.annFC) { clipView = makeClipView(S.clip); clipView.ready = true; clipView.loading = false; clipView.fc = S.annFC; retainDraft(clipView.scope, S.annFC, S.clip); }
+  const selected = S.sel?.feature;
+  finishEdit(); clearDetectionLayers(); if (!S.annFC) return;
   L.geoJSON(S.annFC, { pane: "gmd-detections", bubblingMouseEvents: false, style: STYLE, onEachFeature: (f, l) => {
     l.feature = f; l.on("click", e => { L.DomEvent.stopPropagation(e); if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent); select(l); });
   } }).eachLayer(l => detLayer.addLayer(l));
+  const replacement = selected && detLayer.getLayers().find(layer => layer.feature === selected); if (replacement) select(replacement);
   updStats();
 }
 function renderAnnCtx() {
   const c = S.clip; if (!c) return;
   $("#annCtx").innerHTML = `<dl class="kv"><dt>AOI</dt><dd>${esc(c.aoi)}</dd><dt>Imagery</dt><dd>${c.date} · release ${c.release}</dd><dt>Zoom</dt><dd>z${c.zoom}</dd><dt>Objects</dt><dd>${S.annFC.features.length}</dd></dl>`;
 }
-function finishEdit() { if (S.editing) { S.editing.editing.disable(); syncGeom(S.editing); S.editing = null; } }
+function finishEdit() {
+  ++editRequest;
+  if (S.editing) { const editing = S.editing; S.editing = null; syncGeom(editing); editing.editing.disable(); if (clipView) clipView.editStart = null; }
+}
+function activateEditor(layer) {
+  clipView.editStart = JSON.stringify(layer.toGeoJSON(false).geometry);
+  S.editing = layer; layer.editing.enable();
+}
+function canAnnotate() { return Boolean(clipView?.ready && currentView(clipView) && S.annFC && !readOnly && persistenceReady && !BJOBS[S.clip?.job]?.deleting); }
 function selectionNumber(value, digits) {
   if ((typeof value !== "number" && typeof value !== "string") || String(value).trim() === "") return "—";
   const number = Number(value); return Number.isFinite(number) ? number.toFixed(digits) : "—";
 }
 function select(l) {
+  if (!clipView?.ready || !currentView(clipView) || !detLayer.getLayers().includes(l)) return;
   finishEdit();
   S.sel = l; detLayer.eachLayer(x => x.setStyle && x.setStyle(STYLE(x.feature)));
   const p = l.feature.properties;
@@ -1070,30 +1241,37 @@ function select(l) {
   if (!$("#tab-ann").classList.contains("on")) showTab("ann");
 }
 function setStatus(st, cls) {
-  if (!S.sel || readOnly || !persistenceReady) return; const p = S.sel.feature.properties;
+  if (!S.sel || !canAnnotate() || !detLayer.getLayers().includes(S.sel)) return; const p = S.sel.feature.properties;
   if (cls) { p.original_class = p.original_class || p.class; p.class = cls; }
   p.status = st; p.reviewed_at = new Date().toISOString(); S.sel.setStyle(STYLE(S.sel.feature)); select(S.sel); updStats(); dirty = true; saveDraft();
 }
 async function editShape() {
-  const selected = S.sel;
-  if (!selected || readOnly || !persistenceReady) return;
+  const selected = S.sel, owner = clipView, request = ++editRequest;
+  if (!selected || !canAnnotate()) return;
   try {
     await E.ensureLibrary("draw");
-    if (!pageActive || S.sel !== selected || !detLayer.getLayers().includes(selected)) return;
+    if (request !== editRequest || owner !== clipView || !canAnnotate() || S.sel !== selected || !detLayer.getLayers().includes(selected)) return;
     // Leaflet.Draw init hooks do not run retroactively for pre-existing polygons.
     if (!selected.editing) selected.editing = new L.Edit.Poly(selected);
-    S.editing = selected; selected.editing.enable(); toast("Drag the corners, then press Enter or click the map");
-  } catch (error) { toast(error.message, 5000); }
+    activateEditor(selected); toast("Drag the corners, then press Enter or click the map");
+  } catch (error) { if (request === editRequest && owner === clipView && currentView(owner)) toast(error.message, 5000); }
 }
-function syncGeom(l) { if (readOnly) return; l.feature.geometry = l.toGeoJSON().geometry; if (l.feature.properties.status === "predicted") l.feature.properties.status = "corrected"; dirty = true; saveDraft(); }
-function delSel() { if (!S.sel || readOnly || !persistenceReady) return; S.annFC.features = S.annFC.features.filter(f => f !== S.sel.feature); detLayer.removeLayer(S.sel); S.sel = null; $("#selCard").innerHTML = '<span class="hint">Click an object on the map.</span>'; updStats(); dirty = true; saveDraft(); }
+function syncGeom(l) {
+  if (readOnly) return;
+  const geometry = l.toGeoJSON(false).geometry;
+  if (JSON.stringify(geometry) === clipView?.editStart) return;
+  l.feature.geometry = geometry;
+  if (l.feature.properties.status === "predicted") l.feature.properties.status = "corrected";
+  dirty = true; saveDraft();
+}
+function delSel() { if (!S.sel || !canAnnotate()) return; finishEdit(); const layer = S.sel; S.annFC.features = S.annFC.features.filter(f => f !== layer.feature); layer.editing?.disable(); detLayer.removeLayer(layer); layer.off(); clearSelection(); updStats(); dirty = true; saveDraft(); }
 function nextPending() {
   const ls = detLayer.getLayers().filter(l => l.feature.properties.status === "predicted").sort((a, b) => (b.feature.properties.confidence || 0) - (a.feature.properties.confidence || 0));
   if (!ls.length) return toast("Everything in this clip is reviewed");
   select(ls[0]); map.panTo(ls[0].getBounds().getCenter());
 }
 function addManualObject(geom) {
-  if (readOnly || !persistenceReady) return;
+  if (readOnly || !persistenceReady || !pageActive || comparing() || (clipView && !canAnnotate())) return;
   if (!S.annFC) S.annFC = { type: "FeatureCollection", features: [] };
   const ctx = S.clip ? { release: S.clip.release, imagery_date: S.clip.date, zoom: S.clip.zoom, aoi_id: S.clip.aoi_id, aoi_name: S.clip.aoi }
     : { release: S.viewRel ? S.viewRel.release : null, imagery_date: S.viewRel ? S.viewRel.date : null, zoom: Math.min(19, map.getZoom()), aoi_id: "live", aoi_name: "Live map" };
@@ -1108,21 +1286,22 @@ function updStats() { const fs = S.annFC ? S.annFC.features : []; $("#annStats")
 $("#annRect").onclick = () => startDraw("rect", "ann");
 $("#annPoly").onclick = () => startDraw("poly", "ann");
 $("#addClass").onclick = () => { const v = $("#newClass").value.trim().toLowerCase().replace(/\s+/g, "_"); if (!v) return; mergeClasses([v]); S.wantClasses.add(v); store.set("want", [...S.wantClasses]); renderClasses(); $("#drawClass").value = v; $("#newClass").value = ""; };
-$("#acceptAll").onclick = () => { if (!S.annFC || readOnly || !persistenceReady) return; let n = 0; S.annFC.features.forEach(f => { if (f.properties.status === "predicted" && f.properties.confidence >= 0.6) { f.properties.status = "verified"; n++; } }); renderDetections(); dirty = true; saveDraft(); toast(`${n} accepted`); };
+$("#acceptAll").onclick = () => { if (!canAnnotate()) return; let n = 0; S.annFC.features.forEach(f => { if (f.properties.status === "predicted" && f.properties.confidence >= 0.6) { f.properties.status = "verified"; n++; } }); renderDetections(); dirty = true; saveDraft(); toast(`${n} accepted`); };
 $("#saveAnn").onclick = async () => {
-  if (!S.annFC) return toast("Nothing to save");
-  if (readOnly) return;
+  if (!canAnnotate()) return toast("Open a clip or live draft to review first");
   finishEdit();
-  const reviewed = S.annFC.features.filter(f => f.properties.status !== "predicted");
-  if (!reviewed.length) {
-    const scope = S.clip ? S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path : "live";
-    if (!durable || !(await DB.reviews(scope)).features.length) return toast("Review at least one object first");
-  }
+  const owner = clipView, original = S.annFC, clip = S.clip, base = S.api || "", server = isServer();
+  const snapshot = JSON.stringify(original), reviewed = JSON.parse(snapshot).features.filter(f => f.properties.status !== "predicted");
   let out;
-  try { saveDraft(); out = await upsertLocal(reviewed); }
+  try {
+    if (!reviewed.length && (!durable || !(await DB.reviews(draftScope(clip))).features.length)) {
+      if (owner === clipView && currentView(owner)) toast("Review at least one object first"); return;
+    }
+    if (owner === clipView) saveDraft(); out = await upsertLocal(reviewed, clip);
+  }
   catch { return; }
-  if (isServer()) { try { await postJSON("/api/annotations", { type: "FeatureCollection", features: reviewed }); } catch { toast("Saved in this browser; the server did not respond"); } }
-  dirty = false; toast(`Saved · training set has ${out.features.length} objects`);
+  if (server) { try { const response = await fetch(base + "/api/annotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "FeatureCollection", features: reviewed }) }); if (!response.ok) throw new Error("Server annotation save failed"); } catch { if (owner === clipView) toast("Saved in this browser; the server did not respond"); } }
+  if (owner === clipView && currentView(owner)) { if (S.annFC === original && JSON.stringify(original) === snapshot) dirty = false; toast(`Saved · training set has ${out.features.length} objects`); }
 };
 map.on("click", finishEdit);
 document.addEventListener("keydown", e => {
@@ -1138,8 +1317,11 @@ document.addEventListener("keydown", e => {
   else if (k === "enter" && S.editing) { finishEdit(); toast("Shape updated"); }
 });
 window.addEventListener("beforeunload", e => {
+  // Snapshot a vertex drag before deciding whether leaving can lose work.
+  // The actual database write remains separately owned and may still be pending.
+  finishEdit();
   const unsaved = Object.values(BJOBS).some(job => durable ? job.durableReady === false || job.results.some(r => r.persisted === false) : job.results.length && !job.exported);
-  if (dirty || pendingWrites.length || unsaved) { e.preventDefault(); e.returnValue = ""; }
+  if (dirty || unsavedAois || [...draftCache.values()].some(entry => entry.dirty) || pendingWrites.length || unsaved) { e.preventDefault(); e.returnValue = ""; }
 });
 
 // ---------------------------------------------------------------- train
@@ -1230,13 +1412,13 @@ async function restoreStorage() {
     if (S.clip?.browser) {
       const source = BJOBS[S.clip.job]?.results.find(r => r.storeId === S.clip.storeId);
       if (source) { S.clip.source = source; source.draftFC = S.annFC; renderClipImage(); }
-      else { releaseClipImage(); S.clip = S.annFC = S.sel = null; detLayer.clearLayers(); }
+      else disposeClipView({ preserveDraft: false });
     }
     for (const id of saved.queue) if (BJOBS[id] && pendingJob(BJOBS[id])) browserQueue.push(BJOBS[id]);
     queuePaused = browserQueue.length > 0;
     S.customModels = saved.models.filter(model => model.custom);
     const live = await DB.draft("live");
-    if (live && !S.clip) { S.annFC = live; restoreLiveDate(live); renderDetections(); $("#annCtx").textContent = "Live map · recovered draft"; }
+    if (live && !S.clip && !suspendedClip?.clip) { S.annFC = live; restoreLiveDate(live); renderDetections(); $("#annCtx").textContent = "Live map · recovered draft"; }
     renderAois(); renderBrowserQueue(); loadJobs();
   } catch (error) {
     // Failed upgrades/imports never delete the database or its legacy backup.
@@ -1255,6 +1437,7 @@ $("#deleteJob").onclick = async () => {
   const id = $("#jobSel").value || S.jobId, job = BJOBS[id];
   if (!job || readOnly || pendingJob(job) || job.exporting) return toast("Cancel or finish this job and its export first");
   if (!window.confirm("Delete this job, its images and editing drafts from this device? Saved training reviews are kept.")) return;
+  if (clipView?.clip?.job === id) { finishEdit(); saveDraft(); if (!clipView.ready) disposeClipView({ preserveDraft: false }); }
   job.deleting = true;
   try {
     if (durable && storageError && !writing) {
@@ -1266,15 +1449,20 @@ $("#deleteJob").onclick = async () => {
       }
       storageError = null; await flushWrites();
     } else await persistWrite(() => DB.deleteJob(id), id);
-    if (S.clip?.job === id) { ++clipGeneration; if (S.editing) { S.editing.editing.disable(); S.editing = null; } releaseClipImage(); S.clip = S.annFC = S.sel = null; detLayer.clearLayers(); dirty = false; }
+    if (clipView?.clip?.job === id) { disposeClipView({ preserveDraft: false }); dirty = false; }
+    for (const [key, entry] of draftCache) if (entry.job === id) draftCache.delete(key);
     if (comparing()) exitComparison();
+    ++jobsGeneration; ++resultsGeneration; jobsController?.abort(); resultsController?.abort();
     delete BJOBS[id]; S.jobId = null; if (selectedBrowserJobId === id) selectedBrowserJobId = null;
     renderBrowserQueue(); await loadJobs(); toast("Job deleted. Saved training reviews are kept.");
   } catch {} finally { job.deleting = false; renderStorage(); }
 };
 window.addEventListener("pagehide", () => {
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
-  finishEdit(); saveDraft(); releaseClipImage();
+  const previous = clipView?.ready ? { clip: S.clip, scope: clipView.scope } : null;
+  if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
+  disposeClipView(); suspendedClip = previous;
+  ++jobsGeneration; ++resultsGeneration; jobsController?.abort(); resultsController?.abort();
   if (durable) {
     queuePaused = true;
     if (activeBrowserJob) { activeBrowserJob.suspending = true; activeBrowserJob.controller?.abort(); }
@@ -1289,7 +1477,6 @@ window.addEventListener("pagehide", () => {
     for (const job of [...browserQueue]) cancelBrowserJob(job.id, "Page closed or suspended");
     if (activeBrowserJob) cancelBrowserJob(activeBrowserJob.id, "Page closed or suspended");
   }
-  if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
 });
 window.addEventListener("pageshow", async event => {
   if (!event.persisted) return;
@@ -1301,5 +1488,21 @@ window.addEventListener("pageshow", async event => {
       const state = await DB.open(); readOnly = !state.writable; persistenceReady = true; renderBrowserQueue();
     } else { await restoreStorage(); await loadModels(); }
   } else drainBrowserQueue();
+  if (suspendedClip && pageActive) {
+    const previous = suspendedClip; suspendedClip = null;
+    if (previous.clip) {
+      const old = previous.clip, job = BJOBS[old.job];
+      const source = old.browser ? job?.results.find(r => r.storeId === old.storeId) : null;
+      const record = old.browser && source ? { ...resultMetadata(source), job: old.job, browser: true, params: job.params, source } : !old.browser ? old : null;
+      if (record && !clipView) await openClip(-1, { record, fitView: false, selectDate: false });
+    } else if (!clipView) await $("#openLiveDraft").onclick();
+  }
 });
+window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView && !clipView.disposed ? 1 : 0,
+  loading: Boolean(clipView?.loading), imageLeases: clipView?.url ? 1 : 0, imageLayers: clipView?.image ? 1 : 0,
+  selected: Boolean(S.sel), editing: Boolean(S.editing), scope: clipView?.scope || null },
+  drafts: { retained: draftCache.size, dirty: [...draftCache.values()].filter(entry => entry.dirty).length },
+  rowPayloads: RES.filter(row => row.blobs || row.fc || row.draftFC).length,
+  comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
+  downloadLeases: downloadURLs.size }) };
 })();

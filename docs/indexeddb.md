@@ -37,12 +37,27 @@ suffix for collisions; `summary.json` records the actual paths and clip IDs.
 
 The app retains result metadata and the active draft/display payload. After a
 clip transaction commits, inactive PNG/TIFF/prediction references can be released.
-The normal map view owns one object URL, reused for visibility toggles and
-revoked on clip replacement/page hide/deletion. Comparison keeps its existing
+The normal map view owns at most one image URL. GMD-004 releases that lease on
+hiding and creates a fresh URL from the retained active Blob when showing it
+again; vectors, selection and editing stay intact. Replacement/page hide/deletion
+use the full view disposer. Comparison keeps its existing
 per-pair bitmap/canvas/URL cleanup. Download URLs keep their existing timed
 cleanup. The engine still owns and releases processing canvases, decoded bitmaps,
 requests and abort listeners; IndexedDB does not persist these resources.
 Model-session cache limits and full application disposal remain separate tasks.
+
+GMD-004 keeps dirty/session drafts outside the disposable view, including server
+clips in session mode. Clean inactive persisted drafts release after confirmed
+writes. Each view owns its request controller, deadline and map handles; late
+IndexedDB reads are consumed without committing their data to a retired view.
+Vertex edits are captured before replacement/unload at full coordinate precision.
+`GVApp.diagnostics()` reports current/cumulative view and image leases, ignored
+late reads, selected/edit handles, retained/dirty draft counts and separate
+download leases. These counters do not measure total JS/native/GPU memory.
+Result/comparison catalogs strip direct prediction/draft/Blob payload fields;
+the active view alone may attach display data to its row, removed on disposal.
+Diagnostics report these direct row payload counts separately from job/draft
+ownership; they are not byte totals.
 
 ## Commit, migration and recovery contract
 
@@ -111,11 +126,14 @@ to a static page.
 - `npm ci --ignore-scripts` then `npm test`: existing regressions plus transaction
   rollback, two-phase migration interruption, reopen/recovery, lazy reads, scoped
   reviews, custom-weight recovery, quota retry, FIFO resume and page lifecycle.
-- `node tests/browser/persistence.cjs`: native Chromium IndexedDB, real Leaflet
+- `node tests/browser/persistence.cjs --lifecycle`: native Chromium IndexedDB, real Leaflet
   and ZIP, deterministic 32 × 16 raster fixtures; network-independent. Checks
   reloads, paused recovery, untouched raw predictions, drafts, native artifact
   bytes/dimensions/georeferencing, colliding ZIP paths, object URL replacement,
   cross-document ownership, disabled storage, aborted upgrades and newer schemas.
+  GMD-004 adds lazy real Leaflet.Draw, an actual vertex drag interrupted by a
+  switch, twenty view/toggle cycles, obsolete map-listener checks, delayed reads
+  and scoped UI deletion. [Lifecycle evidence](./gmd-004-verification.json).
   Pages CI runs this check before the unchanged model export/cache/check flow.
 - `node --use-system-ca tests/browser/queue.cjs` and `--wasm`: actual nano/small
   models, saved outputs, native exports, comparison, one-slot processing and

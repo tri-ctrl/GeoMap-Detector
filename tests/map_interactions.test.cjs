@@ -49,7 +49,9 @@ test("browser image toggles preserve viewport, annotations, detection layers and
   assert.equal(app.groups[1].getLayers().length, 0);
   app.toggle(true);
   assert.equal(app.groups[1].getLayers().length, 1);
-  assert.equal(app.groups[1].getLayers()[0].url, "blob:test-1");
+  const activeURL = app.groups[1].getLayers()[0].url;
+  assert.ok(app.urlEvents.some(event => event.type === "create" && event.url === activeURL));
+  assert.ok(!app.urlEvents.some(event => event.type === "revoke" && event.url === activeURL), "A re-shown image needs a fresh, live lease");
 });
 
 test("server result toggles do not fetch annotations or detections again", async () => {

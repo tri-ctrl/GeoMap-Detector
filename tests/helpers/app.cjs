@@ -17,7 +17,7 @@ const turn = () => new Promise(resolve => setImmediate(resolve));
 // Leaflet, network and clip processing are substituted for deterministic tests.
 async function setup({ server = false, selected = false, showImage = true, aois = [aoi], localChanges,
   getReleases, fetchHook, beforeBoot, drawLoaded = true, indexedDB, savedMap } = {}) {
-  const elements = new Map(), groups = [], tiles = [], requests = [];
+  const elements = new Map(), groups = [], tiles = [], requests = [], allLayers = [], urlEvents = [], timers = new Map();
   const metrics = { fits: 0, geoJSON: 0, annotationReads: 0, removedTiles: 0 };
   class Element {
     constructor(properties = {}) {
@@ -96,6 +96,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   element("#runAoiPanel").hidden = true;
   element("#resultView").value = "review"; element("#compareKind").value = "dates";
   element("#compareMap").hidden = true;
+  element("#storageStatus").textContent = "Opening device storage…";
   const saved = savedMap || new Map([["gv_aois", JSON.stringify(aois)]]);
   if (server) { saved.set("gv_api", JSON.stringify("/server")); saved.set("gv_engine", JSON.stringify("server")); }
   if (selected) { saved.set("gv_relMode", JSON.stringify("selected")); saved.set("gv_selRel", JSON.stringify([101, 100])); }
@@ -105,11 +106,13 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   class Layer {
     constructor(feature) {
       this.feature = feature; this.handlers = {};
+      allLayers.push(this);
       this.editing = { active: false, enable() { this.active = true; }, disable() { this.active = false; } };
     }
     addTo(group) { group.addLayer(this); return this; }
     on(event, handler) { this.handlers[event] = handler; return this; }
-    fire(event) { this.handlers[event]({ originalEvent: {} }); }
+    off(event) { if (event) delete this.handlers[event]; else this.handlers = {}; return this; }
+    fire(event) { this.handlers[event]?.({ originalEvent: {} }); }
     bindTooltip() { return this; }
     getBounds() { return bounds; }
     toGeoJSON() { return this.feature; }
@@ -180,13 +183,14 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     else throw new Error("Unexpected request: " + url);
     return { ok: true, json: async () => value };
   };
-  let nextUrl = 0;
+  let nextUrl = 0, nextTimer = 0;
   const events = new Map(), documentEvents = new Map();
   const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException, indexedDB,
     setInterval, clearInterval, structuredClone, crypto: globalThis.crypto,
-    location: { hostname: "test.github.io" }, setTimeout: () => 0, clearTimeout() {},
+    location: { hostname: "test.github.io" }, setTimeout: (callback, ms) => { const id = ++nextTimer; timers.set(id, { callback, ms }); return id; }, clearTimeout: id => timers.delete(id),
     localStorage: { getItem: key => { if (key === "gv_ann") metrics.annotationReads++; return saved.get(key) ?? null; }, setItem: (key, value) => saved.set(key, value) },
-    URL: { createObjectURL: () => "blob:test-" + ++nextUrl, revokeObjectURL() {} }, addEventListener: (event, handler) => events.set(event, handler),
+    URL: { createObjectURL: () => { const url = "blob:test-" + ++nextUrl; urlEvents.push({ type: "create", url }); return url; },
+      revokeObjectURL: url => urlEvents.push({ type: "revoke", url, attached: groups[1]?.getLayers().some(layer => layer.url === url) || false }) }, addEventListener: (event, handler) => events.set(event, handler),
   });
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
@@ -213,7 +217,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     await rows[index].onclick();
   }
   const toggle = checked => { element("#showImg").checked = checked; element("#showImg").onchange(); };
-  return { element, tiles, groups, map, saved, requests, releaseRows, clickRelease, snapshot, openClip, toggle, context, events, documentEvents,
+  return { element, tiles, groups, map, saved, requests, releaseRows, clickRelease, snapshot, openClip, toggle, context, events, documentEvents, allLayers, urlEvents, timers,
     selectAoi: index => groups[0].getLayers()[index].fire("click") };
 }
 

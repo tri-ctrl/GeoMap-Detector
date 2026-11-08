@@ -256,8 +256,15 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <option value="18" selected>z18 · ~0.6 m/px (aircraft, ships)</option>
           <option value="19">z19 · ~0.3 m/px (small vehicles)</option>
         </select>
-        <p class="hint">Resolution shown at the equator; it is finer at UAE latitudes (×0.9). Large AOIs drop zoom automatically to stay under the tile limit.</p>
+        <p class="hint">Resolution shown at the equator; it is finer at UAE latitudes (×0.9). The tile limit can lower the processing zoom. Browser memory limits reject oversized clips without lowering zoom further.</p>
         <div class="row"><span style="flex:1">Tile limit per clip</span><input type="number" id="maxTiles" value="1200" min="50" step="100" style="width:100px"></div>
+        <details style="margin-top:10px"><summary>Browser limits</summary>
+          <label class="row"><span style="flex:1">Maximum raster megapixels</span><input type="number" id="rasterMP" value="32" min="0.1" step="1" style="width:100px"></label>
+          <label class="row"><span style="flex:1">Maximum canvas side (px)</span><input type="number" id="rasterSide" value="8192" min="1" step="1024" style="width:100px"></label>
+          <label class="row"><span style="flex:1">Estimated working limit (MiB)</span><input type="number" id="rasterMemory" value="512" min="1" step="64" style="width:100px"></label>
+          <p class="hint">One raster/dataset operation runs at a time. Estimates cover known image/tensor/encoding buffers; model sessions, browser caches and archive assembly can use additional memory. Device limits vary. These settings also apply to training rasters and comparison previews.</p>
+        </details>
+        <div class="hint" id="allocationPreflight" role="status" aria-live="polite" style="margin-top:10px"></div>
       </div>
       <div class="sec">
         <label class="row"><input type="checkbox" id="detectOn" checked style="accent-color:var(--accent)"> Run detection (untick to only clip imagery)</label>

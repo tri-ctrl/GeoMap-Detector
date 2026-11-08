@@ -5,6 +5,12 @@ const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAl
 const E = window.GVEngine;
 const store = { get(k, d) { try { const v = localStorage.getItem("gv_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
                 set(k, v) { try { localStorage.setItem("gv_" + k, JSON.stringify(v)); return true; } catch { return false; } } };
+let browserLimits;
+try { browserLimits = E.allocations.configure(store.get("rasterLimits", E.allocations.defaults)); }
+catch { browserLimits = E.allocations.configure(E.allocations.defaults); }
+$("#rasterMP").value = browserLimits.maxPixels / 1e6;
+$("#rasterSide").value = browserLimits.maxDimension;
+$("#rasterMemory").value = browserLimits.maxEstimatedBytes / 1048576;
 
 const DOTA = ["aircraft","ship","helicopter","storage_tank","large_vehicle","small_vehicle","harbor","bridge",
   "swimming_pool","roundabout","tennis_court","basketball_court","baseball_diamond","soccer_field","track_field"];
@@ -22,7 +28,7 @@ const S = {
 const BJOBS = {};                       // lightweight catalog; durable payloads load per clip
 const runAoiSelection = new Set(S.aois);
 const browserQueue = [], MAX_WAITING_JOBS = 10;
-let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false;
+let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false, datasetExportRunning = false;
 let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
 let pendingLiveRelease = null;
@@ -271,11 +277,35 @@ function updateRunSelection() {
   $("#runAoiHint").textContent = !S.aois.length ? "Add AOIs in the AOIs tab to get started."
     : !count ? "Select at least one AOI to enable Run."
     : "Checked AOIs will use your Wayback date settings. Map selection controls the view.";
-  const busy = Boolean(activeBrowserJob || browserQueue.length || queueDraining);
+  const busy = Boolean(activeBrowserJob || browserQueue.length || queueDraining || datasetExportRunning);
   $("#runVerb").textContent = !isServer() && busy ? "Queue" : "Run";
   $("#runBtn").disabled = !persistenceReady || readOnly || Boolean(storageError) || count === 0 || serverRunning || (isServer() ? busy : browserQueue.length >= MAX_WAITING_JOBS);
   $("#runAoiAll").disabled = $("#runAoiNone").disabled = !S.aois.length;
+  if (!renderAllocationPreflight()) $("#runBtn").disabled = true;
 }
+function readBrowserLimits() {
+  const values = { maxPixels: Number($("#rasterMP").value) * 1e6, maxDimension: Number($("#rasterSide").value), maxEstimatedBytes: Number($("#rasterMemory").value) * 1048576 };
+  return E.allocations.configure(values);
+}
+function clipAllocationOptions() {
+  return { maxTiles: Number($("#maxTiles").value), detect: $("#detectOn").checked, modelSize: $("#detectOn").checked ? curModel()?.imgsz || 1024 : 0,
+    geotiff: $("#tifOn").checked, limits: readBrowserLimits() };
+}
+function renderAllocationPreflight() {
+  const output = $("#allocationPreflight");
+  if (isServer()) { output.textContent = "Browser limits apply to local processing. The Python server manages its own resources."; return true; }
+  try {
+    const options = clipAllocationOptions(), chosen = chosenRunAois();
+    if (!chosen.length) { output.textContent = "Select AOIs to estimate their processing footprint."; return false; }
+    const plans = chosen.map(aoi => ({ name: aoi.properties.name, plan: E.estimateRaster(aoi.geometry, Number($("#zoom").value), options) }));
+    output.innerHTML = plans.map(({ name, plan }) => `<div>${esc(name)} · z${plan.requestedZoom}${plan.zoomReduced ? " → z" + plan.zoom : ""} · ${plan.width}×${plan.height} px · ${plan.tiles} tiles · ${(plan.pixels / 1e6).toFixed(2)} MP · estimated ${(plan.estimatedBytes / 1048576).toFixed(1)} MiB${plan.allowed ? "" : `<br><span style="color:var(--bad)">${esc(plan.violations[0].message)}</span>`}</div>`).join("");
+    return plans.every(({ plan }) => plan.allowed);
+  } catch (error) { output.textContent = error.message; return false; }
+}
+for (const id of ["rasterMP", "rasterSide", "rasterMemory", "zoom", "maxTiles", "detectOn", "tifOn"]) $("#" + id).onchange = () => {
+  try { browserLimits = readBrowserLimits(); store.set("rasterLimits", browserLimits); } catch {}
+  updateRunSelection();
+};
 function renderRunAois() {
   // References distinguish equal names and survive renames/reindexing. They are
   // tab-local UI state; durable identity belongs to the AOI record itself.
@@ -502,6 +532,7 @@ function updModelInfo() {
     : m.server ? "" : m.custom ? "Your model" : `DOTA aerial classes · ${m.imgsz || 1024} px${m.size ? " · " + m.size + " MB" : ""}`;
   $("#namesRow").hidden = isServer() || !(m && m.custom);
   if (m && m.custom) $("#customNames").value = (m.names || []).join(", ");
+  updateRunSelection();
 }
 $("#model").onchange = () => { store.set("model", $("#model").value); updModelInfo(); const m = curModel(); if (m && m.names) mergeClasses(m.names.map(n => E.LABELS[n] || n)); };
 $("#onnxIn").onchange = async e => {
@@ -562,7 +593,7 @@ function renderBrowserQueue() {
   const focusId = focusKey && focused[focusKey];
   const pending = [...(activeBrowserJob ? [activeBrowserJob] : []), ...browserQueue];
   const recent = Object.values(BJOBS).filter(job => !pendingJob(job)).slice(-5).reverse();
-  $("#queueStatus").textContent = `${activeBrowserJob ? "1 running" : "Idle"} · ${browserQueue.length}/${MAX_WAITING_JOBS} queued`;
+  $("#queueStatus").textContent = `${activeBrowserJob ? "1 running" : datasetExportRunning ? "Building dataset" : "Idle"} · ${browserQueue.length}/${MAX_WAITING_JOBS} queued`;
   if (queuePaused) $("#queueStatus").textContent += " · paused";
   $("#jobQueue").innerHTML = pending.concat(recent).map(job => `<div class="card queue-job${selectedBrowserJobId === job.id ? " selected" : ""}" data-queued-job="${job.id}">
     <div class="row"><b class="queue-model">${esc(GVCompare.modelName(job.params))}</b><span class="hint">${esc(job.status)}</span></div>
@@ -596,10 +627,10 @@ function cancelBrowserJob(id, reason = "Cancelled by user") {
   renderBrowserQueue();
 }
 async function drainBrowserQueue() {
-  if (queueDraining || serverRunning || !pageActive || queuePaused || !persistenceReady || readOnly || storageError) return;
+  if (queueDraining || serverRunning || datasetExportRunning || !pageActive || queuePaused || !persistenceReady || readOnly || storageError) return;
   queueDraining = true;
   try {
-    while (browserQueue.length && browserQueue[0].durableReady !== false && pageActive && !serverRunning && !queuePaused && !readOnly && !storageError) {
+    while (browserQueue.length && browserQueue[0].durableReady !== false && pageActive && !serverRunning && !datasetExportRunning && !queuePaused && !readOnly && !storageError) {
       const job = browserQueue.shift(); activeBrowserJob = job;
       let runtimeFinished;
       job.runtimeFinished = new Promise(resolve => { runtimeFinished = resolve; });
@@ -646,9 +677,12 @@ async function enqueueBrowser(mode, aois) {
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
   if (browserQueue.length >= MAX_WAITING_JOBS) return toast("Queue full. Wait for a job to start or cancel a queued job.");
   if (!S.releases.length) return toast("Wait for Wayback dates to load, or use Refresh dates.");
+  let allocationOptions;
+  try { allocationOptions = clipAllocationOptions(); aois.forEach(aoi => E.allocations.requireRaster(E.estimateRaster(aoi.geometry, Number($("#zoom").value), allocationOptions))); }
+  catch (error) { renderAllocationPreflight(); return toast(error.message, 6500); }
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
-    model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200,
-    geotiff: $("#tifOn").checked, model_names: m?.names?.slice() };
+    model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: allocationOptions.maxTiles,
+    geotiff: $("#tifOn").checked, model_names: m?.names?.slice(), allocationLimits: { ...allocationOptions.limits } };
   const releaseSource = JSON.parse(JSON.stringify(S.releases));
   if (mode === "selected" && !releaseSource.some(release => params.releases.includes(release.release))) return toast("The selected dates are unavailable. Check Wayback and select a release.");
   const fingerprint = JSON.stringify({ params, aois, releaseSource: mode === "latest" ? releaseSource.slice(0, 1) : releaseSource });
@@ -717,7 +751,9 @@ async function runBrowser(job) {
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
       try {
         const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
-          maxTiles: params.maxTiles, geotiff: params.geotiff,
+          maxTiles: params.maxTiles, geotiff: params.geotiff, limits: params.allocationLimits,
+          onEstimate: estimate => { outcome.allocation = estimate; outcome.zoom = estimate.zoom;
+            jlog(job, `    Budget: z${estimate.requestedZoom}${estimate.zoomReduced ? " → z" + estimate.zoom : ""} · ${estimate.width}×${estimate.height} px · ${estimate.tiles} tiles · estimated ${(estimate.estimatedBytes / 1048576).toFixed(1)} MiB`); },
           onCoverage: coverage => { outcome.zoom = coverage.zoom; outcome.coverage = coverage;
             jlog(job, `    Coverage z${coverage.zoom}: ${coverage.available}/${coverage.total} tiles available, ${coverage.unavailable} unavailable, ${coverage.unknown} unknown · ${coverage.checks} check(s) · ${(coverage.ms / 1000).toFixed(1)}s`); },
           onProgress: f => { job.progress = base + step * f; updateJobProgress(job); } });
@@ -740,7 +776,8 @@ async function runBrowser(job) {
         if (storageError) throw error;
         if (error.name === "AbortError" || signal.aborted) throw error;
         Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
-          message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage });
+          message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage,
+          allocation: error.estimate || outcome.allocation });
         jlog(job, `    ${outcome.status === "unavailable" ? "UNAVAILABLE" : "FAILED"}: ${outcome.aoi} · ${rel.date} · release ${rel.release} · z${outcome.zoom} · ${outcome.code}: ${error.message}`);
         outcome.committedStatus = outcome.status;
       }
@@ -753,7 +790,7 @@ async function runBrowser(job) {
     job.progress = 1;
     const tot = job.results.reduce((s, r) => s + r.total, 0);
     jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. ${durable ? "Saved on this device. Export a zip for a separate backup." : "Export the zip before closing this tab."}`);
-    if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with imagery issues. See Results.`);
+    if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with clip issues. See Results.`);
   } catch (e) {
     job.status = job.suspending || storageError ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
@@ -1333,14 +1370,20 @@ async function loadAnnStats() {
 }
 $("#annReload").onclick = loadAnnStats;
 $("#dsBtn").onclick = async () => {
+  if (datasetExportRunning || activeBrowserJob) return toast("Wait for the current browser processing operation to finish before exporting a dataset.");
+  datasetExportRunning = true; renderBrowserQueue();
   const btn = $("#dsBtn"); btn.disabled = true; btn.textContent = "Building dataset…";
   try {
-    const { blob, chips, classes } = await E.exportDataset(await getAnnotations(), { onProgress: f => $("#dsProg").style.width = (f * 100).toFixed(0) + "%" });
+    const limits = readBrowserLimits();
+    const { blob, chips, classes } = await E.exportDataset(await getAnnotations(), { limits, onProgress: f => $("#dsProg").style.width = (f * 100).toFixed(0) + "%" });
     store.set("dsClasses", classes);
     saveBlob(`geovision_dataset_${new Date().toISOString().slice(0, 10)}.zip`, blob);
     toast(`${chips} chips · ${classes.length} classes`);
   } catch (e) { toast(e.message, 4000); }
-  btn.disabled = false; btn.textContent = "Download training dataset";
+  finally {
+    datasetExportRunning = false; btn.disabled = false; btn.textContent = "Download training dataset";
+    renderBrowserQueue(); drainBrowserQueue();
+  }
 };
 $("#trainBtn").onclick = async () => {
   if (!isServer()) return toast("Connect a server in Export → Processing");
@@ -1361,7 +1404,7 @@ $("#expZip").onclick = async () => {
     BJOBS[id].exporting = true;
     try {
       finishEdit(); saveDraft();
-      const blob = await E.exportJobZip(BJOBS[id], { readResult: r => readClip(r, { images: true }), onProgress: m => btn.textContent = `Zipping… ${m.percent.toFixed(0)}%` });
+      const blob = await E.exportJobZip(BJOBS[id], { limits: readBrowserLimits(), readResult: r => readClip(r, { images: true }), onProgress: m => btn.textContent = `Zipping… ${m.percent.toFixed(0)}%` });
       saveBlob(`geovision_${id}.zip`, blob); BJOBS[id].exported = true;
     } catch (e) { toast(e.message); }
     if (BJOBS[id]) BJOBS[id].exporting = false;

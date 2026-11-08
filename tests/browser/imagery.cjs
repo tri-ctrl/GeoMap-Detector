@@ -48,7 +48,9 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     const before = requests.length;
     results.absentRaster = await evaluate(`(async () => {
       const started=performance.now();
-      try { const raster=await GVEngine.buildRaster(${JSON.stringify(dxb.geometry)},388,18);raster.canvas.width=raster.canvas.height=1;return {unexpectedSuccess:true}; }
+      // Explicit larger policy keeps this coverage-only probe at its historical
+      // footprint. GMD-005 tests separately require default-policy rejection.
+      try { const raster=await GVEngine.buildRaster(${JSON.stringify(dxb.geometry)},388,18,{limits:{maxPixels:64000000,maxDimension:10000}});raster.release();return {unexpectedSuccess:true}; }
       catch(error){return {code:error.code,message:error.message,zoom:error.zoom,coverage:error.coverage,ms:performance.now()-started,
         canvases:__gmd023.canvases.length,bitmaps:__gmd023.bitmaps.length};}
     })()`);

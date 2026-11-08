@@ -34,20 +34,30 @@ function settingsNote(a, b) {
 }
 async function preview(blob, size, signal) {
   check(signal);
+  const budget = global.GVEngine?.allocations;
+  if (!budget) throw new Error("Comparison allocation policy is unavailable. Reload the page.");
+  const limits = budget.limits();
+  size = await budget.pngDimensions(blob);
+  check(signal);
+  const sourceBytes = budget.dimensions(size[0], size[1], limits, "Comparison source");
+  // Cap the decoded comparison image explicitly; native exports stay intact.
+  const scale = Math.min(1, 2048 / Math.max(...size)), targetWidth = Math.max(1, Math.round(size[0] * scale)), targetHeight = Math.max(1, Math.round(size[1] * scale));
+  // Resized decoding may use native-size scratch space inside the browser.
+  const rgba = budget.dimensions(targetWidth, targetHeight, limits, "Comparison preview"), lease = budget.reserve("Comparison preview", sourceBytes + rgba * 3 + 65536, limits);
   let bitmap, canvas;
   try {
-    const scale = size?.length === 2 ? Math.min(1, 2048 / Math.max(...size)) : null;
-    bitmap = await createImageBitmap(blob, scale ? { resizeWidth: Math.max(1, Math.round(size[0] * scale)), resizeHeight: Math.max(1, Math.round(size[1] * scale)), resizeQuality: "high" } : {});
+    bitmap = await createImageBitmap(blob, { resizeWidth: targetWidth, resizeHeight: targetHeight, resizeQuality: "high" });
     check(signal);
+    if (bitmap.width !== targetWidth || bitmap.height !== targetHeight) throw new Error("Browser did not honor the bounded comparison decode size.");
     const ratio = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * ratio)), height = Math.max(1, Math.round(bitmap.height * ratio));
-    canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(width, height) : document.createElement("canvas");
-    canvas.width = width; canvas.height = height;
-    canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+    canvas = budget.makeCanvas(width, height, lease);
+    const context = canvas.getContext("2d"); if (!context) throw new Error("Could not create comparison canvas");
+    context.drawImage(bitmap, 0, 0, width, height);
     const image = canvas.convertToBlob ? await canvas.convertToBlob({ type: "image/png" })
       : await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Could not prepare comparison image")), "image/png"));
     check(signal); return { blob: image, size: [width, height] };
-  } finally { bitmap?.close(); if (canvas) canvas.width = canvas.height = 1; }
+  } finally { bitmap?.close(); budget.releaseCanvas(canvas); lease.release(); }
 }
 
 class Swipe {

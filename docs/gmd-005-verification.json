@@ -1,0 +1,310 @@
+{
+  "checkedAt": "2026-11-08T16:30:01.406Z",
+  "mode": "Local source, native Chromium; deterministic tiles and fixed inference outputs",
+  "sources": {
+    "index.html": "01923ee4fba92f0a0c8366d901648d2b2893f774aa267407242b3495c5c193c7",
+    "engine.js": "b2afd63f835daafe021fe279cac38321133600713eff92c1e65b7797d91dde8e",
+    "comparison.js": "8744b81963dc75c29887ae92d13c31f199edd19640f1981cc50cef33d02b0c5e",
+    "storage.js": "5f16ffdbbb5e591710b9c104f0eb0f02b409b43dd387384053fd981e3a3b7e1f",
+    "app.js": "81904154f787cc881e972acfd5cfd4b20135c2edbbb04ccb6a0b9af9808d8c9c"
+  },
+  "limitations": [
+    "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+    "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "sampleEstimates": [
+    {
+      "aoi": "DXB",
+      "size": [
+        9322,
+        6391
+      ],
+      "tiles": 988,
+      "zoom": 18,
+      "estimatedBytes": 1259509660,
+      "allowed": false,
+      "codes": [
+        "RASTER_LIMIT",
+        "MEMORY_LIMIT"
+      ]
+    },
+    {
+      "aoi": "SHJ",
+      "size": [
+        5966,
+        4745
+      ],
+      "tiles": 480,
+      "zoom": 18,
+      "estimatedBytes": 629444912,
+      "allowed": false,
+      "codes": [
+        "MEMORY_LIMIT"
+      ]
+    },
+    {
+      "aoi": "AUH",
+      "size": [
+        8762,
+        6963
+      ],
+      "tiles": 980,
+      "zoom": 18,
+      "estimatedBytes": 1295331548,
+      "allowed": false,
+      "codes": [
+        "RASTER_LIMIT",
+        "MEMORY_LIMIT"
+      ]
+    },
+    {
+      "aoi": "DWC",
+      "size": [
+        9321,
+        6988
+      ],
+      "tiles": 1064,
+      "zoom": 18,
+      "estimatedBytes": 1376564704,
+      "allowed": false,
+      "codes": [
+        "RASTER_LIMIT",
+        "MEMORY_LIMIT"
+      ]
+    },
+    {
+      "aoi": "JEA_PORT",
+      "size": [
+        5593,
+        3601
+      ],
+      "tiles": 345,
+      "zoom": 17,
+      "estimatedBytes": 453578548,
+      "allowed": true,
+      "codes": []
+    },
+    {
+      "aoi": "RASHID_PORT",
+      "size": [
+        4288,
+        3712
+      ],
+      "tiles": 288,
+      "zoom": 18,
+      "estimatedBytes": 381300180,
+      "allowed": true,
+      "codes": []
+    }
+  ],
+  "rejections": {
+    "checks": [
+      {
+        "name": "long-side",
+        "code": "RASTER_LIMIT",
+        "zoom": 18
+      },
+      {
+        "name": "pixels",
+        "code": "RASTER_LIMIT",
+        "zoom": 18
+      },
+      {
+        "name": "memory",
+        "code": "MEMORY_LIMIT",
+        "zoom": 18
+      },
+      {
+        "name": "tensor",
+        "code": "MEMORY_LIMIT",
+        "zoom": 18
+      },
+      {
+        "name": "floor",
+        "code": "TILE_LIMIT",
+        "zoom": 10
+      }
+    ],
+    "created": 0,
+    "requests": 0
+  },
+  "native": {
+    "size": [
+      400,
+      128
+    ],
+    "estimatedSize": [
+      400,
+      128
+    ],
+    "requestedZoom": 18,
+    "zoom": 18,
+    "counts": {
+      "aircraft": 1
+    },
+    "prediction": {
+      "type": "Feature",
+      "id": "Allocation_101_0000",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              55.3590238,
+              25.253051
+            ],
+            [
+              55.3590238,
+              25.2531092
+            ],
+            [
+              55.3591311,
+              25.2531092
+            ],
+            [
+              55.3591311,
+              25.253051
+            ],
+            [
+              55.3590238,
+              25.253051
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "aoi_id": "Allocation",
+        "aoi_name": "Allocation",
+        "release": 101,
+        "imagery_date": "2026-10-29",
+        "zoom": 18,
+        "gsd_m": 0.54,
+        "source": "Esri Wayback",
+        "imagery_coverage": "full",
+        "missing_tiles": 0,
+        "class": "aircraft",
+        "confidence": 0.9,
+        "length_m": 10.8,
+        "width_m": 6.5,
+        "heading_deg": 90,
+        "centroid": [
+          55.3590775,
+          25.2530801
+        ],
+        "status": "predicted"
+      }
+    },
+    "solid": [
+      40,
+      90,
+      150,
+      255
+    ],
+    "hole": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "pixelsCompared": 204800,
+    "different": 0,
+    "tiffSize": [
+      400,
+      128
+    ],
+    "scale": [
+      0.5971642834779395,
+      0.5971642834779395,
+      0
+    ],
+    "expectedGeo": [
+      0.5971642834779395,
+      0.5971642834779395,
+      0
+    ],
+    "tie": [
+      0,
+      0,
+      0,
+      6162515.649036016,
+      2906890.6310567185,
+      0
+    ],
+    "epsg": 3857,
+    "world": [
+      0.5971642834779395,
+      0,
+      0,
+      -0.5971642834779395,
+      6162515.947618158,
+      2906890.332474577
+    ],
+    "legacySize": [
+      400,
+      128
+    ],
+    "ms": 45.80000001192093,
+    "estimateBytes": 16982080,
+    "allocations": {
+      "rejected": 5,
+      "canvasesCreated": 3,
+      "canvasesReleased": 3,
+      "liveCanvasBytes": 0,
+      "peakCanvasBytes": 409600,
+      "peakReservedBytes": 16982080,
+      "reservedBytes": 0,
+      "activeOperations": [],
+      "limits": {
+        "maxPixels": 32000000,
+        "maxDimension": 8192,
+        "maxEstimatedBytes": 536870912
+      },
+      "maxConcurrentProcessing": 1
+    }
+  },
+  "ui": {
+    "blocked": true,
+    "text": "Allocation · z18 · 400×128 px · 2 tiles · 0.05 MP · estimated 1.6 MiBEstimated working buffers 1.6 MiB exceed 1.0 MiB. Use a smaller AOI at the same zoom, disable GeoTIFF, or adjust Browser limits.",
+    "enabled": true,
+    "status": "done",
+    "limits": {
+      "maxPixels": 32000000,
+      "maxDimension": 8192,
+      "maxEstimatedBytes": 67108864
+    },
+    "summary": [
+      {
+        "size": [
+          400,
+          128
+        ],
+        "zoom": 18,
+        "requestedZoom": 18
+      }
+    ]
+  },
+  "narrow": {
+    "viewport": 390,
+    "width": 390,
+    "preflight": 354
+  },
+  "repeated": {
+    "cycles": 10,
+    "ms": 40.90000003576279,
+    "rejected": 5,
+    "canvasesCreated": 25,
+    "canvasesReleased": 25,
+    "liveCanvasBytes": 0,
+    "peakCanvasBytes": 409600,
+    "peakReservedBytes": 16982080,
+    "reservedBytes": 0,
+    "activeOperations": [],
+    "limits": {
+      "maxPixels": 32000000,
+      "maxDimension": 8192,
+      "maxEstimatedBytes": 67108864
+    },
+    "maxConcurrentProcessing": 1
+  }
+}

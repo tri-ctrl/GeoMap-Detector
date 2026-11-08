@@ -24,6 +24,8 @@ jobs:
         run: node --test tests/*.test.cjs
       - name: Test native IndexedDB recovery and exports in Chromium
         run: node tests/browser/persistence.cjs --lifecycle
+      - name: Test native allocation limits and georeferenced pixels in Chromium
+        run: node tests/browser/allocation.cjs
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Test model asset checks (no ML dependencies)

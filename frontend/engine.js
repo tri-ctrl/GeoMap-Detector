@@ -127,14 +127,83 @@ function pointInRings(rings, x, y) {          // even-odd over all rings (holes 
   return inside;
 }
 
-// ------------------------------------------------------------------ canvas helpers
-const makeCanvas = (w, h) => {
-  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
-  const c = document.createElement("canvas"); c.width = w; c.height = h; return c;
-};
-const ctx2d = c => c.getContext("2d", { willReadFrequently: true });
+// ------------------------------------------------------------------ allocation policy / canvas ownership
+const DEFAULT_LIMITS = Object.freeze({ maxPixels: 32000000, maxDimension: 8192, maxEstimatedBytes: 512 * 1024 * 1024 });
+let allocationDefaults = { ...DEFAULT_LIMITS }, allocationSequence = 0;
+const allocationLeases = new Map(), canvasOwners = new WeakMap();
+const allocationStats = { rejected: 0, canvasesCreated: 0, canvasesReleased: 0, liveCanvasBytes: 0, peakCanvasBytes: 0, peakReservedBytes: 0 };
+class AllocationError extends Error {
+  constructor(code, message, details = {}) { super(message); this.name = "AllocationError"; this.code = code; Object.assign(this, details); }
+}
+const mib = bytes => (bytes / 1048576).toFixed(1) + " MiB";
+function limitsFor(values = {}) {
+  const limits = { ...allocationDefaults, ...values };
+  for (const name of Object.keys(DEFAULT_LIMITS)) if (!Number.isSafeInteger(limits[name]) || limits[name] < 1)
+    throw new AllocationError("INVALID_LIMIT", `${name} must be a positive whole number.`);
+  return limits;
+}
+function dimensions(width, height, limits = limitsFor(), label = "Canvas") {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || !Number.isSafeInteger(width * height * 4))
+    throw new AllocationError("INVALID_DIMENSIONS", `${label} dimensions must be finite positive integer pixels.`, { width, height });
+  if (width > limits.maxDimension || height > limits.maxDimension || width * height > limits.maxPixels)
+    throw new AllocationError("RASTER_LIMIT", `${label} ${width}×${height} px exceeds the ${limits.maxDimension} px side or ${(limits.maxPixels / 1e6).toFixed(2)} MP limit. Use a smaller AOI at the same zoom, or adjust Browser limits.`, { width, height, limits });
+  return width * height * 4;
+}
+function reserveAllocation(label, estimatedBytes, values, processing = false) {
+  const limits = limitsFor(values);
+  if (!Number.isSafeInteger(estimatedBytes) || estimatedBytes < 1) throw new AllocationError("INVALID_DIMENSIONS", "Invalid working-buffer estimate.");
+  const active = [...allocationLeases.values()], total = active.reduce((sum, lease) => sum + lease.estimatedBytes, 0);
+  if (processing && active.some(lease => lease.processing)) {
+    allocationStats.rejected++; throw new AllocationError("RESOURCE_BUSY", "Another browser raster/dataset operation is active. Wait for it to finish and retry.");
+  }
+  if (!processing && active.filter(lease => !lease.processing).length >= 2) { allocationStats.rejected++; throw new AllocationError("RESOURCE_BUSY", "Two browser image/export helpers are already active. Wait and retry."); }
+  const cap = Math.min(limits.maxEstimatedBytes, ...active.map(lease => lease.limits.maxEstimatedBytes));
+  if (estimatedBytes + total > cap) {
+    allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} needs an estimated ${mib(estimatedBytes)}; ${mib(total)} is reserved and the working limit is ${mib(cap)}. Use a smaller AOI at the same zoom, disable GeoTIFF, or adjust Browser limits.`, { estimatedBytes, reservedBytes: total, limits });
+  }
+  const lease = { id: ++allocationSequence, label, limits, processing, estimatedBytes, canvases: new Set(), canvasBytes: 0, closed: false,
+    check(bytes) { if (this.closed) throw new AllocationError("RESOURCE_BUSY", "Allocation owner has already closed."); if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > this.estimatedBytes) { allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} exceeds its reserved working estimate.`, { estimatedBytes: bytes, reservedBytes: this.estimatedBytes }); } },
+    resize(bytes) {
+      const other = [...allocationLeases.values()].filter(value => value !== this), used = other.reduce((sum, value) => sum + value.estimatedBytes, 0);
+      const cap = Math.min(this.limits.maxEstimatedBytes, ...other.map(value => value.limits.maxEstimatedBytes));
+      if (this.closed || !Number.isSafeInteger(bytes) || bytes < 1 || bytes < this.canvasBytes || bytes + used > cap) { allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} exceeds the estimated working limit ${mib(cap)}. Export fewer clips or adjust Browser limits.`, { estimatedBytes: bytes, reservedBytes: used, limits: this.limits }); }
+      this.estimatedBytes = bytes; allocationStats.peakReservedBytes = Math.max(allocationStats.peakReservedBytes, used + bytes);
+    },
+    release() { if (this.closed) return; for (const canvas of [...this.canvases]) releaseCanvas(canvas); this.closed = true; allocationLeases.delete(this.id); } };
+  allocationLeases.set(lease.id, lease); allocationStats.peakReservedBytes = Math.max(allocationStats.peakReservedBytes, total + estimatedBytes); return lease;
+}
+function releaseCanvas(canvas) {
+  if (!canvas) return;
+  const record = canvasOwners.get(canvas);
+  if (record) { record.lease.canvases.delete(canvas); record.lease.canvasBytes -= record.bytes; allocationStats.liveCanvasBytes -= record.bytes; allocationStats.canvasesReleased++; canvasOwners.delete(canvas); }
+  canvas.width = canvas.height = 1;
+}
+function makeCanvas(w, h, lease) {
+  if (!lease) throw new AllocationError("ALLOCATION_OWNER", "Canvas allocation needs an operation owner.");
+  const bytes = dimensions(w, h, lease.limits); lease.check(lease.canvasBytes + bytes);
+  let canvas;
+  try {
+    canvas = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(w, h) : document.createElement("canvas");
+    if (canvas.width !== w) canvas.width = w; if (canvas.height !== h) canvas.height = h;
+    if (canvas.width !== w || canvas.height !== h) throw new Error("Browser rejected canvas dimensions");
+  } catch (error) { if (canvas) canvas.width = canvas.height = 1; throw new AllocationError("CANVAS_ALLOCATION", `Browser could not allocate ${w}×${h} px. Reduce Browser limits or use a smaller AOI. ${error.message}`, { width: w, height: h }); }
+  canvasOwners.set(canvas, { lease, bytes }); lease.canvases.add(canvas); lease.canvasBytes += bytes;
+  allocationStats.canvasesCreated++; allocationStats.liveCanvasBytes += bytes; allocationStats.peakCanvasBytes = Math.max(allocationStats.peakCanvasBytes, allocationStats.liveCanvasBytes); return canvas;
+}
+const ctx2d = c => { const context = c.getContext("2d", { willReadFrequently: true }); if (!context) throw new AllocationError("CANVAS_CONTEXT", "Browser could not create a canvas context. Use a smaller AOI or lower Browser limits."); return context; };
 const canvasBlob = (c, type = "image/png", q) => c.convertToBlob ? c.convertToBlob({ type, quality: q })
   : new Promise(ok => c.toBlob(ok, type, q));
+// Read the fixed PNG header without decoding pixels, including legacy server
+// clips which did not save dimensions. Metadata must not authorize a decode.
+async function pngDimensions(blob) {
+  const bytes = new Uint8Array(await blob.slice(0, 24).arrayBuffer());
+  if (bytes.length !== 24 || ![137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => bytes[i] === v)
+    || new DataView(bytes.buffer).getUint32(8) !== 13 || String.fromCharCode(...bytes.slice(12, 16)) !== "IHDR")
+    throw new AllocationError("INVALID_IMAGE", "Comparison requires a valid PNG image header.");
+  const view = new DataView(bytes.buffer), size = [view.getUint32(16), view.getUint32(20)];
+  if (!size.every(value => value > 0)) throw new AllocationError("INVALID_IMAGE", "PNG dimensions must be positive.");
+  return size;
+}
 
 // ------------------------------------------------------------------ Wayback
 const RELEASE_CACHE_KEY = "gv_wayback_releases_v1";
@@ -281,23 +350,94 @@ async function pool(items, n, fn) {
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, run));
   if (failure) throw failure; // All sibling callbacks have drained before cleanup.
 }
-function pickZoom(bb, zoom, maxTiles) {
-  for (let z = zoom; z > 10; z--) {
-    const [tx0, ty0] = lonlatToTile(bb[0], bb[3], z), [tx1, ty1] = lonlatToTile(bb[2], bb[1], z);
-    if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) <= maxTiles) return z;
+function validatedBounds(geometry) {
+  if (!geometry || !["Polygon", "MultiPolygon"].includes(geometry.type) || !Array.isArray(geometry.coordinates))
+    throw new AllocationError("INVALID_AOI", "AOI must contain Polygon or MultiPolygon coordinates.");
+  const polygons = polygonsOf(geometry), bb = [Infinity, Infinity, -Infinity, -Infinity];
+  if (!polygons.length) throw new AllocationError("INVALID_AOI", "AOI has no polygons.");
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || !polygon.length) throw new AllocationError("INVALID_AOI", "AOI has an empty polygon.");
+    for (const ring of polygon) {
+      if (!Array.isArray(ring) || ring.length < 4) throw new AllocationError("INVALID_AOI", "AOI rings need at least four coordinates.");
+      for (const point of ring) {
+        if (!Array.isArray(point) || !Number.isFinite(point[0]) || !Number.isFinite(point[1]) || Math.abs(point[0]) > 180 || Math.abs(point[1]) > 85.05112878)
+          throw new AllocationError("INVALID_AOI", "AOI coordinates must be finite longitude/latitude within Web Mercator coverage.");
+        bb[0] = Math.min(bb[0], point[0]); bb[1] = Math.min(bb[1], point[1]); bb[2] = Math.max(bb[2], point[0]); bb[3] = Math.max(bb[3], point[1]);
+      }
+      const first = ring[0], last = ring[ring.length - 1]; let area = 0;
+      if (first[0] !== last[0] || first[1] !== last[1]) throw new AllocationError("INVALID_AOI", "AOI rings must be closed.");
+      for (let i = 1; i < ring.length; i++) area += (ring[i - 1][0] - first[0]) * (ring[i][1] - first[1]) - (ring[i][0] - first[0]) * (ring[i - 1][1] - first[1]);
+      if (!Number.isFinite(area) || area === 0) throw new AllocationError("INVALID_AOI", "AOI has a zero-area ring.");
+    }
   }
-  return 10;
+  return bb;
+}
+function rasterLayout(bb, zoom) {
+  const world = TILE * 2 ** zoom, clamp = value => Math.max(0, Math.min(world, value));
+  const [a, b] = lonlatToPixel(bb[0], bb[3], zoom), [c, d] = lonlatToPixel(bb[2], bb[1], zoom);
+  const gx0 = Math.floor(clamp(a)), gy0 = Math.floor(clamp(b)), gx1 = Math.ceil(clamp(c)), gy1 = Math.ceil(clamp(d));
+  const width = gx1 - gx0, height = gy1 - gy0, left = Math.floor(gx0 / TILE), top = Math.floor(gy0 / TILE);
+  const columns = Math.floor((gx1 - 1) / TILE) - left + 1, rows = Math.floor((gy1 - 1) / TILE) - top + 1;
+  return { zoom, res: resAt(zoom), gx0, gy0, width, height, pixels: width * height, tiles: columns * rows,
+    extent: { left, top, width: columns, height: rows } };
+}
+function inferenceBytes(width, height, size, overlap = 256) {
+  if (!Number.isSafeInteger(overlap) || overlap < 0) throw new AllocationError("INVALID_LIMIT", "Window overlap must be nonnegative integer pixels.");
+  const count = length => { const step = Math.max(size - overlap, 1), n = Math.floor(Math.max(length - size, 0) / step) + 1; return n + ((n - 1) * step + size < length ? 1 : 0); };
+  // Include the materialized window index before windows() can build it. This
+  // matters for custom inputs smaller than the existing 256px overlap.
+  return 16 * size * size + count(width) * count(height) * 64;
+}
+function estimateRaster(geometry, zoom = 18, options = {}) {
+  const limits = limitsFor(options.limits), maxTiles = options.maxTiles ?? 1200, concurrency = options.concurrency ?? 12;
+  if (!Number.isInteger(zoom) || zoom < 10 || zoom > 19) throw new AllocationError("INVALID_ZOOM", "Imagery zoom must be a whole number from 10 to 19.");
+  if (!Number.isSafeInteger(maxTiles) || maxTiles < 1 || !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 64)
+    throw new AllocationError("INVALID_LIMIT", "Tile limit must be positive; tile concurrency must be from 1 to 64.");
+  const bb = validatedBounds(geometry); let z = zoom;
+  // Preserve the existing conservative tile-selection rule. Memory/dimension
+  // limits never choose another zoom. The final z10 footprint is checked too.
+  for (; z > 10; z--) {
+    const [tx0, ty0] = lonlatToTile(bb[0], bb[3], z), [tx1, ty1] = lonlatToTile(bb[2], bb[1], z);
+    if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) <= maxTiles) break;
+  }
+  const layout = rasterLayout(bb, z), rgbaBytes = layout.pixels * 4;
+  const previewScale = Math.min(1, 4000 / Math.max(layout.width, layout.height));
+  const previewWidth = Math.max(1, Math.round(layout.width * previewScale)), previewHeight = Math.max(1, Math.round(layout.height * previewScale));
+  const previewBytes = previewWidth * previewHeight * 4;
+  const modelSize = options.modelSize ?? (options.detect ? 1024 : 0), mode = options.mode || "clip";
+  if (!Number.isSafeInteger(modelSize) || modelSize < 0) throw new AllocationError("INVALID_DIMENSIONS", "Model input size is invalid.");
+  const encodedAllowance = Math.ceil(rgbaBytes * 1.02) + 65536, stripBytes = layout.width * Math.min(64, layout.height) * 4;
+  const stages = { tiles: rgbaBytes + Math.min(concurrency, layout.tiles) * TILE * TILE * 4 };
+  if (mode === "clip") {
+    stages.inference = rgbaBytes + (modelSize ? inferenceBytes(layout.width, layout.height, modelSize, options.overlap) : 0);
+    stages.png = rgbaBytes * 2 + encodedAllowance;
+    stages.preview = rgbaBytes + encodedAllowance + previewBytes * 3;
+    if (options.geotiff !== false) stages.tiff = rgbaBytes + encodedAllowance + previewBytes + encodedAllowance * 3 + stripBytes * 2;
+  }
+  if (mode === "dataset") stages.chips = rgbaBytes + 1024 * 1024 * 12;
+  const estimatedBytes = Math.ceil(Math.max(...Object.values(stages))), violations = [];
+  if (layout.tiles > maxTiles) violations.push({ code: "TILE_LIMIT", message: `The AOI still needs ${layout.tiles} tiles at z10, above the ${maxTiles}-tile limit. Split it into smaller AOIs.` });
+  try { dimensions(layout.width, layout.height, limits, "AOI raster"); if (mode === "clip") dimensions(previewWidth, previewHeight, limits, "Preview"); if (modelSize) dimensions(modelSize, modelSize, limits, "Model input"); if (mode === "dataset") dimensions(1024, 1024, limits, "Training chip"); }
+  catch (error) { violations.push({ code: error.code, message: error.message }); }
+  if (!Number.isSafeInteger(estimatedBytes) || estimatedBytes > limits.maxEstimatedBytes) violations.push({ code: "MEMORY_LIMIT", message: `Estimated working buffers ${mib(estimatedBytes)} exceed ${mib(limits.maxEstimatedBytes)}. Use a smaller AOI at the same zoom, disable GeoTIFF, or adjust Browser limits.` });
+  return { ...layout, requestedZoom: zoom, zoomReduced: z !== zoom, maxTiles, concurrency, limits, rgbaBytes,
+    previewWidth, previewHeight, stages, estimatedBytes, allowed: !violations.length, violations };
+}
+function requireRaster(plan) {
+  if (plan.allowed) return plan;
+  allocationStats.rejected++; const problem = plan.violations[0];
+  throw new AllocationError(problem.code, `z${plan.requestedZoom}${plan.zoomReduced ? " → z" + plan.zoom : ""} · ${plan.width}×${plan.height} px: ${problem.message}`, { estimate: plan, requestedZoom: plan.requestedZoom, zoom: plan.zoom, limits: plan.limits });
 }
 /** Mosaic Wayback tiles over the AOI and make everything outside the polygon transparent. */
 async function buildRaster(geom, release, zoom = 18, opt = {}) {
-  const bb = bboxOf(geom), z = pickZoom(bb, zoom, opt.maxTiles || 1200), res = resAt(z);
-  let [gx0, gy0] = lonlatToPixel(bb[0], bb[3], z), [gx1, gy1] = lonlatToPixel(bb[2], bb[1], z);
-  gx0 = Math.floor(gx0); gy0 = Math.floor(gy0); gx1 = Math.ceil(gx1); gy1 = Math.ceil(gy1);
-  const w = gx1 - gx0, h = gy1 - gy0;
-  if (w < 1 || h < 1) throw new ImageryError("INVALID_AOI", "AOI has no image area", { release, zoom: z });
+  checkAbort(opt.signal);
+  const plan = requireRaster(estimateRaster(geom, zoom, { ...opt, mode: "raster" }));
+  const { zoom: z, res, gx0, gy0, width: w, height: h } = plan;
+  const lease = opt.allocation || reserveAllocation("AOI raster", plan.estimatedBytes, plan.limits, true), ownLease = !opt.allocation;
+  lease.check(plan.estimatedBytes);
   const tiles = [];
-  for (let ty = Math.floor(gy0 / TILE); ty <= Math.floor((gy1 - 1) / TILE); ty++)
-    for (let tx = Math.floor(gx0 / TILE); tx <= Math.floor((gx1 - 1) / TILE); tx++) tiles.push([tx, ty]);
+  for (let ty = plan.extent.top; ty < plan.extent.top + plan.extent.height; ty++)
+    for (let tx = plan.extent.left; tx < plan.extent.left + plan.extent.width; tx++) tiles.push([tx, ty]);
   const controller = new AbortController(), abort = () => controller.abort();
   let timedOut = false, canvas, retained = false;
   opt.signal?.addEventListener("abort", abort, { once: true });
@@ -309,7 +449,7 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
     const { states, ...coverage } = await checkCoverage(release, z, extent, { signal: controller.signal });
     opt.onCoverage?.({ ...coverage, zoom: z, release });
     if (coverage.status === "unavailable") throw new ImageryError("NO_IMAGERY", `No imagery coverage for release ${release} at z${z}. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.`, { release, zoom: z, coverage });
-    canvas = makeCanvas(w, h); const ctx = ctx2d(canvas);
+    canvas = makeCanvas(w, h, lease); const ctx = ctx2d(canvas);
     let done = 0, missing = 0; const failures = {};
     await pool(tiles, opt.concurrency || 12, async ([tx, ty], index) => {
       try {
@@ -339,7 +479,8 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
     ctx.fillStyle = "#000"; ctx.fill("evenodd");
     ctx.globalCompositeOperation = "source-over";
     retained = true;
-    return { canvas, w, h, x0, y0, res, zoom: z, release, rings, tiles: tiles.length, missing, coverage };
+    return { canvas, w, h, x0, y0, res, zoom: z, requestedZoom: zoom, release, rings, tiles: tiles.length, missing, coverage, allocation: lease,
+      release() { releaseCanvas(canvas); if (ownLease) lease.release(); } };
   } catch (error) {
     if (opt.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     if (timedOut) throw new ImageryError("IMAGERY_TIMEOUT", `Imagery loading timed out for release ${release} at z${z}. Retry this date.`, { release, zoom: z });
@@ -347,7 +488,7 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
     throw error;
   } finally {
     controller.abort(); clearTimeout(timer); opt.signal?.removeEventListener("abort", abort);
-    if (canvas && !retained) canvas.width = canvas.height = 1;
+    if (!retained) { releaseCanvas(canvas); if (ownLease) lease.release(); }
   }
 }
 const pixelToLonLat = (r, px, py) => unmerc(r.x0 + px * r.res, r.y0 - py * r.res);
@@ -460,6 +601,14 @@ function decode(out, names, conf, wanted) {
 }
 async function detect(r, model, opt = {}) {
   const S = model.imgsz, wanted = opt.classes && opt.classes.length ? new Set(opt.classes) : null;
+  const limits = r.allocation?.limits || limitsFor(opt.limits);
+  const rasterBytes = dimensions(r.w, r.h, limits, "Detection raster");
+  dimensions(S, S, limits, "Model input");
+  const needed = rasterBytes + inferenceBytes(r.w, r.h, S, opt.overlap);
+  const lease = r.allocation || reserveAllocation("Detection", needed, limits, true), ownLease = !r.allocation;
+  if (lease.estimatedBytes < needed) lease.resize(needed);
+  try {
+  lease.check(needed);
   const ctx = ctx2d(r.canvas), wins = windows(r.h, r.w, S, opt.overlap ?? 256), all = [];
   const buf = new Float32Array(3 * S * S), plane = S * S;
   for (let i = 0; i < wins.length; i++) {
@@ -481,6 +630,7 @@ async function detect(r, model, opt = {}) {
     await new Promise(res => setTimeout(res, 0));   // keep the page responsive
   }
   return nms(all, 0.45, true);                       // IoMin removes tile-overlap duplicates
+  } finally { if (ownLease) lease.release(); }
 }
 function toFeatures(dets, r, props) {
   return dets.slice().sort((a, b) => b.conf - a.conf).map((d, i) => {
@@ -497,19 +647,32 @@ function toFeatures(dets, r, props) {
 }
 const COLORS = { aircraft: "#f2a516", ship: "#1fb3dc", helicopter: "#ff5aa0", storage_tank: "#7ad65a", large_vehicle: "#ff7a3c", small_vehicle: "#a9a9ff", harbor: "#58d2d2", bridge: "#e6e678" };
 async function previewBlob(r, dets, maxSide = 4000) {
-  const s = Math.min(1, maxSide / Math.max(r.w, r.h)), c = makeCanvas(Math.round(r.w * s), Math.round(r.h * s)), g = c.getContext("2d");
+  const s = Math.min(1, maxSide / Math.max(r.w, r.h)), c = makeCanvas(Math.max(1, Math.round(r.w * s)), Math.max(1, Math.round(r.h * s)), r.allocation);
   try {
+    const g = ctx2d(c);
     g.fillStyle = "#000"; g.fillRect(0, 0, c.width, c.height); g.drawImage(r.canvas, 0, 0, c.width, c.height);
     g.lineWidth = 2;
     dets.forEach(d => { g.strokeStyle = COLORS[d.cls] || "#fff"; g.beginPath(); d.poly.forEach(([x, y], i) => i ? g.lineTo(x * s, y * s) : g.moveTo(x * s, y * s)); g.closePath(); g.stroke(); });
     return await canvasBlob(c, "image/jpeg", 0.88);
-  } finally { c.width = c.height = 1; }
+  } finally { releaseCanvas(c); }
 }
 
 // ------------------------------------------------------------------ GeoTIFF writer (RGBA, deflate, EPSG:3857)
-function writeGeoTIFF(width, height, getRows, geo, rowsPerStrip = 64) {
+function writeGeoTIFF(width, height, getRows, geo, rowsPerStrip = 64, opt = {}) {
+  const limits = limitsFor(opt.limits), rgba = dimensions(width, height, limits, "GeoTIFF"), encoded = Math.ceil(rgba * 1.02) + 65536;
+  if (!Number.isSafeInteger(rowsPerStrip) || rowsPerStrip < 1 || !geo || !Number.isFinite(geo.res) || geo.res <= 0 || !Number.isFinite(geo.x0) || !Number.isFinite(geo.y0))
+    throw new AllocationError("INVALID_TIFF", "GeoTIFF strip size or georeferencing is invalid.");
+  const stripBytes = width * Math.min(rowsPerStrip, height) * 4;
+  const lease = opt.allocation || reserveAllocation("GeoTIFF", encoded * 3 + stripBytes * 2, limits), ownLease = !opt.allocation;
+  try {
   const strips = [];
-  for (let y = 0; y < height; y += rowsPerStrip) strips.push(fflate.zlibSync(getRows(y, Math.min(rowsPerStrip, height - y)), { level: 6 }));
+  let compressed = 0;
+  for (let y = 0; y < height; y += rowsPerStrip) {
+    const count = Math.min(rowsPerStrip, height - y), bytes = getRows(y, count);
+    if (!bytes || bytes.byteLength !== width * count * 4) throw new AllocationError("INVALID_TIFF", "GeoTIFF row provider returned an invalid RGBA buffer.");
+    const strip = fflate.zlibSync(bytes, { level: 6 }); compressed += strip.byteLength;
+    lease.check((opt.baseBytes || 0) + compressed * 3 + stripBytes * 2); strips.push(strip);
+  }
   const SHORT = 3, LONG = 4, DOUBLE = 12, size = { 3: 2, 4: 4, 12: 8 };
   let off = 8; const stripOffsets = strips.map(s => { const o = off; off += s.length; return o; });
   if (off % 2) off++;
@@ -522,6 +685,8 @@ function writeGeoTIFF(width, height, getRows, geo, rowsPerStrip = 64) {
   ];
   const ifdOff = off, ifdLen = 2 + tags.length * 12 + 4; let ext = ifdOff + ifdLen;
   const extEntries = tags.map(([, t, v]) => { const n = v.length * size[t]; if (n <= 4) return null; const o = ext; ext += n + (n % 2); return o; });
+  if (!Number.isSafeInteger(ext) || ext > 0xffffffff) throw new AllocationError("TIFF_SIZE_LIMIT", "Classic GeoTIFF exceeds its 32-bit file limit. Split this output into smaller AOIs.");
+  lease.check((opt.baseBytes || 0) + compressed + ext * 2 + stripBytes);
   const buf = new ArrayBuffer(ext), dv = new DataView(buf), u8 = new Uint8Array(buf);
   dv.setUint16(0, 0x4949); dv.setUint16(2, 42, true); dv.setUint32(4, ifdOff, true);
   strips.forEach((s, i) => u8.set(s, stripOffsets[i]));
@@ -534,18 +699,25 @@ function writeGeoTIFF(width, height, getRows, geo, rowsPerStrip = 64) {
   });
   dv.setUint32(ifdOff + 2 + tags.length * 12, 0, true);
   return new Blob([buf], { type: "image/tiff" });
+  } finally { if (ownLease) lease.release(); }
 }
-function geotiffBlob(r) {
+function geotiffBlob(r, encodedBytes = 0) {
   const ctx = ctx2d(r.canvas);
-  return writeGeoTIFF(r.w, r.h, (y, n) => new Uint8Array(ctx.getImageData(0, y, r.w, n).data.buffer), { res: r.res, x0: r.x0, y0: r.y0 });
+  return writeGeoTIFF(r.w, r.h, (y, n) => new Uint8Array(ctx.getImageData(0, y, r.w, n).data.buffer), { res: r.res, x0: r.x0, y0: r.y0 }, 64, { allocation: r.allocation, limits: r.allocation.limits, baseBytes: r.w * r.h * 4 + encodedBytes });
 }
 const worldFile = r => `${r.res}\n0.0\n0.0\n${-r.res}\n${r.x0 + r.res / 2}\n${r.y0 - r.res / 2}\n`;
 
 // ------------------------------------------------------------------ process one AOI × release
-async function processClip(aoi, rel, opt) {
-  if (opt.geotiff !== false) await ensureLibrary("fflate");
-  const r = await buildRaster(aoi.geometry, rel.release, opt.zoom, { signal: opt.signal, maxTiles: opt.maxTiles, onCoverage: opt.onCoverage, onProgress: f => opt.onProgress && opt.onProgress(0.45 * f) });
+async function processClip(aoi, rel, opt = {}) {
+  checkAbort(opt.signal);
+  if (opt.model && (!Number.isSafeInteger(opt.model.imgsz) || opt.model.imgsz < 1)) throw new AllocationError("INVALID_DIMENSIONS", "Model input size is invalid.");
+  const estimate = requireRaster(estimateRaster(aoi.geometry, opt.zoom ?? 18, { ...opt, overlap: 256, modelSize: opt.model?.imgsz || 0 }));
+  const lease = reserveAllocation("AOI clip", estimate.estimatedBytes, estimate.limits, true);
+  let r;
   try {
+    opt.onEstimate?.(estimate);
+    if (opt.geotiff !== false) await ensureLibrary("fflate");
+    r = await buildRaster(aoi.geometry, rel.release, opt.zoom, { ...opt, allocation: lease, limits: estimate.limits, onProgress: f => opt.onProgress && opt.onProgress(0.45 * f) });
     const name = aoi.properties.name, aoi_id = slug(name);
     const [, clat] = pixelToLonLat(r, r.w / 2, r.h / 2);
     const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
@@ -554,21 +726,26 @@ async function processClip(aoi, rel, opt) {
     const feats = toFeatures(dets, r, props), counts = {};
     feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
     const bounds = rasterBounds(r);
-    const blobs = { png: await canvasBlob(r.canvas, "image/png"), preview: await previewBlob(r, dets),
-      tif: opt.geotiff === false ? null : geotiffBlob(r), pgw: worldFile(r) };
+    const png = await canvasBlob(r.canvas, "image/png"), preview = await previewBlob(r, dets);
+    if (!png || !preview) throw new AllocationError("CANVAS_ENCODING", "Browser could not encode the clip imagery. Use a smaller AOI and retry.");
+    lease.check(estimate.rgbaBytes + png.size + preview.size);
+    const blobs = { png, preview, tif: opt.geotiff === false ? null : geotiffBlob(r, png.size + preview.size), pgw: worldFile(r) };
     checkAbort(opt.signal);
     opt.onProgress && opt.onProgress(1);
     return { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
-      tiles: r.tiles, missing: r.missing, coverage: r.coverage, size: [r.w, r.h], aoiFeature: aoi,
+      tiles: r.tiles, missing: r.missing, coverage: r.coverage, size: [r.w, r.h], requestedZoom: estimate.requestedZoom, allocation: { estimatedBytes: estimate.estimatedBytes, rgbaBytes: estimate.rgbaBytes, limits: estimate.limits }, aoiFeature: aoi,
       fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
-  } finally { r.canvas.width = r.canvas.height = 1; }
+  } finally { r?.release(); lease.release(); }
 }
 const slug = s => String(s).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "aoi";
 
 // ------------------------------------------------------------------ exports
 async function exportJobZip(job, extra = {}) {
+  const lease = reserveAllocation("Job ZIP export", 65536, extra.limits);
+  try {
   await ensureLibrary("zip");
-  const zip = new JSZip(), root = zip.folder(job.id), all = [], usedPaths = new Set();
+  const zip = new JSZip(), root = zip.folder(job.id), all = [], usedPaths = new Set(); let inputBytes = 0;
+  const track = value => { inputBytes += typeof value === "string" ? value.length * 3 : value?.size || value?.byteLength || 0; lease.resize(Math.max(65536, inputBytes * 3)); return value; };
   const paths = job.results.map((r, index) => {
     const base = `${r.aoi_id}/${r.date || r.release}`; let path = base, suffix = index;
     while (usedPaths.has(path)) path = base + "__clip_" + suffix++;
@@ -578,57 +755,80 @@ async function exportJobZip(job, extra = {}) {
     const r = extra.readResult ? await extra.readResult(descriptor) : descriptor;
     const f = root.folder(paths[index]);
     const fc = r.draftFC || r.fc;
-    if (r.blobs.tif) f.file("image.tif", r.blobs.tif);
-    f.file("image.png", r.blobs.png); f.file("image.pgw", r.blobs.pgw); f.file("image.prj", WKT_3857);
-    f.file("preview_detections.jpg", r.blobs.preview);
-    f.file("detections.geojson", JSON.stringify(fc));
-    f.file("aoi.geojson", JSON.stringify(r.aoiFeature));
+    if (r.blobs.tif) f.file("image.tif", track(r.blobs.tif));
+    f.file("image.png", track(r.blobs.png)); f.file("image.pgw", track(r.blobs.pgw)); f.file("image.prj", track(WKT_3857));
+    f.file("preview_detections.jpg", track(r.blobs.preview));
+    f.file("detections.geojson", track(JSON.stringify(fc)));
+    f.file("aoi.geojson", track(JSON.stringify(r.aoiFeature)));
     all.push(...fc.features);
   }
-  root.file("all_detections.geojson", JSON.stringify({ type: "FeatureCollection", features: all }));
-  root.file("aois.geojson", JSON.stringify({ type: "FeatureCollection", features: job.aois }));
-  root.file("summary.json", JSON.stringify({ job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
+  root.file("all_detections.geojson", track(JSON.stringify({ type: "FeatureCollection", features: all })));
+  root.file("aois.geojson", track(JSON.stringify({ type: "FeatureCollection", features: job.aois })));
+  root.file("summary.json", track(JSON.stringify({ job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
     results: job.results.map((r, index) => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total,
-      clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[index] })), ...extra }, null, 2));
-  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } }, extra.onProgress);
+      clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[index] })), ...extra }, null, 2)));
+  return await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } }, extra.onProgress);
+  } finally { lease.release(); }
 }
 /** YOLO-OBB dataset from reviewed annotations (rejected objects are left unlabeled = negatives). */
 async function exportDataset(annFC, opt = {}) {
   const feats = annFC.features.filter(f => f.properties.status !== "rejected" && f.properties.class && f.properties.release);
   if (!feats.length) throw new Error("No reviewed objects yet");
-  await ensureLibrary("zip");
   const classes = [...new Set(feats.map(f => f.properties.class))].sort(), cid = Object.fromEntries(classes.map((c, i) => [c, i]));
-  const zip = new JSZip(), ds = zip.folder("dataset"), groups = new Map(), chip = 1024;
+  const groups = new Map(), chip = 1024;
+  feats.forEach(f => validatedBounds(f.geometry));
   feats.forEach(f => { const p = f.properties, c = f.properties.centroid || centroidOf(f.geometry);
     const k = `${p.release}|${p.zoom || 18}|${Math.round(c[0] / 0.02)}|${Math.round(c[1] / 0.02)}`; (groups.get(k) || groups.set(k, []).get(k)).push(f); });
-  let n = 0, gi = 0, firstChip = null;
+  const plans = [];
   for (const [k, items] of groups) {
     const [rel, z] = k.split("|").map(Number);
     let bb = [Infinity, Infinity, -Infinity, -Infinity];
     items.forEach(f => { const b = bboxOf(f.geometry); bb = [Math.min(bb[0], b[0]), Math.min(bb[1], b[1]), Math.max(bb[2], b[2]), Math.max(bb[3], b[3])]; });
     const pad = 0.0015, poly = { type: "Polygon", coordinates: [[[bb[0] - pad, bb[1] - pad], [bb[2] + pad, bb[1] - pad], [bb[2] + pad, bb[3] + pad], [bb[0] - pad, bb[3] + pad], [bb[0] - pad, bb[1] - pad]]] };
-    const r = await buildRaster(poly, rel, z, { maxTiles: 1200 });
-    if (r.missing) { r.canvas.width = r.canvas.height = 1; throw new ImageryError("INCOMPLETE_TRAINING_IMAGERY", "Training export needs complete imagery. Missing tiles must not become negative examples; choose another date or retry."); }
+    const estimate = requireRaster(estimateRaster(poly, z, { maxTiles: opt.maxTiles ?? 1200, limits: opt.limits, mode: "dataset" }));
+    plans.push({ poly, rel, z, items, estimate });
+  }
+  checkAbort(opt.signal);
+  const limits = limitsFor(opt.limits), lease = reserveAllocation("Training dataset", Math.max(...plans.map(plan => plan.estimate.estimatedBytes)), limits, true);
+  try {
+  await ensureLibrary("zip");
+  const zip = new JSZip(), ds = zip.folder("dataset");
+  let n = 0, gi = 0, firstChip = null, archiveBytes = 0;
+  const retain = value => { archiveBytes += typeof value === "string" ? value.length * 3 : value.size; return value; };
+  for (const { poly, rel, z, items, estimate } of plans) {
+    lease.resize(estimate.estimatedBytes + archiveBytes * 3);
+    opt.onEstimate?.(estimate);
+    const r = await buildRaster(poly, rel, z, { maxTiles: opt.maxTiles ?? 1200, limits, signal: opt.signal, allocation: lease });
+    try {
+    if (r.missing) throw new ImageryError("INCOMPLETE_TRAINING_IMAGERY", "Training export needs complete imagery. Missing tiles must not become negative examples; choose another date or retry.");
     const objs = items.map(f => ({ k: cid[f.properties.class], pts: minRect(f.geometry.coordinates[0].slice(0, -1).map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - r.x0) / r.res, (r.y0 - my) / r.res]; })) }));
     for (const [x, y] of windows(r.h, r.w, chip, 200)) {
+      checkAbort(opt.signal);
       const lines = objs.filter(o => { const cx = o.pts.reduce((s, p) => s + p[0], 0) / 4, cy = o.pts.reduce((s, p) => s + p[1], 0) / 4; return cx >= x && cx < x + chip && cy >= y && cy < y + chip; })
         .map(o => o.k + " " + o.pts.map(([px, py]) => [(px - x) / chip, (py - y) / chip].map(v => Math.min(Math.max(v, 0), 1).toFixed(6)).join(" ")).join(" "));
-      const c = makeCanvas(chip, chip), g = c.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, chip, chip); g.drawImage(r.canvas, -x, -y);
+      const c = makeCanvas(chip, chip, lease);
+      try {
+      const g = ctx2d(c); g.fillStyle = "#000"; g.fillRect(0, 0, chip, chip); g.drawImage(r.canvas, -x, -y);
       const split = (n % 7 === 6) ? "val" : "train", stem = `r${rel}_z${r.zoom}_${String(n).padStart(5, "0")}`;
       const jpg = await canvasBlob(c, "image/jpeg", 0.92);
+      if (!jpg) throw new AllocationError("CANVAS_ENCODING", "Browser could not encode a training chip.");
+      retain(jpg); retain(lines.join("\n"));
+      lease.resize(estimate.estimatedBytes + archiveBytes * 3);
       ds.file(`images/${split}/${stem}.jpg`, jpg);
       ds.file(`labels/${split}/${stem}.txt`, lines.join("\n"));
       if (!firstChip && lines.length) firstChip = { stem, jpg, txt: lines.join("\n") };
       n++;
+      } finally { releaseCanvas(c); }
     }
-    r.canvas.width = r.canvas.height = 1;
+    } finally { r.release(); }
     opt.onProgress && opt.onProgress(++gi / groups.size);
   }
   if (n < 7 && firstChip) {                       // tiny sets have no val chip yet: reuse one labelled chip
+    retain(firstChip.jpg); retain(firstChip.txt);
     ds.file(`images/val/${firstChip.stem}.jpg`, firstChip.jpg); ds.file(`labels/val/${firstChip.stem}.txt`, firstChip.txt);
   }
   ds.file("data.yaml", `path: .\ntrain: images/train\nval: images/val\nnames:\n${classes.map((c, i) => `  ${i}: ${c}`).join("\n")}\n`);
-  ds.file("annotations.geojson", JSON.stringify(annFC));
+  ds.file("annotations.geojson", retain(JSON.stringify(annFC)));
   ds.file("TRAIN.md", `# Train and bring the model back to the portal
 
 pip install ultralytics
@@ -641,7 +841,9 @@ Class names, in order: ${classes.join(", ")}
 
 No GPU? Upload this folder to Google Colab or Kaggle and run the same commands.
 `);
+  lease.resize(Math.max(65536, archiveBytes * 3 + 65536));
   return { blob: await zip.generateAsync({ type: "blob" }), chips: n, classes };
+  } finally { lease.release(); }
 }
 function centroidOf(g) { const r = polygonsOf(g)[0][0]; return [r.reduce((s, p) => s + p[0], 0) / r.length, r.reduce((s, p) => s + p[1], 0) / r.length]; }
 function minRect(pts) {                          // minimum-area rotated rectangle (rotating calipers over hull edges)
@@ -664,8 +866,12 @@ function convexHull(p) {
   return lo.slice(0, -1).concat(up.slice(0, -1));
 }
 
-global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup,
-  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo() }),
+const allocationDiagnostics = () => ({ ...allocationStats, reservedBytes: [...allocationLeases.values()].reduce((sum, lease) => sum + lease.estimatedBytes, 0),
+  activeOperations: [...allocationLeases.values()].map(lease => ({ id: lease.id, label: lease.label, estimatedBytes: lease.estimatedBytes, canvasBytes: lease.canvasBytes, processing: lease.processing })), limits: { ...allocationDefaults }, maxConcurrentProcessing: 1 });
+const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDefaults }), configure(values) { allocationDefaults = limitsFor({ ...DEFAULT_LIMITS, ...values }); return { ...allocationDefaults }; },
+  dimensions, pngDimensions, reserve: reserveAllocation, makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
+global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics() }),
   buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset,
   writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
 })(typeof window !== "undefined" ? window : globalThis);

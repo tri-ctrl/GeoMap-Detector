@@ -36,7 +36,10 @@ function engineSetup({ metadata = url => tilemap(url), image = async () => new R
   vm.runInContext(source, context);
   return { engine: context.GVEngine, context, calls, canvases, bitmaps, timers };
 }
-const assertFreed = fixture => { assert.ok(fixture.canvases.every(canvas => canvas.width === 1 && canvas.height === 1)); assert.ok(fixture.bitmaps.every(bitmap => bitmap.closed === 1)); };
+const assertFreed = fixture => {
+  assert.ok(fixture.canvases.every(canvas => canvas.width === 1 && canvas.height === 1)); assert.ok(fixture.bitmaps.every(bitmap => bitmap.closed === 1));
+  assert.equal(fixture.engine.allocations.diagnostics().liveCanvasBytes, 0); assert.equal(fixture.engine.allocations.diagnostics().reservedBytes, 0);
+};
 
 test('absent coverage over the full processing footprint allocates no canvas and requests no images', async () => {
   const f = engineSetup({ metadata: url => tilemap(url, 0, 1) });
@@ -52,7 +55,7 @@ test('clipped tilemap rectangles leave remaining cells unknown until their own v
   assert.equal(raster.coverage.status, 'partial'); assert.equal(raster.missing, 1);
   assert.equal(raster.coverage.checks, 2); assert.equal(f.calls.filter(call => !call.url.includes('/tilemap/')).length, 1);
   assert.equal(raster.w, 400); assert.equal(raster.h, 128); assert.equal(raster.zoom, 18);
-  assert.ok(f.bitmaps.every(bitmap => bitmap.closed === 1)); raster.canvas.width = raster.canvas.height = 1;
+  assert.ok(f.bitmaps.every(bitmap => bitmap.closed === 1)); raster.release(); assertFreed(f);
 });
 test('tilemaps clipped in both dimensions cover the footprint without gaps or double counting', async () => {
   const f = engineSetup({ metadata: url => {
@@ -71,7 +74,7 @@ test('malformed, invalid and failed tilemaps stay unknown; valid image requests 
     const f = engineSetup({ metadata });
     const raster = await f.engine.buildRaster(geometry(), 388);
     assert.equal(raster.coverage.status, 'full'); assert.equal(raster.coverage.unknown, 2);
-    assert.equal(raster.missing, 0); raster.canvas.width = raster.canvas.height = 1;
+    assert.equal(raster.missing, 0); raster.release();
     assertFreed(f);
   }
 });
@@ -126,7 +129,7 @@ test('bad cache entries are evicted and retried from the network', async () => {
   const f = engineSetup({ cache: { match: async () => new Response('broken'), delete: async () => { deleted++; return true; }, put: async () => {} },
     decode: async blob => { if (await blob.text() === 'broken') throw new Error('bad cached image'); } });
   const raster = await f.engine.buildRaster(geometry(), 388);
-  assert.equal(deleted, 2); assert.equal(raster.missing, 0); raster.canvas.width = raster.canvas.height = 1; assertFreed(f);
+  assert.equal(deleted, 2); assert.equal(raster.missing, 0); raster.release(); assertFreed(f);
 });
 test('drawing and encoding failures close bitmaps and release processing/preview canvases', async () => {
   const f = engineSetup({ draw: () => { throw new Error('draw failed'); } });

@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const appSource = readFileSync(path.join(__dirname, "../../frontend/app.js"), "utf8");
 const engineSource = readFileSync(path.join(__dirname, "../../frontend/engine.js"), "utf8");
 const comparisonSource = readFileSync(path.join(__dirname, "../../frontend/comparison.js"), "utf8");
+const storageSource = readFileSync(path.join(__dirname, "../../frontend/storage.js"), "utf8");
 const releases = [{ release: 101, date: "2026-10-29" }, { release: 100, date: "2026-10-22" }];
 const aoi = { type: "Feature", properties: { name: "Review" }, geometry: {
   type: "Polygon", coordinates: [[[55.36, 25.25], [55.37, 25.25], [55.37, 25.26], [55.36, 25.25]]],
@@ -15,7 +16,7 @@ const turn = () => new Promise(resolve => setImmediate(resolve));
 // Exercise the complete, unmodified app through its UI handlers. Only DOM,
 // Leaflet, network and clip processing are substituted for deterministic tests.
 async function setup({ server = false, selected = false, showImage = true, aois = [aoi], localChanges,
-  getReleases, fetchHook, beforeBoot, drawLoaded = true } = {}) {
+  getReleases, fetchHook, beforeBoot, drawLoaded = true, indexedDB, savedMap } = {}) {
   const elements = new Map(), groups = [], tiles = [], requests = [];
   const metrics = { fits: 0, geoJSON: 0, annotationReads: 0, removedTiles: 0 };
   class Element {
@@ -95,7 +96,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   element("#runAoiPanel").hidden = true;
   element("#resultView").value = "review"; element("#compareKind").value = "dates";
   element("#compareMap").hidden = true;
-  const saved = new Map([["gv_aois", JSON.stringify(aois)]]);
+  const saved = savedMap || new Map([["gv_aois", JSON.stringify(aois)]]);
   if (server) { saved.set("gv_api", JSON.stringify("/server")); saved.set("gv_engine", JSON.stringify("server")); }
   if (selected) { saved.set("gv_relMode", JSON.stringify("selected")); saved.set("gv_selRel", JSON.stringify([101, 100])); }
   const center = { lat: 25.25, lng: 55.36, distanceTo: () => 1000 };
@@ -181,7 +182,8 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   };
   let nextUrl = 0;
   const events = new Map(), documentEvents = new Map();
-  const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException,
+  const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException, indexedDB,
+    setInterval, clearInterval, structuredClone, crypto: globalThis.crypto,
     location: { hostname: "test.github.io" }, setTimeout: () => 0, clearTimeout() {},
     localStorage: { getItem: key => { if (key === "gv_ann") metrics.annotationReads++; return saved.get(key) ?? null; }, setItem: (key, value) => saved.set(key, value) },
     URL: { createObjectURL: () => "blob:test-" + ++nextUrl, revokeObjectURL() {} }, addEventListener: (event, handler) => events.set(event, handler),
@@ -189,12 +191,17 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
   vm.runInContext(comparisonSource, context);
+  vm.runInContext(storageSource, context);
   context.GVEngine.getReleases = getReleases || (async () => releases);
   if (localChanges) context.GVEngine.localChanges = localChanges;
   context.GVEngine.processClip = async (feature, release) => ({...result(release),aoiFeature:feature});
   beforeBoot?.(context);
   vm.runInContext(appSource, context);
   await turn();
+  if (indexedDB) {
+    for (let i = 0; i < 300 && element("#storageStatus").textContent.startsWith("Opening"); i++) await turn();
+    assert.ok(!element("#storageStatus").textContent.startsWith("Opening"), "Storage must finish restoring");
+  }
   const releaseRows = () => element("#relList").querySelectorAll("[data-r]");
   const clickRelease = release => releaseRows().find(row => row.dataset.r === String(release)).onclick({ target: { matches: () => false } });
   const snapshot = () => ({ ...metrics, tiles: tiles.length, urlUpdates: tiles.reduce((n, layer) => n + layer.updates.length, 0),

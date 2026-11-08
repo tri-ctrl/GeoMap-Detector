@@ -19,6 +19,7 @@ const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
 const htmlSource = fs.readFileSync(path.join(root, "frontend/index.html"), "utf8");
+const storageSource = fs.readFileSync(path.join(root, "frontend/storage.js"), "utf8");
 const comparisonSource = fs.readFileSync(path.join(root, "frontend/comparison.js"), "utf8");
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "geomap-gmd003-"));
 const browserBin = process.env.GMD_BROWSER_BIN || [
@@ -29,6 +30,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const instrumentation = `(() => {
   const counts = { tileLayers: 0, tileUrls: 0, fits: 0, geoJSON: 0, annotationReads: 0, annotationFetches: 0, detectionFetches: 0 };
   window.__gmd003 = { counts };
+  if (window.GVStorage) {
+    const create = GVStorage.create;
+    GVStorage.create = (...args) => (__gmd003.repository = create(...args));
+  }
   const wrap = (object, key, counter) => {
     const original = object[key];
     object[key] = function(...args) { counts[counter]++; if (counter === 'fits') __gmd003.map = this; return original.apply(this, args); };
@@ -95,7 +100,7 @@ let chrome, socket, watchdog;
     } else if (message.method === "Fetch.requestPaused") {
       const { requestId, request } = message.params;
       const file = request.url === base ? "index.html" : new URL(request.url).pathname.split("/").pop();
-      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : file === "comparison.js" ? comparisonSource : htmlSource;
+      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : file === "comparison.js" ? comparisonSource : file === "storage.js" ? storageSource : htmlSource;
       overrides.add(file);
       page("Fetch.fulfillRequest", { requestId, responseCode: 200,
         responseHeaders: [{ name: "Content-Type", value: file === "index.html" ? "text/html" : "application/javascript" }, { name: "Cache-Control", value: "no-store" }],
@@ -105,7 +110,7 @@ let chrome, socket, watchdog;
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
   await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
-  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }] });
+  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }, { urlPattern: base + "storage.js*" }] });
   const evaluate = async expression => {
     const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }).catch(error => {
       throw new Error(error.message + " while evaluating: " + expression.slice(0, 180));
@@ -131,7 +136,7 @@ let chrome, socket, watchdog;
     }
     await evaluate(instrumentation);
   }
-  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "comparison.js", "engine.js", "index.html"]);
+  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "comparison.js", "engine.js", "index.html", "storage.js"]);
   console.log(deployed ? "Loaded actual deployed Leaflet/Draw and verified source bytes; no overrides." : "Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
   const initial = await counts();
   await evaluate("(() => { for (let i = 0; i < 5; i++) document.querySelector('#relList .active').click(); })()");
@@ -240,11 +245,22 @@ let chrome, socket, watchdog;
   }
   await evaluate(`(async () => {
     const release = (await GVEngine.getReleases())[0].release;
-    localStorage.setItem('gv_ann', JSON.stringify({ type: 'FeatureCollection', features: [{
+    const features = [{
       type: 'Feature', id: 'manual_gmd003', geometry: { type: 'Polygon', coordinates: [[[55.3605,25.2505],[55.361,25.2505],[55.361,25.251],[55.3605,25.251],[55.3605,25.2505]]] },
       properties: { class: 'aircraft', status: 'manual', release, aoi_id: 'Review_small',
         ...(${detectionClick} ? {confidence:'0.91',centroid:['55.36075','25.25075']} : {centroid:[55.36075,25.25075]}) }
-    }] }));
+    }];
+    const jobId=document.querySelector('#jobSel').value;
+    if (__gmd003.repository) {
+      const saved=await __gmd003.repository.restore(),job=saved.jobs.find(j=>j.id===jobId),clip=job.results[0];
+      await __gmd003.repository.saveReviews(clip.storeId,jobId,clip.aoiId,features);
+    } else if(window.GVStorage) {
+      // Deployed mode runs instrumentation after boot. Seed only this isolated
+      // test profile through native IndexedDB, using the same scoped schema.
+      const database=await new Promise((resolve,reject)=>{const r=indexedDB.open(GVStorage.NAME);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+      const rows=await new Promise(resolve=>{const r=database.transaction('results').objectStore('results').index('jobId').getAll(jobId);r.onsuccess=()=>resolve(r.result)});
+      await new Promise((resolve,reject)=>{const tx=database.transaction('reviews','readwrite');features.forEach((feature,i)=>tx.objectStore('reviews').put({id:rows[0].storeId+':'+i,scope:rows[0].storeId,jobId,feature}));tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error)});database.close();
+    } else localStorage.setItem('gv_ann',JSON.stringify({type:'FeatureCollection',features}));
     document.querySelector('#resTable tbody tr[data-i]').click();
   })()`);
   await until("Boolean(__gmd003.detection && document.querySelector('.leaflet-image-layer'))");

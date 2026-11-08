@@ -11,7 +11,7 @@ const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), base = 'https://tri-ctrl.github.io/GeoMap-Detector/';
 const forceWasm = process.argv.includes('--wasm');
-const names = ['index.html', 'app.js', 'engine.js', 'comparison.js'];
+const names = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js'];
 const sources = Object.fromEntries(names.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const dxb = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'))).features.find(feature => feature.properties.name === 'DXB');
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source overrides; live provider/model assets; not deployed verification',

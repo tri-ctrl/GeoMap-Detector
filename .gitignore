@@ -6,3 +6,4 @@ models/runs/
 .venv/
 __pycache__/
 frontend/models/*.onnx
+node_modules/

@@ -19,12 +19,86 @@ const S = {
   classes: store.get("classes", DOTA.slice()), wantClasses: new Set(store.get("want", ["aircraft","ship","helicopter"])),
   models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null,
 };
-const BJOBS = {};                       // browser jobs (kept in memory until the tab closes)
+const BJOBS = {};                       // lightweight catalog; durable payloads load per clip
 const runAoiSelection = new Set(S.aois);
 const browserQueue = [], MAX_WAITING_JOBS = 10;
 let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false;
 let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
+let pendingLiveRelease = null;
+let volatileLiveDraft = null;
+let persistenceReady = false, durable = false, readOnly = false, queuePaused = false, storageError = null;
+let writing = false, restoring = false;
+let writingDone = Promise.resolve();
+let storageShutdown = Promise.resolve();
+const pendingWrites = [];
+const DB = window.GVStorage?.create({ onState: state => {
+  if (["ownership-lost", "version-change", "connection-closed"].includes(state.reason)) {
+    finishEdit();
+    readOnly = true; queuePaused = true; storageError = new Error("Storage ownership changed. Reload this tab to recover.");
+    if (activeBrowserJob) { activeBrowserJob.suspending = true; activeBrowserJob.controller?.abort(); }
+    renderStorage(); updateRunSelection();
+  }
+} });
+function renderStorage() {
+  $("#storageStatus").textContent = !persistenceReady ? "Opening device storage…" : storageError ? "Not saved · " + storageError.message
+    : readOnly ? "Read only · close the other tab and reload to edit." : !durable ? "Session only · storage unavailable. Export before closing."
+    : pendingWrites.length ? "Saving on this device…" : "Saved on this device · IndexedDB";
+  $("#storageRetry").hidden = !storageError || readOnly;
+  $("#resumeQueue").hidden = !queuePaused || readOnly || !browserQueue.length;
+  $("#resumeQueue").disabled = Boolean(storageError);
+  for (const id of ["fileIn", "loadSample", "clearAoi", "drawRect", "drawPoly", "onnxIn", "customNames", "annRect", "annPoly", "acceptAll", "saveAnn"])
+    if ($("#" + id)) $("#" + id).disabled = !persistenceReady || readOnly;
+}
+async function flushWrites() {
+  if (writing) return writingDone;
+  writing = true;
+  let finished;
+  writingDone = new Promise(resolve => { finished = resolve; });
+  try {
+    while (pendingWrites.length && !storageError) {
+      const item = pendingWrites[0];
+      try { await item.action(); pendingWrites.shift(); item.resolve(); }
+      catch (error) { storageError = error; queuePaused = true; item.reject(error); toast("Could not save on this device. Work is kept in this tab; retry saving or export it.", 6500); }
+      renderStorage();
+    }
+  } finally { writing = false; finished(); }
+}
+function persistWrite(action, owner = null) {
+  if (!durable) return Promise.resolve();
+  if (readOnly) return Promise.reject(new Error("This workspace is read only"));
+  const promise = new Promise((resolve, reject) => { pendingWrites.push({ action, owner, resolve, reject }); });
+  renderStorage(); flushWrites();
+  // Later writes remain queued after a failure; their callers can stop without
+  // holding an inference slot or waiting forever for a user-driven retry.
+  if (storageError) { promise.catch(() => {}); return Promise.reject(storageError); }
+  return promise;
+}
+const checkpointJob = job => {
+  const record = window.GVStorage?.jobRecord(job);
+  return persistWrite(() => DB.saveJob(record), job.id);
+};
+function saveDraft() {
+  if (!dirty || !S.annFC || readOnly || restoring || BJOBS[S.clip?.job]?.deleting) return;
+  if (S.clip?.browser) S.clip.source.draftFC = S.annFC;
+  if (!S.clip) volatileLiveDraft = S.annFC;
+  const scope = S.clip ? (S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path) : "live";
+  const fc = JSON.parse(JSON.stringify(S.annFC)), jobId = S.clip?.job || null, original = S.annFC, source = S.clip?.source;
+  persistWrite(async () => {
+    await DB.saveDraft(scope, jobId, fc);
+    if (source && S.clip?.source !== source) delete source.draftFC;
+    if (S.annFC === original && JSON.stringify(original) === JSON.stringify(fc)) dirty = false;
+  }, jobId || "live").catch(() => {});
+}
+async function readClip(source, options) {
+  const images = options?.images !== false;
+  if (source.fc && (!images || source.blobs?.png)) return source;
+  const payload = await DB.clip(source.storeId, options);
+  if (source.draftFC && options?.draft !== false) payload.draftFC = source.draftFC;
+  return payload;
+}
+$("#storageRetry").onclick = async () => { storageError = null; await flushWrites(); renderStorage(); };
+$("#resumeQueue").onclick = () => { if (storageError || readOnly) return; queuePaused = false; renderStorage(); drainBrowserQueue(); };
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
@@ -128,9 +202,10 @@ function normalizeFeatures(fc) {
   return out;
 }
 function addAois(feats) {
+  if (!persistenceReady || readOnly) return toast("Wait for writable device storage");
   const active = S.aois[S.activeAoi], existing = E.uniqueAois(S.aois), base = existing.length;
   const selectNew = existing.every(aoi => runAoiSelection.has(aoi));
-  const incoming = feats.map((f, i) => ({ type: "Feature", properties: { ...f.properties, name: String(aoiName(f, base + i)) }, geometry: f.geometry }));
+  const incoming = feats.map((f, i) => ({ ...f, type: "Feature", properties: { ...f.properties, name: String(aoiName(f, base + i)) }, geometry: f.geometry }));
   S.aois = E.uniqueAois(existing.concat(incoming));
   if (selectNew) S.aois.forEach(aoi => runAoiSelection.add(aoi));
   const activeIndex = S.aois.indexOf(active);
@@ -140,7 +215,13 @@ function addAois(feats) {
   if (aoiLayer.getLayers().length) map.fitBounds(aoiLayer.getBounds().pad(0.1));
   toast(`${added} AOI${added === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
 }
-function saveAois() { store.set("aois", S.aois); }
+function saveAois() {
+  if (!durable) { if (!store.set("aois", S.aois)) { dirty = true; toast("AOIs could not be saved. Export them before closing.", 5000); } return; }
+  const ids = new Set();
+  S.aois.forEach(feature => { if (!feature._gmd_id || ids.has(feature._gmd_id)) feature._gmd_id = window.GVStorage.uuid(); ids.add(feature._gmd_id); });
+  const features = JSON.parse(JSON.stringify(S.aois));
+  persistWrite(() => DB.saveAois(features)).catch(() => {});
+}
 function renderAois() {
   invalidateLocalChanges();
   aoiLayer.clearLayers();
@@ -158,8 +239,8 @@ function renderAois() {
     list.append(it);
   });
   if (!S.aois.length) list.innerHTML = `<div class="item"><span></span><span class="s">No AOIs yet. Import a file, draw one, or load the UAE sample (6 airports and ports).</span><span></span></div>`;
-  list.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { S.aois.splice(+b.dataset.del, 1); S.activeAoi = null; saveAois(); renderAois(); });
-  list.querySelectorAll("[data-ren]").forEach(b => b.onclick = () => renameAoi(+b.dataset.ren, b.closest(".item")));
+  list.querySelectorAll("[data-del]").forEach(b => { b.disabled = readOnly; b.onclick = () => { if (readOnly) return; S.aois.splice(+b.dataset.del, 1); S.activeAoi = null; saveAois(); renderAois(); }; });
+  list.querySelectorAll("[data-ren]").forEach(b => { b.disabled = readOnly; b.onclick = () => { if (!readOnly) renameAoi(+b.dataset.ren, b.closest(".item")); }; });
   $("#aoiCount").textContent = S.aois.length ? `(${S.aois.length})` : "";
   renderRunAois();
 }
@@ -173,12 +254,12 @@ function updateRunSelection() {
     : "Checked AOIs will use your Wayback date settings. Map selection controls the view.";
   const busy = Boolean(activeBrowserJob || browserQueue.length || queueDraining);
   $("#runVerb").textContent = !isServer() && busy ? "Queue" : "Run";
-  $("#runBtn").disabled = count === 0 || serverRunning || (isServer() ? busy : browserQueue.length >= MAX_WAITING_JOBS);
+  $("#runBtn").disabled = !persistenceReady || readOnly || Boolean(storageError) || count === 0 || serverRunning || (isServer() ? busy : browserQueue.length >= MAX_WAITING_JOBS);
   $("#runAoiAll").disabled = $("#runAoiNone").disabled = !S.aois.length;
 }
 function renderRunAois() {
   // References distinguish equal names and survive renames/reindexing. They are
-  // tab-local UI state; no persistent AOI IDs or saved-data migration is needed.
+  // tab-local UI state; durable identity belongs to the AOI record itself.
   const current = new Set(S.aois);
   for (const aoi of runAoiSelection) if (!current.has(aoi)) runAoiSelection.delete(aoi);
   const list = $("#runAoiList");
@@ -254,11 +335,12 @@ const drop = $("#drop");
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
-$("#clearAoi").onclick = () => { S.aois = []; S.activeAoi = null; saveAois(); renderAois(); };
+$("#clearAoi").onclick = () => { if (readOnly || !persistenceReady) return; S.aois = []; S.activeAoi = null; saveAois(); renderAois(); };
 $("#loadSample").onclick = async () => { try { addAois(normalizeFeatures(await (await fetch("sample_aois/uae_airports_ports.geojson")).json())); } catch { toast("Sample file not found next to the portal"); } };
 
 let drawMode = null, drawRequest = 0, drawTool = null;
 async function startDraw(kind, purpose) {
+  if (readOnly || !persistenceReady) return;
   const request = ++drawRequest;
   drawTool?.disable();
   try {
@@ -283,6 +365,10 @@ function applyReleases(releases) {
   if (!pageActive) return;
   S.releases = releases;
   if (!S.viewRel && releases.length) setWayback(releases[0]); else renderReleases();
+  if (pendingLiveRelease != null && !S.clip) {
+    const release = releases.find(r => r.release === pendingLiveRelease);
+    if (release) { pendingLiveRelease = null; setWayback(release); }
+  }
   E.markStartup("metadataReady");
 }
 function renderReleaseStatus() {
@@ -396,12 +482,15 @@ $("#model").onchange = () => { store.set("model", $("#model").value); updModelIn
 $("#onnxIn").onchange = async e => {
   const f = e.target.files[0]; if (!f) return; e.target.value = "";
   const names = store.get("dsClasses", []);
-  const m = { key: "file:" + f.name + ":" + f.size + ":" + ++modelSourceSequence, label: f.name + " (loaded file)", buffer: new Uint8Array(await f.arrayBuffer()), names, custom: true };
+  if (readOnly) return;
+  const m = { key: "file:" + (window.GVStorage?.uuid() || Date.now() + ":" + ++modelSourceSequence), label: f.name + " (loaded file)", buffer: new Uint8Array(await f.arrayBuffer()), names, custom: true };
+  const source = { ...m };
+  await persistWrite(async () => { await DB.saveModel(source); delete m.buffer; }).catch(() => {});
   S.customModels = S.customModels.filter(x => x.key !== m.key).concat(m);
-  await loadModels(); $("#model").value = m.key; updModelInfo();
+  await loadModels(); $("#model").value = m.key; store.set("model", m.key); updModelInfo();
   toast(names.length ? `Loaded ${f.name}. Class names taken from your last training dataset; check them below.` : `Loaded ${f.name}. Enter its class names below.`, 4500);
 };
-$("#customNames").onchange = () => { const m = curModel(); if (m) { m.names = $("#customNames").value.split(",").map(s => s.trim()).filter(Boolean); mergeClasses(m.names); } };
+$("#customNames").onchange = () => { const m = curModel(); if (m && !readOnly) { m.names = $("#customNames").value.split(",").map(s => s.trim()).filter(Boolean); mergeClasses(m.names); const source = { ...m }; persistWrite(() => DB.saveModel(source)).catch(() => {}); } };
 
 function mergeClasses(list) { list.forEach(c => { if (c && !S.classes.includes(c)) S.classes.push(c); }); store.set("classes", S.classes); renderClasses(); }
 function renderClasses() {
@@ -421,7 +510,7 @@ $("#conf").oninput = () => $("#confV").textContent = (+$("#conf").value).toFixed
 
 // ---------------------------------------------------------------- run
 const logEl = $("#jobLog");
-const pendingJob = job => ["queued", "running", "cancelling"].includes(job.status);
+const pendingJob = job => ["queued", "running", "cancelling", "interrupted"].includes(job.status);
 function updateJobProgress(job, refreshLog = false) {
   const percent = Math.round(job.progress * 100), bar = $("#queue-progress-" + job.id), label = $("#queue-percent-" + job.id);
   if (bar) { bar.style.width = percent + "%"; bar.setAttribute("aria-valuenow", String(percent)); }
@@ -449,6 +538,7 @@ function renderBrowserQueue() {
   const pending = [...(activeBrowserJob ? [activeBrowserJob] : []), ...browserQueue];
   const recent = Object.values(BJOBS).filter(job => !pendingJob(job)).slice(-5).reverse();
   $("#queueStatus").textContent = `${activeBrowserJob ? "1 running" : "Idle"} · ${browserQueue.length}/${MAX_WAITING_JOBS} queued`;
+  if (queuePaused) $("#queueStatus").textContent += " · paused";
   $("#jobQueue").innerHTML = pending.concat(recent).map(job => `<div class="card queue-job${selectedBrowserJobId === job.id ? " selected" : ""}" data-queued-job="${job.id}">
     <div class="row"><b class="queue-model">${esc(GVCompare.modelName(job.params))}</b><span class="hint">${esc(job.status)}</span></div>
     <div class="hint">${job.aois.length} AOI(s) · ${esc(job.params.release_mode)} dates · z${job.params.zoom} · <span id="queue-percent-${job.id}">${Math.round(job.progress * 100)}%</span></div>
@@ -465,42 +555,55 @@ function renderBrowserQueue() {
     target?.focus({ preventScroll: true });
   }
   updateRunSelection();
+  renderStorage();
 }
 function cancelBrowserJob(id, reason = "Cancelled by user") {
+  if (readOnly) return;
   const job = BJOBS[id]; if (!job || !pendingJob(job)) return;
   if (job === activeBrowserJob) {
     job.status = "cancelling"; job.controller.abort();
   } else {
     const index = browserQueue.indexOf(job); if (index >= 0) browserQueue.splice(index, 1);
     job.status = "cancelled"; job.modelSpec = null; job.releaseSource = null; job.fingerprint = null;
-    jlog(job, reason + ". Removed from the queue before processing."); job.resolveFinished(job); job.resolveFinished = null;
+    jlog(job, reason + ". Removed from the queue before processing."); job.resolveFinished?.(job); job.resolveFinished = null;
+    checkpointJob(job).catch(() => {});
   }
   renderBrowserQueue();
 }
 async function drainBrowserQueue() {
-  if (queueDraining || serverRunning || !pageActive) return;
+  if (queueDraining || serverRunning || !pageActive || queuePaused || !persistenceReady || readOnly || storageError) return;
   queueDraining = true;
   try {
-    while (browserQueue.length && pageActive && !serverRunning) {
+    while (browserQueue.length && browserQueue[0].durableReady !== false && pageActive && !serverRunning && !queuePaused && !readOnly && !storageError) {
       const job = browserQueue.shift(); activeBrowserJob = job;
-      job.status = "running"; job.controller = new AbortController(); renderBrowserQueue();
-      try { await runBrowser(job); }
-      catch (error) { job.status = "error"; jlog(job, "ERROR: " + error.message); }
+      let runtimeFinished;
+      job.runtimeFinished = new Promise(resolve => { runtimeFinished = resolve; });
+      job.status = "running"; job.suspending = false; job.controller = new AbortController(); renderBrowserQueue();
+      try { await checkpointJob(job); await runBrowser(job); }
+      catch (error) { job.status = storageError ? "interrupted" : "error"; jlog(job, "ERROR: " + error.message); }
       finally {
-        job.controller = null; job.modelSpec = null; job.releaseSource = null; job.fingerprint = null; activeBrowserJob = null;
+        job.controller = null;
+        if (job.status === "interrupted") {
+          if (durable && job.durableReady !== false && job.modelSpec) delete job.modelSpec.buffer;
+          if (!browserQueue.includes(job)) browserQueue.unshift(job);
+          queuePaused = true;
+        } else { job.modelSpec = null; job.releaseSource = null; job.fingerprint = null; }
+        await checkpointJob(job).catch(() => {});
+        activeBrowserJob = null;
         renderBrowserQueue();
         // A finishing job can refresh its own selected results without moving the
         // map, interrupting edits/comparison, or selecting another job's results.
         if (pageActive && selectedBrowserJobId === job.id && !S.clip && !comparing() && viewEpoch === job.viewEpoch) {
           S.jobId = job.id; showTab("res");
         } else if (pageActive && !comparing() && S.jobId === job.id) loadJobs();
-        job.resolveFinished(job); job.resolveFinished = null;
+        job.resolveFinished?.(job); job.resolveFinished = null;
+        runtimeFinished();
       }
     }
   } finally { queueDraining = false; updateRunSelection(); }
 }
 $("#runBtn").onclick = async () => {
-  if (!pageActive || serverRunning || (isServer() && (activeBrowserJob || browserQueue.length || queueDraining))) return;
+  if (!pageActive || !persistenceReady || readOnly || storageError || serverRunning || (isServer() && (activeBrowserJob || browserQueue.length || queueDraining))) return;
   if (!S.aois.length) return toast("Add at least one AOI");
   const chosen = chosenRunAois();
   if (!chosen.length) return toast("Select at least one AOI in Detect");
@@ -512,7 +615,7 @@ $("#runBtn").onclick = async () => {
 };
 $("#cancelBtn").onclick = () => cancelBrowserJob(selectedBrowserJobId);
 
-function enqueueBrowser(mode, aois) {
+async function enqueueBrowser(mode, aois) {
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
@@ -528,18 +631,35 @@ function enqueueBrowser(mode, aois) {
   if (duplicate) { selectBrowserJob(duplicate.id); toast("A job with these settings is already running or queued."); return; }
   const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
   const modelSpec = detectOn ? { key: m.key, url: m.url, buffer: m.buffer, names: m.names?.slice(), imgsz: m.imgsz } : null;
-  const job = BJOBS[id] = { id, status: "queued", progress: 0, log: [], results: [], outcomes: [], params, aois, modelSpec, releaseSource, fingerprint };
+  const job = BJOBS[id] = { id, createdAt: Date.now() + ++browserJobSequence / 1000, status: "queued", progress: 0, log: [], results: [], outcomes: [], params, aois, modelSpec, releaseSource, fingerprint };
+  job.durableReady = false;
   job.finished = new Promise(resolve => { job.resolveFinished = resolve; });
   browserQueue.push(job); selectedBrowserJobId = id; job.viewEpoch = ++viewEpoch;
   if (!S.clip && !comparing()) S.jobId = id;
   jlog(job, `Queued: ${GVCompare.modelName(params)} · ${aois.length} AOI(s). Settings captured for this job.`);
-  renderBrowserQueue(); drainBrowserQueue(); return job.finished;
+  renderBrowserQueue();
+  try {
+    const source = detectOn ? { ...m, names: modelSpec.names } : null;
+    const record = window.GVStorage?.jobRecord(job);
+    await persistWrite(async () => {
+      if (source) await DB.saveModel(source);
+      await DB.saveJob(record); job.durableReady = true;
+    }, job.id);
+    job.durableReady = true;
+    drainBrowserQueue();
+  } catch { job.resolveFinished?.(job); job.resolveFinished = null; }
+  return job.finished;
 }
 async function runBrowser(job) {
   const { params, modelSpec, releaseSource, controller } = job, signal = controller.signal;
   try {
     let model = null;
     if (params.detect) {
+      if (durable && !modelSpec.buffer && !modelSpec.url) {
+        const source = await DB.model(modelSpec.key);
+        if (!source?.buffer) throw new Error("Saved custom model is missing. Load the model again before resuming.");
+        modelSpec.buffer = source.buffer;
+      }
       jlog(job, `Loading model ${params.model}…`);
       const loaded = await E.loadModel({ ...modelSpec, signal });
       // Session reuse must not reuse another job's mutable class-name array.
@@ -547,8 +667,8 @@ async function runBrowser(job) {
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
       params.provider = model.provider; params.imgsz = model.imgsz;
     }
-    const plan = [];
-    for (const aoi of job.aois) {
+    const plan = job.plan ? job.plan.map(entry => [job.aois[entry.aoiIndex], entry.release]) : [];
+    if (!job.plan) for (const aoi of job.aois) {
       let rels;
       if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
       if (params.release_mode === "latest") rels = releaseSource.slice(0, 1);
@@ -557,12 +677,18 @@ async function runBrowser(job) {
       jlog(job, `${aoi.properties.name}: ${rels.length} release(s) ${rels.slice(0, 6).map(r => r.date).join(", ")}${rels.length > 6 ? " …" : ""}`);
       rels.forEach(r => plan.push([aoi, r]));
     }
-    job.outcomes = plan.map(([aoi, rel]) => ({ aoi: aoi.properties.name, aoi_id: E.slug(aoi.properties.name),
-      date: rel.date, release: rel.release, requestedZoom: params.zoom, status: "pending" }));
+    if (!job.plan) {
+      job.plan = plan.map(([aoi, release], order) => ({ aoiIndex: job.aois.indexOf(aoi), release, clipId: job.id + ":clip:" + order }));
+      job.outcomes = plan.map(([aoi, rel], order) => ({ clipId: job.plan[order].clipId, aoi: aoi.properties.name, aoi_id: E.slug(aoi.properties.name),
+        date: rel.date, release: rel.release, requestedZoom: params.zoom, status: "pending" }));
+      await checkpointJob(job);
+    }
     for (let i = 0; i < plan.length; i++) {
       const [aoi, rel] = plan[i], base = i / plan.length, step = 1 / plan.length;
       if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
-      const outcome = job.outcomes[i]; outcome.status = "running";
+      const outcome = job.outcomes[i];
+      if (job.results.some(result => result.storeId === job.plan[i].clipId) || ["completed", "partial", "failed", "unavailable"].includes(outcome.committedStatus)) { outcome.status = outcome.committedStatus || "completed"; continue; }
+      outcome.status = "running";
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
       try {
         const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
@@ -570,29 +696,43 @@ async function runBrowser(job) {
           onCoverage: coverage => { outcome.zoom = coverage.zoom; outcome.coverage = coverage;
             jlog(job, `    Coverage z${coverage.zoom}: ${coverage.available}/${coverage.total} tiles available, ${coverage.unavailable} unavailable, ${coverage.unknown} unknown · ${coverage.checks} check(s) · ${(coverage.ms / 1000).toFixed(1)}s`); },
           onProgress: f => { job.progress = base + step * f; updateJobProgress(job); } });
+        r.storeId = job.plan[i].clipId; r.order = i; r.persisted = false;
         job.results.push(r);
         Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
+        outcome.committedStatus = outcome.status;
+        job.progress = base + step;
+        // Commit the native artifacts, immutable predictions and outcome in one
+        // transaction. Only a completed transaction permits releasing payloads.
+        const snapshot = window.GVStorage?.jobRecord(job);
+        await persistWrite(async () => {
+          await DB.saveClip(snapshot, r);
+          r.persisted = true;
+          if (S.clip?.source !== r) { delete r.fc; delete r.blobs; delete r.draftFC; }
+        }, job.id);
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
       } catch (error) {
+        if (storageError) throw error;
         if (error.name === "AbortError" || signal.aborted) throw error;
         Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
           message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage });
         jlog(job, `    ${outcome.status === "unavailable" ? "UNAVAILABLE" : "FAILED"}: ${outcome.aoi} · ${rel.date} · release ${rel.release} · z${outcome.zoom} · ${outcome.code}: ${error.message}`);
+        outcome.committedStatus = outcome.status;
       }
       job.progress = base + step; updateJobProgress(job); renderBrowserQueue();
+      await checkpointJob(job);
     }
     if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const incomplete = job.outcomes.filter(outcome => outcome.status !== "completed").length;
     job.status = !job.results.length && job.outcomes.length ? "error" : incomplete ? "partial" : "done";
     job.progress = 1;
     const tot = job.results.reduce((s, r) => s + r.total, 0);
-    jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. Export the zip before closing this tab.`);
+    jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. ${durable ? "Saved on this device. Export a zip for a separate backup." : "Export the zip before closing this tab."}`);
     if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with imagery issues. See Results.`);
   } catch (e) {
-    job.status = signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
+    job.status = job.suspending || storageError ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
-    jlog(job, job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
+    jlog(job, job.status === "interrupted" ? "Paused. Saved clips are kept; resume the unfinished clips when ready." : job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
   }
 }
 async function runServer(mode, aois) {
@@ -689,7 +829,7 @@ async function refreshCompareCatalog() {
 }
 async function comparisonAsset(record, signal) {
   let fc, blob;
-  if (record.browser) { fc = record.source.fc; blob = record.source.blobs.png; }
+  if (record.browser) { const result = await readClip(record.source, { draft: false, images: true }); fc = result.fc; blob = result.blobs.png; }
   else {
     const base = outputBase(record.job, record.path);
     fc = await E.requestJSON(base + "detections.geojson", { signal });
@@ -753,6 +893,7 @@ async function loadResults(id) {
   if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params, source: r }));
   else { const j = await (await fetch(api("/api/jobs/" + id))).json(); RES = (j.results || []).map(r => ({ ...r, job: id, params: j.params || {} })); }
   renderResults();
+  $("#deleteJob").disabled = readOnly || !BJOBS[id] || pendingJob(BJOBS[id]);
 }
 function renderResults() {
   const tb = $("#resTable tbody");
@@ -796,54 +937,98 @@ function drawTrend() {
     bar.onkeydown = event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); return bar.onclick(); } };
   });
 }
-const objURLs = new WeakMap();
-const blobURL = b => { if (!objURLs.has(b)) objURLs.set(b, URL.createObjectURL(b)); return objURLs.get(b); };
+let displayURL = null, displayBlob = null;
+function releaseClipImage() { clipLayer.clearLayers(); if (displayURL) URL.revokeObjectURL(displayURL); displayURL = displayBlob = null; }
+const blobURL = blob => {
+  if (displayBlob !== blob) { releaseClipImage(); displayBlob = blob; displayURL = URL.createObjectURL(blob); }
+  return displayURL;
+};
 const clipBounds = r => [[r.bounds[1], r.bounds[0]], [r.bounds[3], r.bounds[2]]];
 function renderClipImage() {
   clipLayer.clearLayers();
   const r = S.clip;
   if (!r || !$("#showImg").checked) return;
+  if (r.browser && !r.blobs?.png) return;
   const src = r.browser ? blobURL(r.blobs.png) : api(`/outputs/${r.job}/${r.path}/image.png`);
   L.imageOverlay(src, clipBounds(r)).addTo(clipLayer);
 }
 async function openClip(i) {
-  stopComparison({ resumeEdit: false }); finishEdit(); const generation = ++clipGeneration;
-  const r = RES[i]; S.clip = r;
+  stopComparison({ resumeEdit: false }); finishEdit(); saveDraft(); const generation = ++clipGeneration;
+  const previous = S.clip;
+  if (durable && previous?.browser && !pendingWrites.length) { delete previous.source.draftFC; delete previous.source.fc; delete previous.source.blobs; }
+  releaseClipImage();
+  if (previous?.browser) delete previous.blobs;
+  const r = RES[i]; S.clip = r; S.annFC = null; S.sel = null; detLayer.clearLayers();
   $$("#resTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.i == i));
   $("#trend").querySelectorAll("[data-trend-i]").forEach(bar => {
     const selected = +bar.dataset.trendI === i;
     bar.classList.toggle("selected", selected); bar.setAttribute("aria-pressed", String(selected));
   });
-  renderClipImage();
   const b = clipBounds(r);
   const base = r.browser ? null : api(`/outputs/${r.job}/${r.path}/`);
   map.fitBounds(b);
   const rel = S.releases.find(x => x.release === r.release); if (rel) setWayback(rel);
   const source = r.browser ? r.source : null;
   // Keep model predictions immutable; a separate job-owned draft retains edits.
-  const fc = source ? (source.draftFC ||= JSON.parse(JSON.stringify(source.fc))) : await (await fetch(base + "detections.geojson")).json();
+  let payload;
+  try { if (source) payload = await readClip(source, { images: true }); }
+  catch (error) { if (generation === clipGeneration) toast(error.message, 5000); return; }
   if (generation !== clipGeneration || comparing()) return;
-  const ann = await getAnnotations(), byId = Object.fromEntries(ann.features.map(f => [f.id, f]));
+  if (payload) r.blobs = payload.blobs;
+  renderClipImage();
+  const fc = source ? (source.draftFC ||= payload.draftFC || JSON.parse(JSON.stringify(payload.fc))) : await (await fetch(base + "detections.geojson")).json();
   if (generation !== clipGeneration || comparing()) return;
-  fc.features = fc.features.map(f => byId[f.id] || f);
+  const scope = r.storeId || "server:" + r.job + ":" + r.path;
+  const savedDraft = !source && durable ? await DB.draft(scope) : null;
+  if (savedDraft) { fc.features = savedDraft.features; }
+  // New reviews are scoped to the exact run/clip. Ambiguous legacy reviews
+  // remain available for training/export without overwriting another model.
+  const ann = durable ? await DB.reviews(scope) : await getAnnotations(), byId = Object.fromEntries(ann.features.map(f => [f.id, f]));
+  if (generation !== clipGeneration || comparing()) return;
+  const hasDraft = Boolean(payload?.draftFC || savedDraft);
+  if (!hasDraft) fc.features = fc.features.map(f => byId[f.id] || f);
   const have = new Set(fc.features.map(f => f.id));
-  ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
-  S.annFC = fc; renderDetections(); renderAnnCtx(); toast(`${fc.features.length} objects · ${r.aoi} · ${r.date}`);
+  if (!hasDraft) ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
+  S.annFC = fc; if (durable) dirty = false; S.sel = null; renderDetections(); renderAnnCtx(); toast(`${fc.features.length} objects · ${r.aoi} · ${r.date}`);
 }
 $("#showImg").onchange = renderClipImage;
+$("#openLiveDraft").onclick = async () => {
+  finishEdit(); saveDraft(); stopComparison({ resumeEdit: false }); const generation = ++clipGeneration;
+  const fc = durable ? await DB.draft("live") : volatileLiveDraft;
+  if (generation !== clipGeneration || comparing()) return;
+  if (!fc) return toast("No saved live-map draft yet");
+  releaseClipImage();
+  S.clip = null; S.sel = null; S.annFC = fc; if (durable) dirty = false; renderDetections();
+  restoreLiveDate(fc);
+  $("#annCtx").textContent = "Live map · recovered draft"; showTab("ann");
+};
+function restoreLiveDate(fc) {
+  const releases = [...new Set(fc.features.map(f => f.properties.release).filter(r => r != null))];
+  pendingLiveRelease = releases.length === 1 ? releases[0] : null;
+  const release = S.releases.find(r => r.release === pendingLiveRelease);
+  if (release) { pendingLiveRelease = null; setWayback(release); }
+}
 
 // ---------------------------------------------------------------- annotations
 async function getAnnotations() {
-  const local = store.get("ann", { type: "FeatureCollection", features: [] });
+  const local = durable ? await DB.reviews() : store.get("ann", { type: "FeatureCollection", features: [] });
   if (!isServer()) return local;
-  try { const srv = await (await fetch(api("/api/annotations"))).json(); const ids = new Set(srv.features.map(f => f.id)); return { type: "FeatureCollection", features: srv.features.concat(local.features.filter(f => !ids.has(f.id))) }; }
+  try { const srv = await (await fetch(api("/api/annotations"))).json(); const exact = new Set(srv.features.map(f => JSON.stringify(f))); return { type: "FeatureCollection", features: srv.features.concat(local.features.filter(f => !exact.has(JSON.stringify(f)))) }; }
   catch { return local; }
 }
-function upsertLocal(features) {
+async function upsertLocal(features) {
+  if (durable) {
+    const scope = S.clip ? S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path : "live";
+    const jobId = S.clip?.job || null, aoiId = S.clip?.source?.aoiFeature?._gmd_id || null;
+    const records = JSON.parse(JSON.stringify(features));
+    records.forEach(f => { f.properties = { ...f.properties, gmd_clip_id: scope, gmd_job_id: jobId, gmd_aoi_id: aoiId }; });
+    await persistWrite(() => DB.saveReviews(scope, jobId, aoiId, records));
+    return DB.reviews();
+  }
   const cur = store.get("ann", { type: "FeatureCollection", features: [] }), by = new Map(cur.features.map(f => [f.id, f]));
   features.forEach(f => by.set(f.id, f));
   const out = { type: "FeatureCollection", features: [...by.values()] };
-  if (!store.set("ann", out)) toast("Browser storage is full. Download the training dataset or annotations to keep them.", 5000);
+  if (!store.set("ann", out)) { toast("Browser storage is full. Download the training dataset or annotations to keep them.", 5000); throw new Error("Annotations are not saved"); }
   return out;
 }
 const STYLE = f => { const p = f.properties, c = color(p.class), rej = p.status === "rejected";
@@ -881,16 +1066,17 @@ function select(l) {
   $("#selClass").onchange = e => setStatus(e.target.value !== p.class ? "corrected" : p.status, e.target.value);
   $("#bAcc").onclick = () => setStatus("verified"); $("#bRej").onclick = () => setStatus("rejected");
   $("#bEdit").onclick = editShape; $("#bDel").onclick = delSel;
+  for (const id of ["selClass", "bAcc", "bRej", "bEdit", "bDel"]) $("#" + id).disabled = readOnly;
   if (!$("#tab-ann").classList.contains("on")) showTab("ann");
 }
 function setStatus(st, cls) {
-  if (!S.sel) return; const p = S.sel.feature.properties;
+  if (!S.sel || readOnly || !persistenceReady) return; const p = S.sel.feature.properties;
   if (cls) { p.original_class = p.original_class || p.class; p.class = cls; }
-  p.status = st; p.reviewed_at = new Date().toISOString(); S.sel.setStyle(STYLE(S.sel.feature)); select(S.sel); updStats(); dirty = true;
+  p.status = st; p.reviewed_at = new Date().toISOString(); S.sel.setStyle(STYLE(S.sel.feature)); select(S.sel); updStats(); dirty = true; saveDraft();
 }
 async function editShape() {
   const selected = S.sel;
-  if (!selected) return;
+  if (!selected || readOnly || !persistenceReady) return;
   try {
     await E.ensureLibrary("draw");
     if (!pageActive || S.sel !== selected || !detLayer.getLayers().includes(selected)) return;
@@ -899,21 +1085,22 @@ async function editShape() {
     S.editing = selected; selected.editing.enable(); toast("Drag the corners, then press Enter or click the map");
   } catch (error) { toast(error.message, 5000); }
 }
-function syncGeom(l) { l.feature.geometry = l.toGeoJSON().geometry; if (l.feature.properties.status === "predicted") l.feature.properties.status = "corrected"; dirty = true; }
-function delSel() { if (!S.sel) return; S.annFC.features = S.annFC.features.filter(f => f !== S.sel.feature); detLayer.removeLayer(S.sel); S.sel = null; $("#selCard").innerHTML = '<span class="hint">Click an object on the map.</span>'; updStats(); dirty = true; }
+function syncGeom(l) { if (readOnly) return; l.feature.geometry = l.toGeoJSON().geometry; if (l.feature.properties.status === "predicted") l.feature.properties.status = "corrected"; dirty = true; saveDraft(); }
+function delSel() { if (!S.sel || readOnly || !persistenceReady) return; S.annFC.features = S.annFC.features.filter(f => f !== S.sel.feature); detLayer.removeLayer(S.sel); S.sel = null; $("#selCard").innerHTML = '<span class="hint">Click an object on the map.</span>'; updStats(); dirty = true; saveDraft(); }
 function nextPending() {
   const ls = detLayer.getLayers().filter(l => l.feature.properties.status === "predicted").sort((a, b) => (b.feature.properties.confidence || 0) - (a.feature.properties.confidence || 0));
   if (!ls.length) return toast("Everything in this clip is reviewed");
   select(ls[0]); map.panTo(ls[0].getBounds().getCenter());
 }
 function addManualObject(geom) {
+  if (readOnly || !persistenceReady) return;
   if (!S.annFC) S.annFC = { type: "FeatureCollection", features: [] };
   const ctx = S.clip ? { release: S.clip.release, imagery_date: S.clip.date, zoom: S.clip.zoom, aoi_id: S.clip.aoi_id, aoi_name: S.clip.aoi }
     : { release: S.viewRel ? S.viewRel.release : null, imagery_date: S.viewRel ? S.viewRel.date : null, zoom: Math.min(19, map.getZoom()), aoi_id: "live", aoi_name: "Live map" };
   const ring = geom.coordinates[0], c = [ring.slice(0, -1).reduce((s, p) => s + p[0], 0) / (ring.length - 1), ring.slice(0, -1).reduce((s, p) => s + p[1], 0) / (ring.length - 1)];
-  const f = { type: "Feature", id: `manual_${Date.now().toString(36)}`, geometry: geom,
+  const f = { type: "Feature", id: "manual_" + (window.GVStorage?.uuid() || Date.now().toString(36) + "_" + Math.random().toString(36).slice(2)), geometry: geom,
     properties: { ...ctx, class: $("#drawClass").value, status: "manual", source: "Esri Wayback", centroid: c, reviewed_at: new Date().toISOString() } };
-  S.annFC.features.push(f); renderDetections(); dirty = true;
+  S.annFC.features.push(f); renderDetections(); dirty = true; saveDraft();
   const l = detLayer.getLayers().find(x => x.feature === f); if (l) select(l);
 }
 let dirty = false;
@@ -921,13 +1108,19 @@ function updStats() { const fs = S.annFC ? S.annFC.features : []; $("#annStats")
 $("#annRect").onclick = () => startDraw("rect", "ann");
 $("#annPoly").onclick = () => startDraw("poly", "ann");
 $("#addClass").onclick = () => { const v = $("#newClass").value.trim().toLowerCase().replace(/\s+/g, "_"); if (!v) return; mergeClasses([v]); S.wantClasses.add(v); store.set("want", [...S.wantClasses]); renderClasses(); $("#drawClass").value = v; $("#newClass").value = ""; };
-$("#acceptAll").onclick = () => { if (!S.annFC) return; let n = 0; S.annFC.features.forEach(f => { if (f.properties.status === "predicted" && f.properties.confidence >= 0.6) { f.properties.status = "verified"; n++; } }); renderDetections(); dirty = true; toast(`${n} accepted`); };
+$("#acceptAll").onclick = () => { if (!S.annFC || readOnly || !persistenceReady) return; let n = 0; S.annFC.features.forEach(f => { if (f.properties.status === "predicted" && f.properties.confidence >= 0.6) { f.properties.status = "verified"; n++; } }); renderDetections(); dirty = true; saveDraft(); toast(`${n} accepted`); };
 $("#saveAnn").onclick = async () => {
   if (!S.annFC) return toast("Nothing to save");
+  if (readOnly) return;
   finishEdit();
   const reviewed = S.annFC.features.filter(f => f.properties.status !== "predicted");
-  if (!reviewed.length) return toast("Review at least one object first");
-  const out = upsertLocal(reviewed);
+  if (!reviewed.length) {
+    const scope = S.clip ? S.clip.storeId || "server:" + S.clip.job + ":" + S.clip.path : "live";
+    if (!durable || !(await DB.reviews(scope)).features.length) return toast("Review at least one object first");
+  }
+  let out;
+  try { saveDraft(); out = await upsertLocal(reviewed); }
+  catch { return; }
   if (isServer()) { try { await postJSON("/api/annotations", { type: "FeatureCollection", features: reviewed }); } catch { toast("Saved in this browser; the server did not respond"); } }
   dirty = false; toast(`Saved · training set has ${out.features.length} objects`);
 };
@@ -944,7 +1137,10 @@ document.addEventListener("keydown", e => {
   else if (k === "e") editShape(); else if (k === "delete" || k === "backspace") delSel();
   else if (k === "enter" && S.editing) { finishEdit(); toast("Shape updated"); }
 });
-window.addEventListener("beforeunload", e => { if (dirty || Object.values(BJOBS).some(j => j.results.length && !j.exported)) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", e => {
+  const unsaved = Object.values(BJOBS).some(job => durable ? job.durableReady === false || job.results.some(r => r.persisted === false) : job.results.length && !job.exported);
+  if (dirty || pendingWrites.length || unsaved) { e.preventDefault(); e.returnValue = ""; }
+});
 
 // ---------------------------------------------------------------- train
 async function loadAnnStats() {
@@ -980,10 +1176,13 @@ $("#expZip").onclick = async () => {
   if (!id) return toast("Run a job first");
   if (BJOBS[id]) {
     const btn = $("#expZip"); btn.disabled = true;
+    BJOBS[id].exporting = true;
     try {
-      const blob = await E.exportJobZip(BJOBS[id], { onProgress: m => btn.textContent = `Zipping… ${m.percent.toFixed(0)}%` });
+      finishEdit(); saveDraft();
+      const blob = await E.exportJobZip(BJOBS[id], { readResult: r => readClip(r, { images: true }), onProgress: m => btn.textContent = `Zipping… ${m.percent.toFixed(0)}%` });
       saveBlob(`geovision_${id}.zip`, blob); BJOBS[id].exported = true;
     } catch (e) { toast(e.message); }
+    if (BJOBS[id]) BJOBS[id].exporting = false;
     btn.disabled = false; btn.textContent = "Download job zip";
   } else if (S.online) window.location.href = api(`/api/jobs/${id}/export`);
 };
@@ -993,8 +1192,10 @@ $("#expDet").onclick = async () => {
   const a = await getAnnotations(); if (!a.features.length) return toast("Open a clip or save annotations first");
   download("annotations.geojson", JSON.stringify(a));
 };
-$("#expCsv").onclick = () => {
-  const id = $("#jobSel").value || S.jobId, feats = BJOBS[id] ? BJOBS[id].results.flatMap(r => r.fc.features) : S.annFC ? S.annFC.features : [];
+$("#expCsv").onclick = async () => {
+  const id = $("#jobSel").value || S.jobId, feats = [];
+  if (BJOBS[id]) { for (const r of BJOBS[id].results) feats.push(...(await readClip(r, { images: false, draft: false })).fc.features); }
+  else if (S.annFC) feats.push(...S.annFC.features);
   if (!feats.length) return toast("Run a job or open a clip first");
   const cols = ["id","aoi_name","imagery_date","release","class","status","confidence","length_m","width_m","heading_deg","lon","lat"];
   const rows = feats.map(f => { const p = f.properties, c = p.centroid || [0, 0]; return cols.map(k => k === "id" ? f.id : k === "lon" ? c[0] : k === "lat" ? c[1] : (p[k] ?? "")).map(v => /[,"]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(","); });
@@ -1006,12 +1207,99 @@ renderAois(); renderClasses(); updModeHint();
 showTab(store.get("tab", "aoi"));
 E.markStartup("appReady");
 loadReleases();
-(async () => { await checkApi(); await loadModels(); updEngineUI(); })();
+async function restoreStorage() {
+  restoring = true;
+  try {
+    const state = await DB?.open();
+    if (!state?.available) { durable = false; return; }
+    durable = true; readOnly = !state.writable;
+    if (!readOnly && !await DB.migrated()) {
+      // Parse without the preference helper's default: corrupt user data must
+      // not be silently imported as an empty, successfully migrated workspace.
+      const legacyAois = localStorage.getItem("gv_aois"), legacyAnn = localStorage.getItem("gv_ann");
+      await DB.migrate({ aois: E.uniqueAois(legacyAois == null ? [] : JSON.parse(legacyAois)),
+        annotations: legacyAnn == null ? { type: "FeatureCollection", features: [] } : JSON.parse(legacyAnn) });
+    }
+    const saved = await DB.restore({ recover: true });
+    S.aois = saved.aois; S.activeAoi = null; runAoiSelection.clear(); S.aois.forEach(aoi => runAoiSelection.add(aoi));
+    browserQueue.length = 0;
+    for (const job of saved.jobs) {
+      BJOBS[job.id] = job;
+      job.finished = new Promise(resolve => { job.resolveFinished = resolve; });
+    }
+    if (S.clip?.browser) {
+      const source = BJOBS[S.clip.job]?.results.find(r => r.storeId === S.clip.storeId);
+      if (source) { S.clip.source = source; source.draftFC = S.annFC; renderClipImage(); }
+      else { releaseClipImage(); S.clip = S.annFC = S.sel = null; detLayer.clearLayers(); }
+    }
+    for (const id of saved.queue) if (BJOBS[id] && pendingJob(BJOBS[id])) browserQueue.push(BJOBS[id]);
+    queuePaused = browserQueue.length > 0;
+    S.customModels = saved.models.filter(model => model.custom);
+    const live = await DB.draft("live");
+    if (live && !S.clip) { S.annFC = live; restoreLiveDate(live); renderDetections(); $("#annCtx").textContent = "Live map · recovered draft"; }
+    renderAois(); renderBrowserQueue(); loadJobs();
+  } catch (error) {
+    // Failed upgrades/imports never delete the database or its legacy backup.
+    // Keep the visible legacy AOIs exportable, and prevent destructive writes.
+    if (DB?.state().available) durable = true;
+    if (!durable && error.name !== "VersionError" && error.name !== "BlockedError") { storageError = null; readOnly = false; }
+    else { storageError = error; readOnly = true; queuePaused = true; }
+    toast("Device storage needs attention: " + error.message, 6500);
+  } finally {
+    restoring = false; persistenceReady = true; renderStorage(); updateRunSelection();
+  }
+}
+const storageReady = restoreStorage();
+(async () => { await checkApi(); await storageReady; await loadModels(); updEngineUI(); })();
+$("#deleteJob").onclick = async () => {
+  const id = $("#jobSel").value || S.jobId, job = BJOBS[id];
+  if (!job || readOnly || pendingJob(job) || job.exporting) return toast("Cancel or finish this job and its export first");
+  if (!window.confirm("Delete this job, its images and editing drafts from this device? Saved training reviews are kept.")) return;
+  job.deleting = true;
+  try {
+    if (durable && storageError && !writing) {
+      // Deleting an old job must remain usable when writes are blocked by
+      // quota. Remove only this explicitly discarded job's pending records.
+      await DB.deleteJob(id);
+      for (let i = pendingWrites.length - 1; i >= 0; i--) if (pendingWrites[i].owner === id) {
+        pendingWrites[i].resolve(); pendingWrites.splice(i, 1);
+      }
+      storageError = null; await flushWrites();
+    } else await persistWrite(() => DB.deleteJob(id), id);
+    if (S.clip?.job === id) { ++clipGeneration; if (S.editing) { S.editing.editing.disable(); S.editing = null; } releaseClipImage(); S.clip = S.annFC = S.sel = null; detLayer.clearLayers(); dirty = false; }
+    if (comparing()) exitComparison();
+    delete BJOBS[id]; S.jobId = null; if (selectedBrowserJobId === id) selectedBrowserJobId = null;
+    renderBrowserQueue(); await loadJobs(); toast("Job deleted. Saved training reviews are kept.");
+  } catch {} finally { job.deleting = false; renderStorage(); }
+};
 window.addEventListener("pagehide", () => {
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
-  for (const job of [...browserQueue]) cancelBrowserJob(job.id, "Page closed or suspended");
-  if (activeBrowserJob) cancelBrowserJob(activeBrowserJob.id, "Page closed or suspended");
+  finishEdit(); saveDraft(); releaseClipImage();
+  if (durable) {
+    queuePaused = true;
+    if (activeBrowserJob) { activeBrowserJob.suspending = true; activeBrowserJob.controller?.abort(); }
+    // A hard close can skip this promise entirely. Committed running/queued
+    // records already suffice for recovery; no final unload write is required.
+    const runtime = activeBrowserJob?.runtimeFinished;
+    storageShutdown = storageShutdown.then(async () => {
+      await runtime;
+      await flushWrites(); await DB.close();
+    });
+  } else {
+    for (const job of [...browserQueue]) cancelBrowserJob(job.id, "Page closed or suspended");
+    if (activeBrowserJob) cancelBrowserJob(activeBrowserJob.id, "Page closed or suspended");
+  }
   if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
 });
-window.addEventListener("pageshow", event => { if (event.persisted) { pageActive = true; loadReleases(); drainBrowserQueue(); } });
+window.addEventListener("pageshow", async event => {
+  if (!event.persisted) return;
+  pageActive = true; loadReleases();
+  if (durable) {
+    persistenceReady = false; renderStorage(); updateRunSelection();
+    await storageShutdown;
+    if (pendingWrites.length) {
+      const state = await DB.open(); readOnly = !state.writable; persistenceReady = true; renderBrowserQueue();
+    } else { await restoreStorage(); await loadModels(); }
+  } else drainBrowserQueue();
+});
 })();

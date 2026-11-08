@@ -111,7 +111,8 @@ function uniqueAois(features) {
   // Keep different names, geometries, and metadata as separate AOIs.
   const seen = new Set();
   return features.filter(f => {
-    const key = JSON.stringify(f);
+    const { _gmd_id, ...external } = f;
+    const key = JSON.stringify(external);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -567,9 +568,15 @@ const slug = s => String(s).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g,
 // ------------------------------------------------------------------ exports
 async function exportJobZip(job, extra = {}) {
   await ensureLibrary("zip");
-  const zip = new JSZip(), root = zip.folder(job.id), all = [];
-  for (const r of job.results) {
-    const f = root.folder(`${r.aoi_id}/${r.date || r.release}`);
+  const zip = new JSZip(), root = zip.folder(job.id), all = [], usedPaths = new Set();
+  const paths = job.results.map((r, index) => {
+    const base = `${r.aoi_id}/${r.date || r.release}`; let path = base, suffix = index;
+    while (usedPaths.has(path)) path = base + "__clip_" + suffix++;
+    usedPaths.add(path); return path;
+  });
+  for (const [index, descriptor] of job.results.entries()) {
+    const r = extra.readResult ? await extra.readResult(descriptor) : descriptor;
+    const f = root.folder(paths[index]);
     const fc = r.draftFC || r.fc;
     if (r.blobs.tif) f.file("image.tif", r.blobs.tif);
     f.file("image.png", r.blobs.png); f.file("image.pgw", r.blobs.pgw); f.file("image.prj", WKT_3857);
@@ -581,8 +588,8 @@ async function exportJobZip(job, extra = {}) {
   root.file("all_detections.geojson", JSON.stringify({ type: "FeatureCollection", features: all }));
   root.file("aois.geojson", JSON.stringify({ type: "FeatureCollection", features: job.aois }));
   root.file("summary.json", JSON.stringify({ job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
-    results: job.results.map(r => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total,
-      tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: `${r.aoi_id}/${r.date || r.release}` })), ...extra }, null, 2));
+    results: job.results.map((r, index) => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total,
+      clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[index] })), ...extra }, null, 2));
   return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } }, extra.onProgress);
 }
 /** YOLO-OBB dataset from reviewed annotations (rejected objects are left unlabeled = negatives). */

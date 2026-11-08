@@ -37,7 +37,7 @@ const results = { mode: "Local static project paths; not deployed verification",
       const file = parts.join("/") || "index.html";
       let body, type = file.endsWith(".html") ? "text/html" : file.endsWith(".js") ? "application/javascript" : "application/json";
       if (files.includes(file)) body = (mode === "baseline" ? baseline : candidate)[file];
-      else if (file === "comparison.js") body = fs.readFileSync(path.join(root, "frontend", file));
+      else if (["comparison.js", "storage.js"].includes(file)) body = fs.readFileSync(path.join(root, "frontend", file));
       else if (file === "models/models.json") body = JSON.stringify(manifest);
       else if (/^models\/yolo11[ns]-obb\.onnx$/.test(file)) {
         if (!assets.has(file)) { const response = await fetch(site + file); assert.ok(response.ok); assets.set(file, Buffer.from(await response.arrayBuffer())); }

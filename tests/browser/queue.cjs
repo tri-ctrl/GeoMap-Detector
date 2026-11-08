@@ -10,7 +10,7 @@ const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), base = 'https://tri-ctrl.github.io/GeoMap-Detector/';
-const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js'];
+const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source overrides; live nano/small inference; not deployed verification',
   forcedProvider: forceWasm ? 'wasm' : null, sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };

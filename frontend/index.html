@@ -272,7 +272,9 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       </div>
       <div class="sec queue-section">
         <div class="row"><span class="label" style="flex:1">Browser job queue</span><span class="hint" id="queueStatus" role="status" aria-live="polite">Idle</span></div>
-        <p class="hint">One job runs at a time. You can queue up to 10 more with different models or settings. Jobs and results stay in this tab; export before closing.</p>
+        <p class="hint">One job runs at a time. Queue up to 10 more with different models or settings. Saved jobs stay on this device; unfinished work waits for Resume after reopening.</p>
+        <p class="hint" id="storageStatus" role="status" aria-live="polite">Opening device storage…</p>
+        <div class="row"><button class="btn" id="resumeQueue" hidden>Resume queue</button><button class="btn" id="storageRetry" hidden>Retry saving</button></div>
         <div id="jobQueue" class="job-queue"><p class="hint">No browser jobs yet.</p></div>
       </div>
     </section>
@@ -296,7 +298,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       </div>
       <div class="sec" id="resultJobControls">
         <span class="label">Job</span>
-        <div class="row"><select id="jobSel" style="flex:1"></select><button class="btn" id="jobRefresh">Refresh</button></div>
+        <div class="row"><select id="jobSel" style="flex:1"></select><button class="btn" id="jobRefresh">Refresh</button><button class="btn ghost danger" id="deleteJob">Delete job</button></div>
       </div>
       <div class="sec" id="compareControls" hidden>
         <label class="label" for="compareKind">Compare by</label>
@@ -325,6 +327,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       <div class="sec">
         <span class="label">Clip</span>
         <div class="card" id="annCtx"><span class="hint">Open a clip from Results, or annotate on the live Wayback layer.</span></div>
+        <button class="btn ghost" id="openLiveDraft">Open saved live-map draft</button>
       </div>
       <div class="sec">
         <span class="label">Selected object</span>
@@ -418,6 +421,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="engine.js"></script>
 <script src="comparison.js"></script>
+<script src="storage.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

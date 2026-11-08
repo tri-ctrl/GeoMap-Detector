@@ -115,6 +115,14 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .pill.predicted{color:var(--muted)} .pill.verified{color:var(--ok)} .pill.corrected{color:var(--sea)}
 .pill.manual{color:var(--accent)} .pill.rejected{color:var(--bad)}
 .card{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--panel-2)}
+.queue-section,.queue-job{flex-shrink:0}
+.job-queue{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto;flex-shrink:0}
+.queue-job{min-height:min-content}
+.queue-section #queueStatus{white-space:nowrap}
+#cancelBtn[hidden],#namesRow[hidden],#customRow[hidden]{display:none}
+.queue-job.selected{border-color:var(--accent)}
+.queue-model{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}
+.queue-job .btn{padding:5px 8px;font-size:11px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-size:11.5px}
 .kbd{font:500 10.5px var(--f-mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
@@ -256,11 +264,16 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <label class="row"><input type="checkbox" id="tifOn" checked style="accent-color:var(--accent)"> Write GeoTIFF for each clip</label>
         <div class="row">
           <button class="btn" id="runAoiBtn" aria-controls="runAoiPanel" aria-expanded="false">AOIs</button>
-          <button class="btn primary" id="runBtn" style="flex:1;justify-content:center;padding:10px">Run on <span id="runN">0</span> AOIs</button>
+          <button class="btn primary" id="runBtn" style="flex:1;justify-content:center;padding:10px"><span id="runVerb">Run</span> on <span id="runN">0</span> AOIs</button>
           <button class="btn" id="cancelBtn" hidden>Cancel</button>
         </div>
         <div class="bar"><i id="prog"></i></div>
         <div class="log mono" id="jobLog">No job running.</div>
+      </div>
+      <div class="sec queue-section">
+        <div class="row"><span class="label" style="flex:1">Browser job queue</span><span class="hint" id="queueStatus" role="status" aria-live="polite">Idle</span></div>
+        <p class="hint">One job runs at a time. You can queue up to 10 more with different models or settings. Jobs and results stay in this tab; export before closing.</p>
+        <div id="jobQueue" class="job-queue"><p class="hint">No browser jobs yet.</p></div>
       </div>
     </section>
 

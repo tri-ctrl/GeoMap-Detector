@@ -62,7 +62,9 @@ async function withChrome(run) {
     ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
     await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
     const evaluate = async (expression, timeout = 30000) => {
-      const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, timeout);
+      const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, timeout).catch(error => {
+        throw new Error(error.message + " while evaluating: " + expression.slice(0, 180));
+      });
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
       return result.result.value;
     };

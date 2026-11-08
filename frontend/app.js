@@ -17,12 +17,13 @@ const S = {
   releases: [], selRel: new Set(store.get("selRel", [])), viewRel: null,
   aois: E.uniqueAois(store.get("aois", [])), activeAoi: null,
   classes: store.get("classes", DOTA.slice()), wantClasses: new Set(store.get("want", ["aircraft","ship","helicopter"])),
-  models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null, abort: null,
+  models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null,
 };
 const BJOBS = {};                       // browser jobs (kept in memory until the tab closes)
 const runAoiSelection = new Set(S.aois);
-let jobRunning = false;
-let browserJobSequence = 0;
+const browserQueue = [], MAX_WAITING_JOBS = 10;
+let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false;
+let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
@@ -46,6 +47,7 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   trn:["Train","Turn reviewed objects into a training set and a better model."],
   exp:["Export","GeoJSON and AOI-clipped images for every location and date."] };
 function showTab(id) {
+  ++viewEpoch;
   if (id !== "res" && comparing()) exitComparison();
   closeRunAoiPanel({ restoreFocus: false });
   $$(".rail [data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
@@ -58,6 +60,9 @@ $$(".rail [data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
 // ---------------------------------------------------------------- map
 const map = L.map("map").setView([25.25, 55.36], 11);
+// Map-owned panes keep rebuilt AOI paths below selectable detections.
+map.createPane("gmd-aois").style.zIndex = "410";
+map.createPane("gmd-detections").style.zIndex = "430";
 const ATTR = "Esri World Imagery Wayback · Esri, Maxar, Earthstar Geographics, GIS User Community";
 let wbLayer = null;
 function setWayback(rel) {
@@ -96,6 +101,7 @@ function updEngineUI() {
   $("#engineTag").textContent = srv ? "Python server" : "In browser";
   $("#customRow").hidden = srv; $("#namesRow").hidden = srv || !curModel()?.custom;
   $("#serverTrain").hidden = !srv;
+  updateRunSelection();
 }
 $$('[name=engine]').forEach(r => r.onchange = async () => { S.engine = r.value; store.set("engine", S.engine);
   if (S.engine === "server" && !S.online) toast("Connect to a running server first"); await loadModels(); updEngineUI(); });
@@ -141,7 +147,7 @@ function renderAois() {
   const list = $("#aoiList"); list.innerHTML = "";
   S.aois.forEach((f, i) => {
     const act = i === S.activeAoi;
-    L.geoJSON(f, { style: { color: act ? "#f2a516" : "#ffffff", weight: act ? 2.5 : 1.5, dashArray: "6 4", fillOpacity: 0.04 } })
+    L.geoJSON(f, { pane: "gmd-aois", style: { color: act ? "#f2a516" : "#ffffff", weight: act ? 2.5 : 1.5, dashArray: "6 4", fillOpacity: 0.04 } })
       .bindTooltip(esc(f.properties.name), { sticky: true }).on("click", () => selectAoi(i)).addTo(aoiLayer);
     const b = L.geoJSON(f).getBounds(), kmW = b.getNorthWest().distanceTo(b.getNorthEast()) / 1000, kmH = b.getNorthWest().distanceTo(b.getSouthWest()) / 1000;
     const it = document.createElement("div"); it.className = "item" + (act ? " active" : "");
@@ -165,7 +171,9 @@ function updateRunSelection() {
   $("#runAoiHint").textContent = !S.aois.length ? "Add AOIs in the AOIs tab to get started."
     : !count ? "Select at least one AOI to enable Run."
     : "Checked AOIs will use your Wayback date settings. Map selection controls the view.";
-  $("#runBtn").disabled = jobRunning || count === 0;
+  const busy = Boolean(activeBrowserJob || browserQueue.length || queueDraining);
+  $("#runVerb").textContent = !isServer() && busy ? "Queue" : "Run";
+  $("#runBtn").disabled = count === 0 || serverRunning || (isServer() ? busy : browserQueue.length >= MAX_WAITING_JOBS);
   $("#runAoiAll").disabled = $("#runAoiNone").disabled = !S.aois.length;
 }
 function renderRunAois() {
@@ -216,7 +224,7 @@ $("#runAoiClose").onclick = $("#runAoiDone").onclick = closeRunAoiPanel;
 $("#runAoiSearch").oninput = renderRunAois;
 $("#runAoiAll").onclick = () => { S.aois.forEach(aoi => runAoiSelection.add(aoi)); renderRunAois(); };
 $("#runAoiNone").onclick = () => { runAoiSelection.clear(); renderRunAois(); };
-function setJobRunning(running) { jobRunning = running; updateRunSelection(); }
+function setServerRunning(running) { serverRunning = running; updateRunSelection(); }
 function renameAoi(i, el) {
   const t = el.querySelector(".t"), inp = document.createElement("input"); inp.type = "text"; inp.value = S.aois[i].properties.name;
   t.replaceWith(inp); inp.focus(); inp.select();
@@ -388,7 +396,7 @@ $("#model").onchange = () => { store.set("model", $("#model").value); updModelIn
 $("#onnxIn").onchange = async e => {
   const f = e.target.files[0]; if (!f) return; e.target.value = "";
   const names = store.get("dsClasses", []);
-  const m = { key: "file:" + f.name + ":" + f.size, label: f.name + " (loaded file)", buffer: new Uint8Array(await f.arrayBuffer()), names, custom: true };
+  const m = { key: "file:" + f.name + ":" + f.size + ":" + ++modelSourceSequence, label: f.name + " (loaded file)", buffer: new Uint8Array(await f.arrayBuffer()), names, custom: true };
   S.customModels = S.customModels.filter(x => x.key !== m.key).concat(m);
   await loadModels(); $("#model").value = m.key; updModelInfo();
   toast(names.length ? `Loaded ${f.name}. Class names taken from your last training dataset; check them below.` : `Loaded ${f.name}. Enter its class names below.`, 4500);
@@ -413,9 +421,86 @@ $("#conf").oninput = () => $("#confV").textContent = (+$("#conf").value).toFixed
 
 // ---------------------------------------------------------------- run
 const logEl = $("#jobLog");
-function jlog(job, msg) { job.log.push(`${new Date().toTimeString().slice(0, 8)}  ${msg}`); if (S.jobId === job.id) { logEl.textContent = job.log.join("\n"); logEl.scrollTop = logEl.scrollHeight; } }
+const pendingJob = job => ["queued", "running", "cancelling"].includes(job.status);
+function updateJobProgress(job, refreshLog = false) {
+  const percent = Math.round(job.progress * 100), bar = $("#queue-progress-" + job.id), label = $("#queue-percent-" + job.id);
+  if (bar) { bar.style.width = percent + "%"; bar.setAttribute("aria-valuenow", String(percent)); }
+  if (label) label.textContent = percent + "%";
+  if (selectedBrowserJobId !== job.id) return;
+  $("#prog").style.width = percent + "%";
+  if (refreshLog) { logEl.textContent = job.log.join("\n"); logEl.scrollTop = logEl.scrollHeight; }
+  $("#cancelBtn").hidden = !pendingJob(job);
+  $("#cancelBtn").disabled = job.status === "cancelling";
+  $("#cancelBtn").textContent = job.status === "queued" ? "Cancel queued" : job.status === "cancelling" ? "Cancelling…" : "Cancel job";
+}
+function jlog(job, msg) { job.log.push(`${new Date().toTimeString().slice(0, 8)}  ${msg}`); updateJobProgress(job, true); }
+function selectBrowserJob(id) {
+  const job = BJOBS[id]; if (!job) return;
+  selectedBrowserJobId = id; ++viewEpoch; renderBrowserQueue();
+}
+function viewBrowserResults(id) {
+  if (!BJOBS[id]) return;
+  selectedBrowserJobId = id; S.jobId = id; renderBrowserQueue(); showTab("res");
+}
+function renderBrowserQueue() {
+  const focused = document.activeElement?.dataset;
+  const focusKey = ["jobLog", "jobResults", "jobCancel"].find(key => focused?.[key]);
+  const focusId = focusKey && focused[focusKey];
+  const pending = [...(activeBrowserJob ? [activeBrowserJob] : []), ...browserQueue];
+  const recent = Object.values(BJOBS).filter(job => !pendingJob(job)).slice(-5).reverse();
+  $("#queueStatus").textContent = `${activeBrowserJob ? "1 running" : "Idle"} · ${browserQueue.length}/${MAX_WAITING_JOBS} queued`;
+  $("#jobQueue").innerHTML = pending.concat(recent).map(job => `<div class="card queue-job${selectedBrowserJobId === job.id ? " selected" : ""}" data-queued-job="${job.id}">
+    <div class="row"><b class="queue-model">${esc(GVCompare.modelName(job.params))}</b><span class="hint">${esc(job.status)}</span></div>
+    <div class="hint">${job.aois.length} AOI(s) · ${esc(job.params.release_mode)} dates · z${job.params.zoom} · <span id="queue-percent-${job.id}">${Math.round(job.progress * 100)}%</span></div>
+    <div class="bar"><i id="queue-progress-${job.id}" role="progressbar" aria-label="Job progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(job.progress * 100)}" style="width:${job.progress * 100}%"></i></div>
+    <div class="row"><button class="btn ghost" data-job-log="${job.id}" aria-pressed="${selectedBrowserJobId === job.id}">Progress</button><button class="btn ghost" data-job-results="${job.id}" ${job.results.length || !pendingJob(job) ? "" : "disabled"}>Results</button>${pendingJob(job) ? `<button class="btn ghost" data-job-cancel="${job.id}" ${job.status === "cancelling" ? "disabled" : ""}>${job.status === "queued" ? "Cancel queued" : job.status === "cancelling" ? "Cancelling…" : "Cancel job"}</button>` : ""}</div>
+  </div>`).join("") || '<p class="hint">No browser jobs yet.</p>';
+  $("#jobQueue").querySelectorAll("[data-job-log]").forEach(button => button.onclick = () => selectBrowserJob(button.dataset.jobLog));
+  $("#jobQueue").querySelectorAll("[data-job-results]").forEach(button => button.onclick = () => viewBrowserResults(button.dataset.jobResults));
+  $("#jobQueue").querySelectorAll("[data-job-cancel]").forEach(button => button.onclick = () => cancelBrowserJob(button.dataset.jobCancel));
+  const selected = BJOBS[selectedBrowserJobId]; if (selected) updateJobProgress(selected, true);
+  if (focusId) {
+    const attribute = focusKey.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase());
+    const target = $("#jobQueue").querySelector(`[data-${attribute}="${focusId}"]`) || $("#jobQueue").querySelector(`[data-job-log="${focusId}"]`);
+    target?.focus({ preventScroll: true });
+  }
+  updateRunSelection();
+}
+function cancelBrowserJob(id, reason = "Cancelled by user") {
+  const job = BJOBS[id]; if (!job || !pendingJob(job)) return;
+  if (job === activeBrowserJob) {
+    job.status = "cancelling"; job.controller.abort();
+  } else {
+    const index = browserQueue.indexOf(job); if (index >= 0) browserQueue.splice(index, 1);
+    job.status = "cancelled"; job.modelSpec = null; job.releaseSource = null; job.fingerprint = null;
+    jlog(job, reason + ". Removed from the queue before processing."); job.resolveFinished(job); job.resolveFinished = null;
+  }
+  renderBrowserQueue();
+}
+async function drainBrowserQueue() {
+  if (queueDraining || serverRunning || !pageActive) return;
+  queueDraining = true;
+  try {
+    while (browserQueue.length && pageActive && !serverRunning) {
+      const job = browserQueue.shift(); activeBrowserJob = job;
+      job.status = "running"; job.controller = new AbortController(); renderBrowserQueue();
+      try { await runBrowser(job); }
+      catch (error) { job.status = "error"; jlog(job, "ERROR: " + error.message); }
+      finally {
+        job.controller = null; job.modelSpec = null; job.releaseSource = null; job.fingerprint = null; activeBrowserJob = null;
+        renderBrowserQueue();
+        // A finishing job can refresh its own selected results without moving the
+        // map, interrupting edits/comparison, or selecting another job's results.
+        if (pageActive && selectedBrowserJobId === job.id && !S.clip && !comparing() && viewEpoch === job.viewEpoch) {
+          S.jobId = job.id; showTab("res");
+        } else if (pageActive && !comparing() && S.jobId === job.id) loadJobs();
+        job.resolveFinished(job); job.resolveFinished = null;
+      }
+    }
+  } finally { queueDraining = false; updateRunSelection(); }
+}
 $("#runBtn").onclick = async () => {
-  if (jobRunning) return;
+  if (!pageActive || serverRunning || (isServer() && (activeBrowserJob || browserQueue.length || queueDraining))) return;
   if (!S.aois.length) return toast("Add at least one AOI");
   const chosen = chosenRunAois();
   if (!chosen.length) return toast("Select at least one AOI in Detect");
@@ -423,34 +508,52 @@ $("#runBtn").onclick = async () => {
   if (mode === "selected" && !S.selRel.size) { showTab("img"); return toast("Tick at least one release"); }
   const aois = JSON.parse(JSON.stringify(chosen));
   if (isServer()) return runServer(mode, aois);
-  return runBrowser(mode, aois);
+  return enqueueBrowser(mode, aois);
 };
-$("#cancelBtn").onclick = () => { if (S.abort) S.abort.abort(); };
+$("#cancelBtn").onclick = () => cancelBrowserJob(selectedBrowserJobId);
 
-async function runBrowser(mode, aois) {
+function enqueueBrowser(mode, aois) {
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
-  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
+  if (browserQueue.length >= MAX_WAITING_JOBS) return toast("Queue full. Wait for a job to start or cancel a queued job.");
+  if (!S.releases.length) return toast("Wait for Wayback dates to load, or use Refresh dates.");
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
-    model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200 };
-  const job = BJOBS[id] = { id, status: "running", progress: 0, log: [], results: [], outcomes: [], params, aois };
-  S.jobId = id; S.abort = new AbortController();
-  setJobRunning(true); $("#cancelBtn").hidden = false; $("#prog").style.width = "0%";
+    model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: +$("#maxTiles").value || 1200,
+    geotiff: $("#tifOn").checked, model_names: m?.names?.slice() };
+  const releaseSource = JSON.parse(JSON.stringify(S.releases));
+  if (mode === "selected" && !releaseSource.some(release => params.releases.includes(release.release))) return toast("The selected dates are unavailable. Check Wayback and select a release.");
+  const fingerprint = JSON.stringify({ params, aois, releaseSource: mode === "latest" ? releaseSource.slice(0, 1) : releaseSource });
+  const duplicate = Object.values(BJOBS).find(job => pendingJob(job) && job.fingerprint === fingerprint);
+  if (duplicate) { selectBrowserJob(duplicate.id); toast("A job with these settings is already running or queued."); return; }
+  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
+  const modelSpec = detectOn ? { key: m.key, url: m.url, buffer: m.buffer, names: m.names?.slice(), imgsz: m.imgsz } : null;
+  const job = BJOBS[id] = { id, status: "queued", progress: 0, log: [], results: [], outcomes: [], params, aois, modelSpec, releaseSource, fingerprint };
+  job.finished = new Promise(resolve => { job.resolveFinished = resolve; });
+  browserQueue.push(job); selectedBrowserJobId = id; job.viewEpoch = ++viewEpoch;
+  if (!S.clip && !comparing()) S.jobId = id;
+  jlog(job, `Queued: ${GVCompare.modelName(params)} · ${aois.length} AOI(s). Settings captured for this job.`);
+  renderBrowserQueue(); drainBrowserQueue(); return job.finished;
+}
+async function runBrowser(job) {
+  const { params, modelSpec, releaseSource, controller } = job, signal = controller.signal;
   try {
     let model = null;
-    if (detectOn) {
-      jlog(job, `Loading model ${m.label}…`);
-      model = await E.loadModel({ key: m.key, url: m.url, buffer: m.buffer, names: m.names, imgsz: m.imgsz, signal: S.abort.signal });
+    if (params.detect) {
+      jlog(job, `Loading model ${params.model}…`);
+      const loaded = await E.loadModel({ ...modelSpec, signal });
+      // Session reuse must not reuse another job's mutable class-name array.
+      model = { ...loaded, names: modelSpec.names?.slice() || loaded.names };
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
       params.provider = model.provider; params.imgsz = model.imgsz;
     }
     const plan = [];
     for (const aoi of job.aois) {
       let rels;
-      if (mode === "latest") rels = S.releases.slice(0, 1);
-      else if (mode === "selected") rels = S.releases.filter(r => S.selRel.has(r.release));
-      else { const c = L.geoJSON(aoi).getBounds().getCenter(); jlog(job, `${aoi.properties.name}: finding imagery dates…`); rels = await E.localChanges(c.lng, c.lat, Math.min(params.zoom, 17)); }
+      if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (params.release_mode === "latest") rels = releaseSource.slice(0, 1);
+      else if (params.release_mode === "selected") rels = releaseSource.filter(r => params.releases.includes(r.release));
+      else { const c = L.geoJSON(aoi).getBounds().getCenter(); jlog(job, `${aoi.properties.name}: finding imagery dates…`); rels = await E.localChanges(c.lng, c.lat, Math.min(params.zoom, 17), { signal, releases: releaseSource }); }
       jlog(job, `${aoi.properties.name}: ${rels.length} release(s) ${rels.slice(0, 6).map(r => r.date).join(", ")}${rels.length > 6 ? " …" : ""}`);
       rels.forEach(r => plan.push([aoi, r]));
     }
@@ -458,57 +561,59 @@ async function runBrowser(mode, aois) {
       date: rel.date, release: rel.release, requestedZoom: params.zoom, status: "pending" }));
     for (let i = 0; i < plan.length; i++) {
       const [aoi, rel] = plan[i], base = i / plan.length, step = 1 / plan.length;
-      if (S.abort.signal.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
       const outcome = job.outcomes[i]; outcome.status = "running";
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
       try {
-        const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal: S.abort.signal,
-          maxTiles: params.maxTiles, geotiff: $("#tifOn").checked,
+        const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
+          maxTiles: params.maxTiles, geotiff: params.geotiff,
           onCoverage: coverage => { outcome.zoom = coverage.zoom; outcome.coverage = coverage;
             jlog(job, `    Coverage z${coverage.zoom}: ${coverage.available}/${coverage.total} tiles available, ${coverage.unavailable} unavailable, ${coverage.unknown} unknown · ${coverage.checks} check(s) · ${(coverage.ms / 1000).toFixed(1)}s`); },
-          onProgress: f => { job.progress = base + step * f; $("#prog").style.width = (job.progress * 100).toFixed(1) + "%"; } });
+          onProgress: f => { job.progress = base + step * f; updateJobProgress(job); } });
         job.results.push(r);
         Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
       } catch (error) {
-        if (error.name === "AbortError" || S.abort.signal.aborted) throw error;
+        if (error.name === "AbortError" || signal.aborted) throw error;
         Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
           message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage });
         jlog(job, `    ${outcome.status === "unavailable" ? "UNAVAILABLE" : "FAILED"}: ${outcome.aoi} · ${rel.date} · release ${rel.release} · z${outcome.zoom} · ${outcome.code}: ${error.message}`);
       }
-      job.progress = base + step; $("#prog").style.width = (job.progress * 100).toFixed(1) + "%";
+      job.progress = base + step; updateJobProgress(job); renderBrowserQueue();
     }
+    if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const incomplete = job.outcomes.filter(outcome => outcome.status !== "completed").length;
     job.status = !job.results.length && job.outcomes.length ? "error" : incomplete ? "partial" : "done";
-    job.progress = 1; $("#prog").style.width = "100%";
+    job.progress = 1;
     const tot = job.results.reduce((s, r) => s + r.total, 0);
     jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. Export the zip before closing this tab.`);
-    toast(job.status === "done" ? "Job finished" : "Job finished with imagery issues. See Results."); showTab("res");
+    if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with imagery issues. See Results.`);
   } catch (e) {
-    job.status = e.name === "AbortError" ? "cancelled" : "error";
+    job.status = signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
     jlog(job, job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
-    showTab("res");
   }
-  setJobRunning(false); $("#cancelBtn").hidden = true; S.abort = null;
 }
 async function runServer(mode, aois) {
   const body = { aois: { type: "FeatureCollection", features: aois }, release_mode: mode, releases: [...S.selRel],
     zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value, model: $("#model").value, detect: $("#detectOn").checked };
-  setJobRunning(true);
-  try { S.jobId = (await postJSON("/api/jobs", body)).job_id; store.set("job", S.jobId); pollJob(); }
-  catch (e) { toast(e.message); setJobRunning(false); }
+  const base = S.api; selectedBrowserJobId = null; $("#cancelBtn").hidden = true;
+  setServerRunning(true);
+  try { S.jobId = (await postJSON("/api/jobs", body)).job_id; store.set("job", S.jobId); pollJob(S.jobId, base); }
+  catch (e) { toast(e.message); setServerRunning(false); }
 }
-async function pollJob() {
+async function pollJob(id, base) {
   try {
-    const j = await (await fetch(api("/api/jobs/" + S.jobId))).json();
-    $("#prog").style.width = (j.progress * 100).toFixed(1) + "%";
-    logEl.textContent = j.log.join("\n") || j.status; logEl.scrollTop = logEl.scrollHeight;
-    if (j.status === "running" || j.status === "queued") return setTimeout(pollJob, 1500);
-    setJobRunning(false);
+    const j = await (await fetch(base + "/api/jobs/" + id)).json();
+    if (!selectedBrowserJobId) {
+      $("#prog").style.width = (j.progress * 100).toFixed(1) + "%";
+      logEl.textContent = j.log.join("\n") || j.status; logEl.scrollTop = logEl.scrollHeight;
+    }
+    if (j.status === "running" || j.status === "queued") return setTimeout(() => pollJob(id, base), 1500);
+    setServerRunning(false);
     if (j.status === "done") { toast("Job finished"); showTab("res"); }
-  } catch { setTimeout(pollJob, 3000); }
+  } catch { setTimeout(() => pollJob(id, base), 3000); }
 }
 
 // ---------------------------------------------------------------- results
@@ -642,7 +747,7 @@ async function loadJobs() {
   if (S.jobId && [...$("#jobSel").options].some(o => o.value === S.jobId)) $("#jobSel").value = S.jobId;
   if ($("#jobSel").value) loadResults($("#jobSel").value); else { RES = []; renderResults(); }
 }
-$("#jobSel").onchange = () => { S.jobId = $("#jobSel").value; loadResults(S.jobId); };
+$("#jobSel").onchange = () => { ++viewEpoch; S.jobId = $("#jobSel").value; loadResults(S.jobId); };
 $("#jobRefresh").onclick = loadJobs;
 async function loadResults(id) {
   if (BJOBS[id]) RES = BJOBS[id].results.map(r => ({ ...r, browser: true, job: id, params: BJOBS[id].params, source: r }));
@@ -745,7 +850,9 @@ const STYLE = f => { const p = f.properties, c = color(p.class), rej = p.status 
   return { color: rej ? "#c23b3b" : c, weight: S.sel && S.sel.feature === f ? 3.5 : 2, dashArray: rej ? "4 4" : null, fillColor: c, fillOpacity: p.status === "predicted" ? 0.08 : rej ? 0 : 0.22 }; };
 function renderDetections() {
   detLayer.clearLayers(); if (!S.annFC) return;
-  L.geoJSON(S.annFC, { style: STYLE, onEachFeature: (f, l) => { l.feature = f; l.on("click", e => { L.DomEvent.stopPropagation(e); select(l); }); } }).eachLayer(l => detLayer.addLayer(l));
+  L.geoJSON(S.annFC, { pane: "gmd-detections", bubblingMouseEvents: false, style: STYLE, onEachFeature: (f, l) => {
+    l.feature = f; l.on("click", e => { L.DomEvent.stopPropagation(e); if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent); select(l); });
+  } }).eachLayer(l => detLayer.addLayer(l));
   updStats();
 }
 function renderAnnCtx() {
@@ -753,15 +860,23 @@ function renderAnnCtx() {
   $("#annCtx").innerHTML = `<dl class="kv"><dt>AOI</dt><dd>${esc(c.aoi)}</dd><dt>Imagery</dt><dd>${c.date} · release ${c.release}</dd><dt>Zoom</dt><dd>z${c.zoom}</dd><dt>Objects</dt><dd>${S.annFC.features.length}</dd></dl>`;
 }
 function finishEdit() { if (S.editing) { S.editing.editing.disable(); syncGeom(S.editing); S.editing = null; } }
+function selectionNumber(value, digits) {
+  if ((typeof value !== "number" && typeof value !== "string") || String(value).trim() === "") return "—";
+  const number = Number(value); return Number.isFinite(number) ? number.toFixed(digits) : "—";
+}
 function select(l) {
   finishEdit();
   S.sel = l; detLayer.eachLayer(x => x.setStyle && x.setStyle(STYLE(x.feature)));
   const p = l.feature.properties;
+  const className = String(p.class || "unknown"), status = ["predicted", "verified", "corrected", "manual", "rejected"].includes(p.status) ? p.status : "predicted";
+  const centre = Array.isArray(p.centroid) && p.centroid.length >= 2 ? [selectionNumber(p.centroid[1], 5), selectionNumber(p.centroid[0], 5)] : [];
+  const centreText = centre.length === 2 && !centre.includes("—") ? centre.join(", ") : "—";
+  const classes = S.classes.includes(className) ? S.classes : [className, ...S.classes];
   $("#selCard").innerHTML = `
-    <div class="row"><span style="width:12px;height:12px;border-radius:3px;background:${color(p.class)}"></span><b style="flex:1">${esc(p.class.replace(/_/g, " "))}</b><span class="pill ${p.status}">${p.status}</span></div>
-    <dl class="kv"><dt>Confidence</dt><dd>${p.confidence != null ? p.confidence.toFixed(2) : "—"}</dd><dt>Size</dt><dd>${p.length_m != null ? `${p.length_m} × ${p.width_m} m` : "—"}</dd>
-    <dt>Heading</dt><dd>${p.heading_deg != null ? p.heading_deg + "°" : "—"}</dd><dt>Centre</dt><dd>${p.centroid ? p.centroid[1].toFixed(5) + ", " + p.centroid[0].toFixed(5) : "—"}</dd></dl>
-    <select id="selClass">${S.classes.map(c => `<option ${c === p.class ? "selected" : ""} value="${esc(c)}">${esc(c.replace(/_/g, " "))}</option>`).join("")}</select>
+    <div class="row"><span style="width:12px;height:12px;border-radius:3px;background:${color(className)}"></span><b style="flex:1">${esc(className.replace(/_/g, " "))}</b><span class="pill ${status}">${status}</span></div>
+    <dl class="kv"><dt>Confidence</dt><dd>${selectionNumber(p.confidence, 2)}</dd><dt>Size</dt><dd>${p.length_m != null ? `${esc(p.length_m)} × ${esc(p.width_m ?? "—")} m` : "—"}</dd>
+    <dt>Heading</dt><dd>${p.heading_deg != null ? esc(p.heading_deg) + "°" : "—"}</dd><dt>Centre</dt><dd>${centreText}</dd></dl>
+    <select id="selClass">${classes.map(c => `<option ${c === className ? "selected" : ""} value="${esc(c)}">${esc(c.replace(/_/g, " "))}</option>`).join("")}</select>
     <div class="row"><button class="btn" id="bAcc" style="color:var(--ok)">Accept</button><button class="btn" id="bRej" style="color:var(--bad)">Reject</button><button class="btn ghost" id="bEdit">Edit shape</button><button class="btn ghost danger" id="bDel">Delete</button></div>`;
   $("#selClass").onchange = e => setStatus(e.target.value !== p.class ? "corrected" : p.status, e.target.value);
   $("#bAcc").onclick = () => setStatus("verified"); $("#bRej").onclick = () => setStatus("rejected");
@@ -823,7 +938,7 @@ document.addEventListener("keydown", e => {
     if (e.key === "Escape") { e.preventDefault(); closeRunAoiPanel(); }
     return;
   }
-  if (e.target.matches("input,select,textarea")) return;
+  if (e.target.matches("input,select,textarea,button")) return;
   const k = e.key.toLowerCase();
   if (k === "a") setStatus("verified"); else if (k === "r") setStatus("rejected"); else if (k === "n") nextPending();
   else if (k === "e") editShape(); else if (k === "delete" || k === "backspace") delSel();
@@ -892,6 +1007,11 @@ showTab(store.get("tab", "aoi"));
 E.markStartup("appReady");
 loadReleases();
 (async () => { await checkApi(); await loadModels(); updEngineUI(); })();
-window.addEventListener("pagehide", () => { pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh(); if (comparing()) exitComparison(); compareView?.destroy(); compareView = null; });
-window.addEventListener("pageshow", event => { if (event.persisted) { pageActive = true; loadReleases(); } });
+window.addEventListener("pagehide", () => {
+  pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
+  for (const job of [...browserQueue]) cancelBrowserJob(job.id, "Page closed or suspended");
+  if (activeBrowserJob) cancelBrowserJob(activeBrowserJob.id, "Page closed or suspended");
+  if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
+});
+window.addEventListener("pageshow", event => { if (event.persisted) { pageActive = true; loadReleases(); drainBrowserQueue(); } });
 })();

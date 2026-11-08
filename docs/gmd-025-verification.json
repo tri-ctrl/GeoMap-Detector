@@ -1,0 +1,702 @@
+{
+  "recordedAt": "2026-11-07T20:37:48.327Z",
+  "repositoryRevision": "9ba568adb408eb3e4e205cf8d515ff147312c070",
+  "status": "Ready for CI",
+  "localVerificationOnly": true,
+  "tests": {
+    "javascript": {
+      "command": "node --test tests/*.test.cjs",
+      "passed": 108
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+      "passed": 12
+    },
+    "syntaxAndWhitespaceChecks": "passed"
+  },
+  "task": "GMD-025",
+  "scope": "Approved single-execution browser FIFO queue, maximum ten waiting jobs",
+  "commands": [
+    "node --use-system-ca tests/browser/queue.cjs",
+    "node --use-system-ca tests/browser/queue.cjs --wasm"
+  ],
+  "webgpu": {
+    "checkedAt": "2026-11-07T20:32:56.282Z",
+    "mode": "Local source overrides; live nano/small inference; not deployed verification",
+    "forcedProvider": null,
+    "sources": {
+      "index.html": "2913faa2c1da7ef20dccc0424d55bc715e74023d5784507ccd3a4ed955e5eec8",
+      "app.js": "e141971a21ae60f5254cf5e69aad6692a0fa4d35df63475a2eed6089b1d7d07d",
+      "engine.js": "86867d6e741ee60512a90580454af5e007a0dcd9a5706971aa23ab24cba5bb48",
+      "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+    },
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "firstId": "browser_20261107_203303_961fc001",
+    "secondId": "browser_20261107_203303_9beffa72",
+    "cancelledId": "browser_20261107_203303_d72d86bc",
+    "waiting": {
+      "loads": [
+        "url:yolo11n-obb.onnx"
+      ],
+      "clips": 0,
+      "canvases": 0,
+      "bitmaps": 0,
+      "status": "1 running · 1/10 queued",
+      "cancelled": "00:33:03  Queued: YOLO11 small OBB · more accurate · 1 AOI(s). Settings captured for this job.\n00:33:03  Cancelled by user. Removed from the queue before processing.",
+      "queueHeight": 340
+    },
+    "beforeCompletion": {
+      "date": "2026-09-24",
+      "zoom": 18,
+      "centre": [
+        25.251001075157113,
+        55.36121249198914
+      ],
+      "tab": "img"
+    },
+    "execution": {
+      "loads": [
+        "url:yolo11n-obb.onnx",
+        "url:yolo11s-obb.onnx"
+      ],
+      "clips": [
+        {
+          "model": "url:yolo11n-obb.onnx",
+          "aoi": "Queue_probe",
+          "date": "2026-10-29",
+          "zoom": 18,
+          "tiff": true,
+          "size": [
+            374,
+            413
+          ],
+          "total": 1
+        },
+        {
+          "model": "url:yolo11s-obb.onnx",
+          "aoi": "Queue_probe",
+          "date": "2026-10-29",
+          "zoom": 18,
+          "tiff": false,
+          "size": [
+            374,
+            413
+          ],
+          "total": 1
+        }
+      ],
+      "events": [
+        "load url:yolo11n-obb.onnx",
+        "start url:yolo11n-obb.onnx",
+        "end url:yolo11n-obb.onnx",
+        "load url:yolo11s-obb.onnx",
+        "start url:yolo11s-obb.onnx",
+        "end url:yolo11s-obb.onnx"
+      ],
+      "maxActive": 1
+    },
+    "afterCompletion": {
+      "date": "2026-09-24",
+      "zoom": 18,
+      "centre": [
+        25.251001075157113,
+        55.36121249198914
+      ],
+      "tab": "img"
+    },
+    "exports": [
+      {
+        "summary": {
+          "job": "browser_20261107_203303_961fc001",
+          "status": "done",
+          "params": {
+            "release_mode": "latest",
+            "releases": [],
+            "zoom": 18,
+            "classes": [
+              "aircraft",
+              "ship",
+              "helicopter"
+            ],
+            "conf": 0.3,
+            "model": "YOLO11 nano OBB · fast",
+            "model_key": "url:yolo11n-obb.onnx",
+            "imgsz": 1024,
+            "detect": true,
+            "maxTiles": 1200,
+            "geotiff": true,
+            "model_names": [
+              "plane",
+              "ship",
+              "storage tank",
+              "baseball diamond",
+              "tennis court",
+              "basketball court",
+              "ground track field",
+              "harbor",
+              "bridge",
+              "large vehicle",
+              "small vehicle",
+              "helicopter",
+              "roundabout",
+              "soccer ball field",
+              "swimming pool"
+            ],
+            "provider": "webgpu"
+          },
+          "outcomes": [
+            {
+              "aoi": "Queue_probe",
+              "aoi_id": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "requestedZoom": 18,
+              "status": "completed",
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 1195.300000011921,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 1
+            }
+          ],
+          "results": [
+            {
+              "aoi": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "zoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "counts": {
+                "aircraft": 1
+              },
+              "total": 1,
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 1195.300000011921,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "Queue_probe/2026-10-29"
+            }
+          ]
+        },
+        "files": [
+          "browser_20261107_203303_961fc001/",
+          "browser_20261107_203303_961fc001/Queue_probe/",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/image.tif",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/image.png",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/image.pgw",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/image.prj",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/preview_detections.jpg",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/detections.geojson",
+          "browser_20261107_203303_961fc001/Queue_probe/2026-10-29/aoi.geojson",
+          "browser_20261107_203303_961fc001/all_detections.geojson",
+          "browser_20261107_203303_961fc001/aois.geojson",
+          "browser_20261107_203303_961fc001/summary.json"
+        ],
+        "runtimeReleased": true
+      },
+      {
+        "summary": {
+          "job": "browser_20261107_203303_9beffa72",
+          "status": "done",
+          "params": {
+            "release_mode": "latest",
+            "releases": [],
+            "zoom": 18,
+            "classes": [
+              "aircraft",
+              "ship",
+              "helicopter"
+            ],
+            "conf": 0.4,
+            "model": "YOLO11 small OBB · more accurate",
+            "model_key": "url:yolo11s-obb.onnx",
+            "imgsz": 1024,
+            "detect": true,
+            "maxTiles": 1200,
+            "geotiff": false,
+            "model_names": [
+              "plane",
+              "ship",
+              "storage tank",
+              "baseball diamond",
+              "tennis court",
+              "basketball court",
+              "ground track field",
+              "harbor",
+              "bridge",
+              "large vehicle",
+              "small vehicle",
+              "helicopter",
+              "roundabout",
+              "soccer ball field",
+              "swimming pool"
+            ],
+            "provider": "webgpu"
+          },
+          "outcomes": [
+            {
+              "aoi": "Queue_probe",
+              "aoi_id": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "requestedZoom": 18,
+              "status": "completed",
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 217.19999998807907,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 1
+            }
+          ],
+          "results": [
+            {
+              "aoi": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "zoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "counts": {
+                "aircraft": 1
+              },
+              "total": 1,
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 217.19999998807907,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "Queue_probe/2026-10-29"
+            }
+          ]
+        },
+        "files": [
+          "browser_20261107_203303_9beffa72/",
+          "browser_20261107_203303_9beffa72/Queue_probe/",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/image.png",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/image.pgw",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/image.prj",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/preview_detections.jpg",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/detections.geojson",
+          "browser_20261107_203303_9beffa72/Queue_probe/2026-10-29/aoi.geojson",
+          "browser_20261107_203303_9beffa72/all_detections.geojson",
+          "browser_20261107_203303_9beffa72/aois.geojson",
+          "browser_20261107_203303_9beffa72/summary.json"
+        ],
+        "runtimeReleased": true
+      }
+    ],
+    "comparison": {
+      "left": "Model A · 2026-10-29 · YOLO11 nano OBB · fast · 1 objects",
+      "right": "Model B · 2026-10-29 · YOLO11 small OBB · more accurate · 1 objects",
+      "settings": "Runs differ in confidence threshold. Counts alone do not establish model accuracy or real-world change. Full-resolution images remain in exports."
+    },
+    "mobile": {
+      "overflow": false,
+      "cards": 3,
+      "body": 354,
+      "panel": 390,
+      "queueHeight": 340,
+      "cancelHidden": true
+    },
+    "resources": {
+      "canvases": 6,
+      "allCanvasesReleased": true,
+      "bitmaps": 14,
+      "allBitmapsClosed": true
+    },
+    "runtimeErrors": []
+  },
+  "wasm": {
+    "checkedAt": "2026-11-07T20:33:40.284Z",
+    "mode": "Local source overrides; live nano/small inference; not deployed verification",
+    "forcedProvider": "wasm",
+    "sources": {
+      "index.html": "2913faa2c1da7ef20dccc0424d55bc715e74023d5784507ccd3a4ed955e5eec8",
+      "app.js": "e141971a21ae60f5254cf5e69aad6692a0fa4d35df63475a2eed6089b1d7d07d",
+      "engine.js": "86867d6e741ee60512a90580454af5e007a0dcd9a5706971aa23ab24cba5bb48",
+      "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+    },
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "firstId": "browser_20261107_203347_e1a90115",
+    "secondId": "browser_20261107_203347_5bb0e230",
+    "cancelledId": "browser_20261107_203347_5ee41038",
+    "waiting": {
+      "loads": [
+        "url:yolo11n-obb.onnx"
+      ],
+      "clips": 0,
+      "canvases": 0,
+      "bitmaps": 0,
+      "status": "1 running · 1/10 queued",
+      "cancelled": "00:33:47  Queued: YOLO11 small OBB · more accurate · 1 AOI(s). Settings captured for this job.\n00:33:47  Cancelled by user. Removed from the queue before processing.",
+      "queueHeight": 340
+    },
+    "beforeCompletion": {
+      "date": "2026-09-24",
+      "zoom": 18,
+      "centre": [
+        25.251001075157113,
+        55.36121249198914
+      ],
+      "tab": "img"
+    },
+    "execution": {
+      "loads": [
+        "url:yolo11n-obb.onnx",
+        "url:yolo11s-obb.onnx"
+      ],
+      "clips": [
+        {
+          "model": "url:yolo11n-obb.onnx",
+          "aoi": "Queue_probe",
+          "date": "2026-10-29",
+          "zoom": 18,
+          "tiff": true,
+          "size": [
+            374,
+            413
+          ],
+          "total": 1
+        },
+        {
+          "model": "url:yolo11s-obb.onnx",
+          "aoi": "Queue_probe",
+          "date": "2026-10-29",
+          "zoom": 18,
+          "tiff": false,
+          "size": [
+            374,
+            413
+          ],
+          "total": 1
+        }
+      ],
+      "events": [
+        "load url:yolo11n-obb.onnx",
+        "start url:yolo11n-obb.onnx",
+        "end url:yolo11n-obb.onnx",
+        "load url:yolo11s-obb.onnx",
+        "start url:yolo11s-obb.onnx",
+        "end url:yolo11s-obb.onnx"
+      ],
+      "maxActive": 1
+    },
+    "afterCompletion": {
+      "date": "2026-09-24",
+      "zoom": 18,
+      "centre": [
+        25.251001075157113,
+        55.36121249198914
+      ],
+      "tab": "img"
+    },
+    "exports": [
+      {
+        "summary": {
+          "job": "browser_20261107_203347_e1a90115",
+          "status": "done",
+          "params": {
+            "release_mode": "latest",
+            "releases": [],
+            "zoom": 18,
+            "classes": [
+              "aircraft",
+              "ship",
+              "helicopter"
+            ],
+            "conf": 0.3,
+            "model": "YOLO11 nano OBB · fast",
+            "model_key": "url:yolo11n-obb.onnx",
+            "imgsz": 1024,
+            "detect": true,
+            "maxTiles": 1200,
+            "geotiff": true,
+            "model_names": [
+              "plane",
+              "ship",
+              "storage tank",
+              "baseball diamond",
+              "tennis court",
+              "basketball court",
+              "ground track field",
+              "harbor",
+              "bridge",
+              "large vehicle",
+              "small vehicle",
+              "helicopter",
+              "roundabout",
+              "soccer ball field",
+              "swimming pool"
+            ],
+            "provider": "wasm"
+          },
+          "outcomes": [
+            {
+              "aoi": "Queue_probe",
+              "aoi_id": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "requestedZoom": 18,
+              "status": "completed",
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 1194.699999988079,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 1
+            }
+          ],
+          "results": [
+            {
+              "aoi": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "zoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "counts": {
+                "aircraft": 1
+              },
+              "total": 1,
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 1194.699999988079,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "Queue_probe/2026-10-29"
+            }
+          ]
+        },
+        "files": [
+          "browser_20261107_203347_e1a90115/",
+          "browser_20261107_203347_e1a90115/Queue_probe/",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/image.tif",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/image.png",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/image.pgw",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/image.prj",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/preview_detections.jpg",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/detections.geojson",
+          "browser_20261107_203347_e1a90115/Queue_probe/2026-10-29/aoi.geojson",
+          "browser_20261107_203347_e1a90115/all_detections.geojson",
+          "browser_20261107_203347_e1a90115/aois.geojson",
+          "browser_20261107_203347_e1a90115/summary.json"
+        ],
+        "runtimeReleased": true
+      },
+      {
+        "summary": {
+          "job": "browser_20261107_203347_5bb0e230",
+          "status": "done",
+          "params": {
+            "release_mode": "latest",
+            "releases": [],
+            "zoom": 18,
+            "classes": [
+              "aircraft",
+              "ship",
+              "helicopter"
+            ],
+            "conf": 0.4,
+            "model": "YOLO11 small OBB · more accurate",
+            "model_key": "url:yolo11s-obb.onnx",
+            "imgsz": 1024,
+            "detect": true,
+            "maxTiles": 1200,
+            "geotiff": false,
+            "model_names": [
+              "plane",
+              "ship",
+              "storage tank",
+              "baseball diamond",
+              "tennis court",
+              "basketball court",
+              "ground track field",
+              "harbor",
+              "bridge",
+              "large vehicle",
+              "small vehicle",
+              "helicopter",
+              "roundabout",
+              "soccer ball field",
+              "swimming pool"
+            ],
+            "provider": "wasm"
+          },
+          "outcomes": [
+            {
+              "aoi": "Queue_probe",
+              "aoi_id": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "requestedZoom": 18,
+              "status": "completed",
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 80.19999998807907,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 1
+            }
+          ],
+          "results": [
+            {
+              "aoi": "Queue_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "zoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "counts": {
+                "aircraft": 1
+              },
+              "total": 1,
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 80.19999998807907,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "Queue_probe/2026-10-29"
+            }
+          ]
+        },
+        "files": [
+          "browser_20261107_203347_5bb0e230/",
+          "browser_20261107_203347_5bb0e230/Queue_probe/",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/image.png",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/image.pgw",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/image.prj",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/preview_detections.jpg",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/detections.geojson",
+          "browser_20261107_203347_5bb0e230/Queue_probe/2026-10-29/aoi.geojson",
+          "browser_20261107_203347_5bb0e230/all_detections.geojson",
+          "browser_20261107_203347_5bb0e230/aois.geojson",
+          "browser_20261107_203347_5bb0e230/summary.json"
+        ],
+        "runtimeReleased": true
+      }
+    ],
+    "comparison": {
+      "left": "Model A · 2026-10-29 · YOLO11 nano OBB · fast · 1 objects",
+      "right": "Model B · 2026-10-29 · YOLO11 small OBB · more accurate · 1 objects",
+      "settings": "Runs differ in confidence threshold. Counts alone do not establish model accuracy or real-world change. Full-resolution images remain in exports."
+    },
+    "mobile": {
+      "overflow": false,
+      "cards": 3,
+      "body": 354,
+      "panel": 390,
+      "queueHeight": 340,
+      "cancelHidden": true
+    },
+    "resources": {
+      "canvases": 6,
+      "allCanvasesReleased": true,
+      "bitmaps": 14,
+      "allBitmapsClosed": true
+    },
+    "runtimeErrors": []
+  },
+  "limitations": [
+    "Final WebGPU, WASM and map probes ran sequentially in independent temporary Chrome profiles; no controlled throughput comparison is claimed.",
+    "Waiting/allocation and disposal counts describe the tested ownership paths, not peak JS/native/GPU memory or leak elimination.",
+    "Cached sessions and completed outputs retain existing owners; broader session/output budgets and IndexedDB persistence remain Planned.",
+    "Only this tab’s browser queue is scheduled; optional backend/global multi-client scheduling is unchanged.",
+    "No CI/deployment/public-source verification was triggered for these changes."
+  ],
+  "testHarness": {
+    "excludedAttempts": "Three concurrent follow-up browser attempts timed out at Runtime.evaluate and were excluded. Final isolated runs pass; no application/root cause is inferred from those harness timeouts.",
+    "layoutChecks": "Queue height remains 340 px; completed Cancel is actually hidden, and 390 px layout has no document overflow."
+  }
+}

@@ -99,3 +99,9 @@ test("malformed local tile metadata is rejected rather than marked as a valid up
     await assert.rejects(engine.localChanges(55, 25), /Invalid Wayback/);
   }
 });
+test("job-local history can use a captured release catalogue without loading newer configuration", async () => {
+  const { engine, calls } = setup({ fetchImpl: async () => new Response(JSON.stringify({ data: [1], select: [entries[0].release] })) });
+  const result = await engine.localChanges(55, 25, 17, { releases: entries });
+  assert.equal(result[0].release, entries[0].release);
+  assert.equal(calls.length, 1); assert.match(calls[0][0], /\/tilemap\/101\/17\//);
+});

@@ -1,0 +1,146 @@
+{
+  "recordedAt": "2026-11-07T20:37:48.332Z",
+  "repositoryRevision": "9ba568adb408eb3e4e205cf8d515ff147312c070",
+  "status": "Ready for CI",
+  "localVerificationOnly": true,
+  "tests": {
+    "javascript": {
+      "command": "node --test tests/*.test.cjs",
+      "passed": 108
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+      "passed": 12
+    },
+    "syntaxAndWhitespaceChecks": "passed"
+  },
+  "task": "GMD-026",
+  "scope": "Detection DOM hit routing and defensive metadata formatting",
+  "sources": {
+    "index.html": "2913faa2c1da7ef20dccc0424d55bc715e74023d5784507ccd3a4ed955e5eec8",
+    "app.js": "e141971a21ae60f5254cf5e69aad6692a0fa4d35df63475a2eed6089b1d7d07d",
+    "engine.js": "86867d6e741ee60512a90580454af5e007a0dcd9a5706971aa23ab24cba5bb48",
+    "comparison.js": "9078e48276043029b2c35b845f03d837375bf661f44ed9aaf510c66da1a74512"
+  },
+  "reproducedBeforeFix": {
+    "aoiredraw": {
+      "hitDetection": false,
+      "infoShown": false,
+      "zoomBefore": 18,
+      "zoomAfter": 18,
+      "note": "Pre-fix local browser console observation; source hash was not captured for this diagnostic run."
+    },
+    "numericStringFixture": {
+      "confidence": "0.91",
+      "centroid": [
+        "55.36",
+        "25.25"
+      ],
+      "exception": "p.confidence.toFixed is not a function"
+    },
+    "limitation": "The user’s exact console message/data was not supplied."
+  },
+  "command": "node tests/browser/map_interactions.cjs --selection --detection-click",
+  "mapProbe": {
+    "checkedAt": "2026-11-07T20:35:45.064Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "e141971a21ae60f5254cf5e69aad6692a0fa4d35df63475a2eed6089b1d7d07d",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "00:35:40  Queued: Imagery only · 1 AOI(s). Settings captured for this job.\n00:35:40  Review_small: 1 release(s) 2026-10-29\n00:35:40  [1/1] Review_small · 2026-10-29\n00:35:41      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.2s\n00:35:43      z18 · 374×413 px · 0 objects \n00:35:43  Finished: 0 objects across 1 AOI/date clips. Export the zip before closing this tab.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": false,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "childPanel": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "withinSidebar": true,
+      "normalControlsHidden": true,
+      "noModal": true,
+      "desktop": {
+        "width": 379,
+        "height": 837.234375,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 913
+      },
+      "mobile": {
+        "width": 390,
+        "height": 311.46875,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 397.328125
+      },
+      "mapControlsInteractive": true,
+      "mapDragInteractive": true,
+      "zoom": {
+        "centre": [
+          55.38100183010101,
+          25.251001075157113
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run",
+        "staysOpen": true,
+        "search": "DO_NOT"
+      },
+      "escapeFocus": "runAoiBtn"
+    },
+    "detectionPointer": {
+      "x": 942,
+      "y": 457,
+      "zoomBefore": 20,
+      "fitsBefore": 4,
+      "hitDetection": true,
+      "zoomAfter": 20,
+      "fitsAfter": 4,
+      "infoShown": true,
+      "card": "\n    aircraftmanual\n    Confidence0.91Size—\n    Heading—Centre25.25075, 55.36075\n    aircraftshiphelicopterstorage tanklarge vehiclesmall vehicleharborbridgeswimming poolroundabouttennis courtbasketball courtbaseball diamondsoccer fieldtrack field\n    AcceptRejectEdit shapeDelete"
+    }
+  },
+  "limitations": [
+    "The harness waits for Leaflet’s previously scheduled AOI fit animation before establishing zoom 20.",
+    "Actual post-fix pointer hit opens info without a new fit or zoom change; this is local source verification.",
+    "No data migration, detection-quality, sustained-memory or deployment claim is made."
+  ]
+}

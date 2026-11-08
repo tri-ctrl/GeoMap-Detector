@@ -47,7 +47,9 @@ async function setup({ server = false, selected = false, showImage = true, aois 
       if (!this.queries.has(selector)) {
         const attribute = selector.match(/\[data-([a-z-]+)\]/);
         const html = this._html + this.children.map(child => child.innerHTML).join("");
-        const children = attribute ? [...html.matchAll(new RegExp(`<[^>]+\\bdata-${attribute[1]}="([^"]*)"[^>]*>`, "g"))].map(match => {
+        const children = selector === "input" ? [...html.matchAll(/<input\b[^>]*>/g)].map(match => new Element({
+          value: (match[0].match(/value="([^"]*)"/) || [null, ""])[1], checked: /\bchecked\b/.test(match[0]),
+        })) : attribute ? [...html.matchAll(new RegExp(`<[^>]+\\bdata-${attribute[1]}="([^"]*)"[^>]*>`, "g"))].map(match => {
           const dataKey = attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
           const child = new Element({ dataset: { [dataKey]: match[1] }, checked: /\bchecked\b/.test(match[0]) });
           const classes = (match[0].match(/class="([^"]*)"/) || [null, ""])[1];
@@ -83,7 +85,8 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   };
   const document = {
     querySelector: element,
-    querySelectorAll: selector => selector === "#resTable tr" ? element("#resTable tbody").querySelectorAll("tr[data-i]") : lists[selector] || [],
+    querySelectorAll: selector => selector === "#resTable tr" ? element("#resTable tbody").querySelectorAll("tr[data-i]")
+      : selector === "#classChips input" ? element("#classChips").querySelectorAll("input") : lists[selector] || [],
     createElement: () => new Element(), addEventListener: (event, listener) => documentEvents.set(event, listener),
     documentElement: new Element(), body: new Element(), head: new Element(),
   };
@@ -120,6 +123,9 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     eachLayer(fn) { this.layers.forEach(fn); return this; }
   }
   const map = new Group();
+  const panes = new Map();
+  map.createPane = name => { const pane = { style: {} }; panes.set(name, pane); return pane; };
+  map.getPane = name => panes.get(name);
   // Leaflet accepts both coordinate arrays and LatLng objects (including the
   // value returned by getCenter when a comparison restores the previous view).
   map.setView = (position, zoom) => {
@@ -142,9 +148,9 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     imageOverlay: (url, imageBounds) => Object.assign(new Layer(), { url, bounds: imageBounds }),
     geoJSON: (data, options = {}) => {
       metrics.geoJSON++;
-      const group = new Group();
+      const group = new Group(); group.options = options;
       for (const feature of data.type === "FeatureCollection" ? data.features : [data]) {
-        const layer = new Layer(feature); options.onEachFeature?.(feature, layer); group.addLayer(layer);
+        const layer = new Layer(feature); layer.options = options; options.onEachFeature?.(feature, layer); group.addLayer(layer);
       }
       return group;
     },

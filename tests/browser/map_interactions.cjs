@@ -14,6 +14,7 @@ const { createHash } = require("node:crypto");
 const base = "https://tri-ctrl.github.io/GeoMap-Detector/";
 const deployed = process.argv.includes("--deployed");
 const selection = process.argv.includes("--selection");
+const detectionClick = process.argv.includes("--detection-click");
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
@@ -106,7 +107,9 @@ let chrome, socket, watchdog;
   await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
   if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }] });
   const evaluate = async expression => {
-    const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }).catch(error => {
+      throw new Error(error.message + " while evaluating: " + expression.slice(0, 180));
+    });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
     return result.result.value;
   };
@@ -224,7 +227,7 @@ let chrome, socket, watchdog;
   if (selection) {
     await evaluate("document.querySelector('#runAoiBtn').click();document.querySelector('#runAoiAll').click();document.querySelector('#runAoiDone').click()");
     runSelection.runningButtonDisabled = await evaluate("document.querySelector('#runBtn').disabled");
-    assert.equal(runSelection.runningButtonDisabled, true);
+    assert.equal(runSelection.runningButtonDisabled, false);
   }
   await until("/Finished:|ERROR:/.test(document.querySelector('#jobLog').textContent)");
   const jobLog = await evaluate("document.querySelector('#jobLog').textContent");
@@ -239,7 +242,8 @@ let chrome, socket, watchdog;
     const release = (await GVEngine.getReleases())[0].release;
     localStorage.setItem('gv_ann', JSON.stringify({ type: 'FeatureCollection', features: [{
       type: 'Feature', id: 'manual_gmd003', geometry: { type: 'Polygon', coordinates: [[[55.3605,25.2505],[55.361,25.2505],[55.361,25.251],[55.3605,25.251],[55.3605,25.2505]]] },
-      properties: { class: 'aircraft', status: 'manual', release, aoi_id: 'Review_small', centroid: [55.36075,25.25075] }
+      properties: { class: 'aircraft', status: 'manual', release, aoi_id: 'Review_small',
+        ...(${detectionClick} ? {confidence:'0.91',centroid:['55.36075','25.25075']} : {centroid:[55.36075,25.25075]}) }
     }] }));
     document.querySelector('#resTable tbody tr[data-i]').click();
   })()`);
@@ -247,6 +251,32 @@ let chrome, socket, watchdog;
   // The deliberate clip fit can still be animating when its data is ready.
   // Set the test viewport only after that animation, independently of toggles.
   await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
+  let detectionPointer;
+  if (detectionClick) {
+    // AOI redraws used to move their SVG paths in front of detections. Use a
+    // real pointer event here; layer.fire('click') bypasses DOM hit testing.
+    await evaluate("document.querySelector('#aoiList .item').click()");
+    // Leaflet can schedule the fit animation on the next frame; let it start
+    // before waiting for it to finish and establishing the click viewport.
+    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
+    await evaluate("(()=>{__gmd003.detection._map.setView([25.25075,55.36075],20,{animate:false});})()");
+    await until("!__gmd003.detection._map._animatingZoom && !__gmd003.detection._map._panAnim?._inProgress");
+    detectionPointer = await evaluate(`(() => {
+      const layer=__gmd003.detection,map=layer._map,point=map.latLngToContainerPoint(layer.getBounds().getCenter()),box=map.getContainer().getBoundingClientRect();
+      const x=point.x+box.left,y=point.y+box.top;return {x,y,zoomBefore:map.getZoom(),fitsBefore:__gmd003.counts.fits,hitDetection:document.elementFromPoint(x,y)===layer.getElement()};
+    })()`);
+    await page('Input.dispatchMouseEvent',{type:'mousePressed',x:detectionPointer.x,y:detectionPointer.y,button:'left',clickCount:1});
+    await page('Input.dispatchMouseEvent',{type:'mouseReleased',x:detectionPointer.x,y:detectionPointer.y,button:'left',clickCount:1});
+    await sleep(500);
+    Object.assign(detectionPointer,await evaluate("({zoomAfter:__gmd003.detection._map.getZoom(),fitsAfter:__gmd003.counts.fits,infoShown:document.querySelector('#tab-ann').classList.contains('on')&&Boolean(document.querySelector('#selClass')),card:document.querySelector('#selCard').textContent})"));
+    fs.writeFileSync(path.join(os.tmpdir(),'geomap-detection-click.json'),JSON.stringify(detectionPointer,null,2)+'\n');
+    console.log('Real detection pointer check: '+JSON.stringify(detectionPointer));
+    assert.equal(detectionPointer.hitDetection,true,'The detection must receive the click above AOI overlays');
+    assert.equal(detectionPointer.infoShown,true);assert.equal(detectionPointer.zoomAfter,detectionPointer.zoomBefore);
+    assert.equal(detectionPointer.fitsAfter,detectionPointer.fitsBefore);
+    assert.match(detectionPointer.card,/0\.91/); assert.match(detectionPointer.card,/25\.25075, 55\.36075/);
+  }
   await evaluate(`(async () => {
     const layer = __gmd003.detection;
     layer.fire('click', { originalEvent: new MouseEvent('click') });
@@ -278,7 +308,7 @@ let chrome, socket, watchdog;
   const results = { checkedAt: new Date().toISOString(), mode: deployed ? "Deployed sources, no overrides" : "Local app/engine overrides; not a deployed-source check",
     browser: await evaluate("navigator.userAgent"), appSha256: createHash("sha256").update(appSource).digest("hex"),
     unchangedRelease, changedRelease, imageToggle, editingPreserved: true, runtimeErrors: errors, jobLog,
-    ...(selection ? {runSelection, childPanel} : {}) };
+    ...(selection ? {runSelection, childPanel} : {}), ...(detectionClick ? {detectionPointer} : {}) };
   const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), selection ? "geomap-gmd022-panel-results.json" : "geomap-gmd003-results.json");
   fs.writeFileSync(output, JSON.stringify(results, null, 2) + "\n");
   console.log(JSON.stringify(results, null, 2)); console.log("Saved browser evidence: " + output);

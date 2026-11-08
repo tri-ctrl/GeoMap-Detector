@@ -96,6 +96,28 @@ test("image visibility changes before a clip is open do not change map state", a
   assert.equal(app.groups[1].getLayers().length, 0);
 });
 
+test("legacy numeric strings in detection metadata display without changing the viewport or saved record", async () => {
+  const app = await setup(); await app.openClip();
+  const layer = app.groups[2].getLayers()[0];
+  Object.assign(layer.feature.properties, { confidence: "0.91", centroid: ["55.36", "25.25"], status: "verified" });
+  const before = app.snapshot(), saved = JSON.stringify(layer.feature);
+  assert.doesNotThrow(() => layer.fire("click"));
+  assert.match(app.element("#selCard").innerHTML, /0\.91/);
+  assert.match(app.element("#selCard").innerHTML, /25\.25000, 55\.36000/);
+  assert.equal(app.snapshot().fits, before.fits); assert.equal(JSON.stringify(layer.feature), saved);
+  assert.equal(app.element("#tab-ann").classList.contains("on"), true);
+});
+test("missing detection metadata stays inspectable and AOI redraws cannot cover its interaction pane", async () => {
+  const app = await setup(); await app.openClip(); const layer = app.groups[2].getLayers()[0];
+  Object.assign(layer.feature.properties, { class: null, confidence: "N/A", centroid: [null, "bad"], status: null });
+  app.selectAoi(0); const before = app.snapshot();
+  assert.equal(layer.options.pane, "gmd-detections"); assert.equal(layer.options.bubblingMouseEvents, false);
+  assert.equal(app.groups[0].getLayers()[0].options.pane, "gmd-aois");
+  assert.ok(Number(app.map.getPane("gmd-detections").style.zIndex) > Number(app.map.getPane("gmd-aois").style.zIndex));
+  assert.doesNotThrow(() => layer.fire("click")); assert.match(app.element("#selCard").innerHTML, /unknown/);
+  assert.doesNotMatch(app.element("#selCard").innerHTML, /NaN|undefined/); assert.equal(app.snapshot().fits, before.fits);
+});
+
 const trendBars = app => app.element("#trend").querySelectorAll("[data-trend-i]");
 async function runTrend(options = {}) {
   const app = await setup({ selected: true, ...options });
@@ -176,6 +198,8 @@ test("zero-object dates remain actionable and a single-date job clears the previ
   await trendBars(app)[0].onclick(); assert.equal(app.element("#hudRel").textContent, "2026-10-22");
   app.context.document.querySelectorAll("[name=relMode]")[0].checked = true;
   await app.element("#runBtn").onclick(); await turn();
+  // Completing another job preserves the open map clip until its Results action.
+  app.element("#jobQueue").querySelectorAll("[data-job-results]")[0].onclick(); await turn();
   assert.equal(app.element("#trendSec").hidden, true); assert.equal(app.element("#trend").innerHTML, "");
   assert.equal(trendBars(app).length, 0);
 });

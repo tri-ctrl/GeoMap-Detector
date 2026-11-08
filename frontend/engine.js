@@ -185,8 +185,8 @@ async function getReleases({ refresh = false } = {}) {
   })();
   return _releaseRequest;
 }
-async function localChanges(lon, lat, z = 17, { signal } = {}) {
-  const rels = await getReleases(), idx = new Map(rels.map((r, i) => [r.release, i]));
+async function localChanges(lon, lat, z = 17, { signal, releases } = {}) {
+  const rels = releases || await getReleases(), idx = new Map(rels.map((r, i) => [r.release, i]));
   const [x, y] = lonlatToTile(lon, lat, z), found = [];
   let i = 0;
   while (i < rels.length) {

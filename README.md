@@ -115,18 +115,35 @@ Search by AOI name and use the checkboxes, **Select all** or **Clear all**; sear
 filters rows without changing selections. Each row's **Zoom** button shows that
 AOI on the map and keeps the child panel, search and checked choices in place.
 Use **Back to Detect**, the close button or Escape to return to the detection controls.
-The Run button shows the checked count and stays disabled with no selection or
-while a job is running. All AOIs start checked when the page opens. Choices stay
+The Run button shows the checked count and stays disabled with no selection.
+While a browser job runs, it becomes **Queue on … AOIs** so another job can wait.
+All AOIs start checked when the page opens. Choices stay
 with their AOIs during this tab's session, including renames and removal of other
 AOIs; map selection controls the view independently. Imports join an all-AOI
 selection, but stay unchecked when a subset is chosen. Each run uses a snapshot,
 so changes while it runs apply to the next job. Both processing engines use the subset.
+
+The **Browser job queue** runs one job at a time, in submission order, with up to
+10 waiting jobs. Each submission captures its model, AOIs, Wayback dates, classes,
+confidence, zoom, tile limit and TIFF option. Use **Progress**, **Results** and
+**Cancel job / Cancel queued** on the individual job cards. Cancelling a running
+job waits for its processing to stop before the next job starts; completed clips
+remain exportable. Identical unfinished submissions are deduplicated. The queue
+shows the last five completed/cancelled jobs; all jobs remain in the Results
+selector for this tab. Jobs and outputs are kept in tab memory; closing or leaving
+the page cancels unfinished browser work. IndexedDB persistence remains planned.
+The optional Python server keeps its existing single-submission UI behavior;
+server processing and the browser queue do not start alongside each other in this tab.
 
 In **Results → Objects per imagery date**, hover a bar to see its AOI, date,
 model, total and per-class counts. Click a bar to open that clip on the map and
 highlight its row in **AOI × date clips**. Selecting a table row also highlights
 its bar. Bars support Tab, Enter and Space, including clips with zero objects;
 incomplete imagery is identified in the hover description.
+
+Clicking a detection opens its details in **Annotate** and preserves map zoom.
+Detection layers stay above AOI outlines after redraws. Older numeric-string or
+missing confidence/centre metadata displays safely without changing saved records.
 
 ## Outputs
 

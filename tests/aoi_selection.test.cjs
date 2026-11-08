@@ -50,7 +50,7 @@ test("server job payload includes only the checked AOIs and keeps date/model set
   assert.equal(body.release_mode, "selected"); assert.deepEqual(body.releases, [101, 100]);
   assert.equal(body.zoom, 18); assert.equal(body.conf, 0.3); assert.equal(body.model, "model.pt");
 });
-test("run selection is frozen at start and changing next-run choices cannot re-enable a running job", async () => {
+test("run selection is frozen while another checked subset can be queued independently", async () => {
   const pending = deferred(), processed = [];
   const app = await setup({ aois: [aoi, other], beforeBoot: context => {
     const original = context.GVEngine.processClip;
@@ -58,10 +58,10 @@ test("run selection is frozen at start and changing next-run choices cannot re-e
   } });
   check(app, 1, false); const running = app.element("#runBtn").onclick();
   await turn(); assert.deepEqual(processed, ["Review"]);
-  app.element("#runAoiAll").onclick(); assert.equal(app.element("#runBtn").disabled, true);
-  await app.element("#runBtn").onclick(); assert.deepEqual(processed, ["Review"]);
-  app.element("#runAoiNone").onclick(); pending.resolve(); await running;
-  assert.deepEqual(processed, ["Review"]); assert.equal(app.element("#runBtn").disabled, true);
+  app.element("#runAoiAll").onclick(); assert.equal(app.element("#runBtn").disabled, false);
+  const queued = app.element("#runBtn").onclick(); await turn(); assert.deepEqual(processed, ["Review"]);
+  app.element("#runAoiNone").onclick(); pending.resolve(); await running; await queued;
+  assert.deepEqual(processed, ["Review", "Review", "Other"]); assert.equal(app.element("#runBtn").disabled, true);
 });
 test("duplicate names, rename and deletion do not transfer checkbox selection to a different AOI", async () => {
   const changed = structuredClone(aoi); changed.geometry.coordinates[0][1][0] += 0.01;

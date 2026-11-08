@@ -11,6 +11,7 @@ catch { browserLimits = E.allocations.configure(E.allocations.defaults); }
 $("#rasterMP").value = browserLimits.maxPixels / 1e6;
 $("#rasterSide").value = browserLimits.maxDimension;
 $("#rasterMemory").value = browserLimits.maxEstimatedBytes / 1048576;
+$("#pngOn").checked = store.get("nativePNG", true);
 
 const DOTA = ["aircraft","ship","helicopter","storage_tank","large_vehicle","small_vehicle","harbor","bridge",
   "swimming_pool","roundabout","tennis_court","basketball_court","baseball_diamond","soccer_field","track_field"];
@@ -29,6 +30,7 @@ const BJOBS = {};                       // lightweight catalog; durable payloads
 const runAoiSelection = new Set(S.aois);
 const browserQueue = [], MAX_WAITING_JOBS = 10;
 let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false, datasetExportRunning = false;
+let datasetOperation = null, exportOperation = null, serverPoll = null, trainingPoll = null, exportParts = null;
 let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
 let pendingLiveRelease = null;
@@ -45,6 +47,7 @@ const DB = window.GVStorage?.create({ onState: state => {
     if (clipView && !clipView.ready) disposeClipView();
     readOnly = true; queuePaused = true; storageError = new Error("Storage ownership changed. Reload this tab to recover.");
     if (activeBrowserJob) { activeBrowserJob.suspending = true; activeBrowserJob.controller?.abort(); }
+    datasetOperation?.controller.abort(); exportOperation?.controller.abort(); exportParts?.controller.abort();
     renderStorage(); updateRunSelection();
   }
 } });
@@ -107,7 +110,7 @@ function saveDraft() {
 }
 async function readClip(source, options) {
   const images = options?.images !== false;
-  if (source.fc && (!images || source.blobs?.png)) return source;
+  if (source.fc && (!images || source.blobs?.display || source.blobs?.png)) return source;
   const payload = await DB.clip(source.storeId, options);
   if (source.draftFC && options?.draft !== false) payload.draftFC = source.draftFC;
   return payload;
@@ -119,18 +122,21 @@ const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const downloadURLs = new Map();
-const saveBlob = (name, blob) => {
-  const a = document.createElement("a"), url = URL.createObjectURL(blob);
-  const release = () => { const timer = downloadURLs.get(url); if (timer === undefined) return; clearTimeout(timer); downloadURLs.delete(url); URL.revokeObjectURL(url); };
+const saveBlob = (name, blob, onRelease) => {
+  const lease = onRelease ? null : E.allocations.download(blob.size, E.allocations.limits());
+  const consume = () => { lease?.release(); onRelease?.(); };
+  let a, url;
+  try { a = document.createElement("a"); url = URL.createObjectURL(blob); } catch (error) { consume(); throw error; }
+  const release = () => { const record = downloadURLs.get(url); if (!record) return; clearTimeout(record.timer); downloadURLs.delete(url); URL.revokeObjectURL(url); consume(); };
   // Downloads have a separate delayed lease; a hidden/replaced map view cannot
   // revoke a URL before the browser has consumed the download.
-  downloadURLs.set(url, setTimeout(release, 10000));
+  downloadURLs.set(url, { timer: setTimeout(release, 10000), release });
   try { a.href = url; a.download = name; document.body.append(a); a.click(); }
   catch (error) { release(); throw error; }
   finally { a.remove(); }
 };
-const download = (name, text, type = "application/geo+json") => saveBlob(name, new Blob([text], { type }));
-const postJSON = async (p, body) => { const r = await fetch(api(p), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); };
+const download = (name, text, type = "application/geo+json") => { try { return saveBlob(name, new Blob([text], { type })); } catch (error) { toast(error.message, 5000); } };
+const postJSON = (p, body, signal) => E.requestJSON(api(p), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
 
 // ---------------------------------------------------------------- theme
 const applyTheme = t => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
@@ -205,7 +211,7 @@ function updEngineUI() {
 $$('[name=engine]').forEach(r => r.onchange = async () => { S.engine = r.value; store.set("engine", S.engine);
   if (S.engine === "server" && !S.online) toast("Connect to a running server first"); await loadModels(); updEngineUI(); });
 $("#apiUrl").value = S.api;
-$("#apiSave").onclick = async () => { S.api = $("#apiUrl").value.trim().replace(/\/$/, ""); store.set("api", S.api); await checkApi(); if (S.online) { S.engine = "server"; store.set("engine", "server"); } await loadModels(); updEngineUI(); };
+$("#apiSave").onclick = async () => { await Promise.all([stopPoll(serverPoll), stopPoll(trainingPoll)]); serverPoll = trainingPoll = null; setServerRunning(false); S.api = $("#apiUrl").value.trim().replace(/\/$/, ""); store.set("api", S.api); await checkApi(); if (S.online) { S.engine = "server"; store.set("engine", "server"); } await loadModels(); updEngineUI(); };
 
 // ---------------------------------------------------------------- AOIs
 function aoiName(f, i) { const p = f.properties || {}; return p.name || p.Name || p.NAME || p.iata || p.IATA || p.icao || p.ICAO || p.title || p.id || ("AOI " + (i + 1)); }
@@ -289,7 +295,7 @@ function readBrowserLimits() {
 }
 function clipAllocationOptions() {
   return { maxTiles: Number($("#maxTiles").value), detect: $("#detectOn").checked, modelSize: $("#detectOn").checked ? curModel()?.imgsz || 1024 : 0,
-    geotiff: $("#tifOn").checked, limits: readBrowserLimits() };
+    bounded: true, png: $("#pngOn").checked, geotiff: $("#tifOn").checked, limits: readBrowserLimits() };
 }
 function renderAllocationPreflight() {
   const output = $("#allocationPreflight");
@@ -302,8 +308,9 @@ function renderAllocationPreflight() {
     return plans.every(({ plan }) => plan.allowed);
   } catch (error) { output.textContent = error.message; return false; }
 }
-for (const id of ["rasterMP", "rasterSide", "rasterMemory", "zoom", "maxTiles", "detectOn", "tifOn"]) $("#" + id).onchange = () => {
+for (const id of ["rasterMP", "rasterSide", "rasterMemory", "zoom", "maxTiles", "detectOn", "tifOn", "pngOn"]) $("#" + id).onchange = () => {
   try { browserLimits = readBrowserLimits(); store.set("rasterLimits", browserLimits); } catch {}
+  store.set("nativePNG", $("#pngOn").checked);
   updateRunSelection();
 };
 function renderRunAois() {
@@ -682,7 +689,7 @@ async function enqueueBrowser(mode, aois) {
   catch (error) { renderAllocationPreflight(); return toast(error.message, 6500); }
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
     model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: allocationOptions.maxTiles,
-    geotiff: $("#tifOn").checked, model_names: m?.names?.slice(), allocationLimits: { ...allocationOptions.limits } };
+    bounded: true, maskPolicy: "preserve-small-canvas/area-v1", png: $("#pngOn").checked, geotiff: $("#tifOn").checked, model_names: m?.names?.slice(), allocationLimits: { ...allocationOptions.limits } };
   const releaseSource = JSON.parse(JSON.stringify(S.releases));
   if (mode === "selected" && !releaseSource.some(release => params.releases.includes(release.release))) return toast("The selected dates are unavailable. Check Wayback and select a release.");
   const fingerprint = JSON.stringify({ params, aois, releaseSource: mode === "latest" ? releaseSource.slice(0, 1) : releaseSource });
@@ -752,11 +759,18 @@ async function runBrowser(job) {
       try {
         const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
           maxTiles: params.maxTiles, geotiff: params.geotiff, limits: params.allocationLimits,
+          bounded: params.bounded !== false, png: params.png !== false, store: durable ? DB : null, jobId: job.id, clipId: job.plan[i].clipId,
+          onWaiting: () => jlog(job, "    Waiting for browser image/export resources to be released…"),
           onEstimate: estimate => { outcome.allocation = estimate; outcome.zoom = estimate.zoom;
             jlog(job, `    Budget: z${estimate.requestedZoom}${estimate.zoomReduced ? " → z" + estimate.zoom : ""} · ${estimate.width}×${estimate.height} px · ${estimate.tiles} tiles · estimated ${(estimate.estimatedBytes / 1048576).toFixed(1)} MiB`); },
           onCoverage: coverage => { outcome.zoom = coverage.zoom; outcome.coverage = coverage;
             jlog(job, `    Coverage z${coverage.zoom}: ${coverage.available}/${coverage.total} tiles available, ${coverage.unavailable} unavailable, ${coverage.unknown} unknown · ${coverage.checks} check(s) · ${(coverage.ms / 1000).toFixed(1)}s`); },
           onProgress: f => { job.progress = base + step * f; updateJobProgress(job); } });
+        if (signal.aborted) {
+          const spool = r.artifactSpool || Object.values(r.blobs || {}).find(value => value?.gmdArtifact)?.spool;
+          if (spool) await window.GVStreaming?.discardArtifact(spool, durable ? DB : null);
+          E.operations.check(signal);
+        }
         r.storeId = job.plan[i].clipId; r.order = i; r.persisted = false;
         job.results.push(r);
         Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
@@ -773,6 +787,7 @@ async function runBrowser(job) {
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
       } catch (error) {
+        if (error.name === "QuotaExceededError") { storageError = error; queuePaused = true; }
         if (storageError) throw error;
         if (error.name === "AbortError" || signal.aborted) throw error;
         Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
@@ -801,21 +816,34 @@ async function runServer(mode, aois) {
   const body = { aois: { type: "FeatureCollection", features: aois }, release_mode: mode, releases: [...S.selRel],
     zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value, model: $("#model").value, detect: $("#detectOn").checked };
   const base = S.api; selectedBrowserJobId = null; $("#cancelBtn").hidden = true;
+  await stopPoll(serverPoll); const owner = E.operations.open("Server job", { timeoutMs: 1800000 }); serverPoll = owner;
   setServerRunning(true);
-  try { S.jobId = (await postJSON("/api/jobs", body)).job_id; store.set("job", S.jobId); pollJob(S.jobId, base); }
-  catch (e) { toast(e.message); setServerRunning(false); }
+  try { owner.pending = postJSON("/api/jobs", body, owner.signal); const response = await owner.pending; owner.check(); S.jobId = response.job_id; store.set("job", S.jobId); pollJob(S.jobId, base, owner); }
+  catch (e) { if (serverPoll === owner) { serverPoll = null; if (pageActive) toast(e.message); setServerRunning(false); } owner.close(); }
 }
-async function pollJob(id, base) {
-  try {
-    const j = await (await fetch(base + "/api/jobs/" + id)).json();
+async function stopPoll(owner) { if (!owner) return; owner.abort(); clearTimeout(owner.timer); try { await owner.pending; } finally { owner.close(); } }
+function pollJob(id, base, owner = E.operations.open("Server job", { timeoutMs: 1800000 })) {
+  serverPoll = owner; owner.jobId = id; owner.base = base; let failures = 0;
+  const tick = async () => {
+    try {
+      const j = await E.requestJSON(base + "/api/jobs/" + encodeURIComponent(id), { signal: owner.signal });
+      owner.check(); if (!pageActive || serverPoll !== owner) return;
+      failures = 0;
     if (!selectedBrowserJobId) {
       $("#prog").style.width = (j.progress * 100).toFixed(1) + "%";
       logEl.textContent = j.log.join("\n") || j.status; logEl.scrollTop = logEl.scrollHeight;
     }
-    if (j.status === "running" || j.status === "queued") return setTimeout(() => pollJob(id, base), 1500);
-    setServerRunning(false);
-    if (j.status === "done") { toast("Job finished"); showTab("res"); }
-  } catch { setTimeout(() => pollJob(id, base), 3000); }
+      if (j.status === "running" || j.status === "queued") { owner.timer = setTimeout(() => { owner.pending = tick(); }, 1500); return; }
+      serverPoll = null; owner.close(); setServerRunning(false);
+      if (j.status === "done") { toast("Job finished"); showTab("res"); }
+    } catch (error) {
+      if (owner.signal.aborted) { if (serverPoll === owner) { serverPoll = null; owner.close(); setServerRunning(false); if (owner.timedOut && pageActive) toast("Server status polling timed out. Check Results."); } return; }
+      if (!pageActive || serverPoll !== owner) return;
+      if (++failures >= 5) { serverPoll = null; owner.close(); setServerRunning(false); toast("Server status could not be refreshed. The server job may still be running; check Results.", 6000); }
+      else owner.timer = setTimeout(() => { owner.pending = tick(); }, 3000);
+    }
+  };
+  owner.pending = tick(); return owner.pending;
 }
 
 // ---------------------------------------------------------------- results
@@ -924,7 +952,7 @@ async function refreshCompareCatalog() {
 }
 async function comparisonAsset(record, signal) {
   let fc, blob;
-  if (record.browser) { const result = await readClip(record.source, { draft: false, images: true }); fc = result.fc; blob = result.blobs.png; }
+  if (record.browser) { const result = await readClip(record.source, { draft: false, images: true }); fc = result.fc; blob = result.blobs.display || result.blobs.png; }
   else {
     const base = outputBase(record.job, record.path);
     fc = await E.requestJSON(base + "detections.geojson", { signal });
@@ -1109,8 +1137,9 @@ function renderClipImage() {
   const view = clipView, r = view?.clip;
   if (!view?.ready || !r || !currentView(view) || !$("#showImg").checked) { releaseClipImage(view); return; }
   if (view.image) return;
-  if (r.browser && !r.blobs?.png) return;
-  if (r.browser) { view.url = URL.createObjectURL(r.blobs.png); viewMetrics.imageURLsCreated++; }
+  const imageBlob = r.blobs?.display || r.blobs?.png;
+  if (r.browser && (!imageBlob || imageBlob.gmdArtifact)) return;
+  if (r.browser) { view.url = URL.createObjectURL(imageBlob); viewMetrics.imageURLsCreated++; }
   const src = view.url || view.serverBase + `/outputs/${r.job}/${r.path}/image.png`;
   const image = view.image = L.imageOverlay(src, clipBounds(r));
   image.on("error", () => {
@@ -1369,48 +1398,181 @@ async function loadAnnStats() {
     || `<tr><td colspan="3" class="muted">No saved annotations. Review objects in Annotate and press Save.</td></tr>`;
 }
 $("#annReload").onclick = loadAnnStats;
-$("#dsBtn").onclick = async () => {
+async function runDataset(toFile = false) {
   if (datasetExportRunning || activeBrowserJob) return toast("Wait for the current browser processing operation to finish before exporting a dataset.");
   datasetExportRunning = true; renderBrowserQueue();
+  const task = datasetOperation = auxiliaryTask(), signal = task.controller.signal; let destination;
   const btn = $("#dsBtn"); btn.disabled = true; btn.textContent = "Building dataset…";
+  $("#cancelDataset").hidden = false;
   try {
-    const limits = readBrowserLimits();
-    const { blob, chips, classes } = await E.exportDataset(await getAnnotations(), { limits, onProgress: f => $("#dsProg").style.width = (f * 100).toFixed(0) + "%" });
+    const name = `geovision_dataset_${new Date().toISOString().slice(0, 10)}.zip`;
+    destination = toFile ? await chooseOutput(name, signal) : undefined;
+    const limits = readBrowserLimits(), annotations = await getAnnotations({ signal }); E.operations.check(signal);
+    const { blob, chips, classes } = await E.exportDataset(annotations, { name, destination, limits, signal, streaming: true, store: durable ? DB : null,
+      onProgress: f => { if (!signal.aborted) $("#dsProg").style.width = (f * 100).toFixed(0) + "%"; } });
+    E.operations.check(signal);
     store.set("dsClasses", classes);
-    saveBlob(`geovision_dataset_${new Date().toISOString().slice(0, 10)}.zip`, blob);
+    await presentOutput(blob, name, signal);
     toast(`${chips} chips · ${classes.length} classes`);
-  } catch (e) { toast(e.message, 4000); }
+  } catch (e) { if (pageActive) toast(e.name === "AbortError" ? "Dataset export cancelled. Saved reviews are kept." : e.message, 5000); }
   finally {
+    await destination?.abort(); datasetOperation = null; task.finish(); $("#cancelDataset").hidden = true;
     datasetExportRunning = false; btn.disabled = false; btn.textContent = "Download training dataset";
     renderBrowserQueue(); drainBrowserQueue();
   }
-};
+}
+$("#dsBtn").onclick = () => runDataset();
+$("#dsSave").onclick = () => runDataset(true);
+$("#dsSave").hidden = typeof window.showSaveFilePicker !== "function";
+$("#cancelDataset").onclick = () => datasetOperation?.controller.abort();
 $("#trainBtn").onclick = async () => {
   if (!isServer()) return toast("Connect a server in Export → Processing");
+  await stopPoll(trainingPoll); const owner = E.operations.open("Server training status", { timeoutMs: 12 * 3600000 }); trainingPoll = owner;
   const body = { base_model: $("#baseModel").value, epochs: +$("#epochs").value, batch: +$("#batch").value, name: $("#mName").value.trim(), zoom: +$("#zoom").value };
-  const { train_id } = await postJSON("/api/train", body);
-  $("#trainBtn").disabled = true;
-  const poll = async () => { const j = await (await fetch(api("/api/train/" + train_id))).json(); $("#trainLog").textContent = j.log.join("\n");
-    if (j.status === "running") setTimeout(poll, 3000); else { $("#trainBtn").disabled = false; loadModels(); toast(j.status === "done" ? "Training finished" : "Training failed"); } };
-  poll();
+  try {
+    owner.pending = postJSON("/api/train", body, owner.signal); const { train_id } = await owner.pending, base = S.api; owner.check();
+    $("#trainBtn").disabled = true; let failures = 0;
+    const poll = async () => {
+      try {
+        const j = await E.requestJSON(base + "/api/train/" + encodeURIComponent(train_id), { signal: owner.signal });
+        owner.check(); if (!pageActive || trainingPoll !== owner) return; failures = 0; $("#trainLog").textContent = j.log.join("\n");
+        if (j.status === "running" || j.status === "queued") owner.timer = setTimeout(() => { owner.pending = poll(); }, 3000);
+        else { trainingPoll = null; owner.close(); $("#trainBtn").disabled = false; loadModels(); toast(j.status === "done" ? "Training finished" : "Training failed"); }
+      } catch (error) {
+        if (owner.signal.aborted) { if (trainingPoll === owner) { trainingPoll = null; owner.close(); $("#trainBtn").disabled = false; if (owner.timedOut && pageActive) toast("Training status polling timed out; server training may continue."); } return; }
+        if (!pageActive || trainingPoll !== owner) return;
+        if (++failures >= 5) { trainingPoll = null; owner.close(); $("#trainBtn").disabled = false; toast("Training status is unavailable. Server training may still continue.", 5000); }
+        else owner.timer = setTimeout(() => { owner.pending = poll(); }, 3000);
+      }
+    };
+    owner.pending = poll();
+  } catch (error) { owner.close(); if (trainingPoll === owner) { trainingPoll = null; $("#trainBtn").disabled = false; if (pageActive) toast(error.message); } }
 };
 
 // ---------------------------------------------------------------- export
-$("#expZip").onclick = async () => {
+function auxiliaryTask() {
+  const controller = new AbortController(); let finish;
+  const finished = new Promise(resolve => { finish = resolve; }); return { controller, finished, finish };
+}
+async function chooseOutput(name, signal) {
+  const handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }] });
+  E.operations.check(signal); const destination = await handle.createWritable(); let closed = false;
+  const owned = { write: data => destination.write(data), close: async () => { await destination.close(); closed = true; },
+    abort: async () => { if (closed) return; closed = true; try { await destination.abort(); } catch {} } };
+  if (signal.aborted) { await owned.abort(); E.operations.check(signal); } return owned;
+}
+async function clearExportParts() {
+  const previous = exportParts; exportParts = null; $("#exportParts").hidden = true; $("#exportPartList").innerHTML = "";
+  if (!previous) return;
+  previous.controller.abort(); await Promise.allSettled([...previous.reads]);
+  await window.GVStreaming?.discardArtifact(previous.spool, DB);
+}
+let partDownloads = 0;
+async function presentOutput(output, name, signal) {
+  E.operations.check(signal);
+  if (output?.saved) return toast("File saved");
+  if (!output?.parts) return saveBlob(name, output);
+  await clearExportParts();
+  E.operations.check(signal);
+  const bundle = exportParts = { ...output, controller: new AbortController(), reads: new Set() };
+  $("#exportParts").hidden = false;
+  $("#exportPartsHint").textContent = `${output.parts.length} parts for ${output.name}. Download all parts, the manifest and combine script to one folder; run python3 combine.py. Extract the combined ZIP normally. Temporary parts stay on this device until dismissed or this page closes.`;
+  $("#exportPartList").innerHTML = output.parts.map((part, i) => `<button class="btn wide" data-export-part="${i}">${esc(part.name)} · ${(part.size / 1048576).toFixed(1)} MiB</button>`).join("");
+  $("#exportPartList").querySelectorAll("[data-export-part]").forEach(button => button.onclick = async () => {
+    if (exportParts !== bundle || partDownloads >= 2) return toast("Wait for the current part downloads to finish, then retry.");
+    partDownloads++; button.disabled = true; let lease, handed = false, held = true;
+    const release = () => { if (held) { held = false; lease?.release(); partDownloads--; } };
+    const running = (async () => {
+      try {
+        const part = bundle.parts[+button.dataset.exportPart];
+        lease = await E.exportPart(part, { store: DB, limits: readBrowserLimits(), signal: bundle.controller.signal, retainLease: true });
+        E.operations.check(bundle.controller.signal); if (exportParts !== bundle) return;
+        saveBlob(part.name, lease.blob, release); handed = true;
+      } catch (error) { if (error.name !== "AbortError") toast(error.message, 5000); }
+      finally { if (!handed) release(); button.disabled = false; }
+    })();
+    bundle.reads.add(running); try { await running; } finally { bundle.reads.delete(running); }
+  });
+  toast("Download parts, manifest and combine script in Export", 6000);
+}
+$("#exportDismiss").onclick = () => clearExportParts().catch(error => toast(error.message));
+$("#exportManifest").onclick = () => {
+  if (!exportParts) return;
+  download(exportParts.name + ".parts.json", JSON.stringify({ name: exportParts.name, size: exportParts.bytes,
+    parts: exportParts.parts.map(({ name, size, crc32 }) => ({ name, size, crc32 })) }, null, 2), "application/json");
+};
+const combineScript = `# Download this script, the .parts.json manifest and every numbered part into one folder.
+import json, pathlib, sys, zipfile, zlib
+folder = pathlib.Path(__file__).resolve().parent
+manifests = list(folder.glob('*.parts.json'))
+manifest = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else manifests[0] if len(manifests) == 1 else None
+if manifest is None: raise SystemExit('Usage: python3 combine.py job.zip.parts.json')
+meta = json.loads(manifest.read_text())
+def local(name):
+    if pathlib.Path(name).name != name: raise ValueError('Manifest contains a non-local filename')
+    return manifest.parent / name
+target = local(meta['name'])
+if target.exists(): raise SystemExit('Output already exists: ' + str(target))
+partial = target.with_name(target.name + '.partial')
+created = False
+try:
+    total = 0
+    with partial.open('xb') as output:
+        created = True
+        for part in meta['parts']:
+            source = local(part['name'])
+            if source.stat().st_size != part['size']: raise ValueError('Wrong part size: ' + source.name)
+            crc = 0
+            with source.open('rb') as handle:
+                while True:
+                    chunk = handle.read(1024 * 1024)
+                    if not chunk: break
+                    output.write(chunk); total += len(chunk); crc = zlib.crc32(chunk, crc)
+            if crc != part['crc32']: raise ValueError('Wrong part checksum: ' + source.name)
+    if total != meta['size']: raise ValueError('Combined byte count does not match')
+    if target.suffix.lower() == '.zip':
+        with zipfile.ZipFile(partial) as archive:
+            if archive.testzip() is not None: raise ValueError('ZIP checksum failed')
+    if target.exists(): raise FileExistsError('Output appeared while combining; preserved both files')
+    partial.rename(target)
+except BaseException:
+    if created: partial.unlink(missing_ok=True)
+    raise
+print('Created', target)
+`;
+$("#exportCombine").onclick = () => download("combine.py", combineScript, "text/x-python");
+async function runJobExport({ toFile = false, clipOnly = false } = {}) {
   const id = $("#jobSel").value || S.jobId;
   if (!id) return toast("Run a job first");
   if (BJOBS[id]) {
+    if (exportOperation) return toast("Wait for the current export or cancel it first");
+    const clipId = clipOnly ? S.clip?.storeId : undefined;
+    if (clipOnly && (!clipId || S.clip.job !== id)) return toast("Open a completed clip from this job first");
+    const task = exportOperation = auxiliaryTask(), signal = task.controller.signal; let destination;
     const btn = $("#expZip"); btn.disabled = true;
+    $("#cancelExport").hidden = false;
     BJOBS[id].exporting = true;
     try {
+      const name = `geovision_${id}${clipOnly ? "_clip" : ""}.zip`; destination = toFile ? await chooseOutput(name, signal) : undefined;
+      E.operations.check(signal);
       finishEdit(); saveDraft();
-      const blob = await E.exportJobZip(BJOBS[id], { limits: readBrowserLimits(), readResult: r => readClip(r, { images: true }), onProgress: m => btn.textContent = `Zipping… ${m.percent.toFixed(0)}%` });
-      saveBlob(`geovision_${id}.zip`, blob); BJOBS[id].exported = true;
-    } catch (e) { toast(e.message); }
-    if (BJOBS[id]) BJOBS[id].exporting = false;
-    btn.disabled = false; btn.textContent = "Download job zip";
+      const output = await E.exportJobZip(BJOBS[id], { name, destination, clipId, signal, streaming: true, store: durable ? DB : null,
+        limits: readBrowserLimits(), readResult: r => readClip(r, { images: true }), onProgress: m => { if (!signal.aborted) btn.textContent = `Zipping… ${m.percent.toFixed(0)}%`; } });
+      E.operations.check(signal); await presentOutput(output, name, signal);
+      if (BJOBS[id] && !clipOnly && !output?.parts) BJOBS[id].exported = true;
+    } catch (e) { if (pageActive) toast(e.name === "AbortError" ? "Export cancelled. Completed results are kept." : e.message, 5000); }
+    finally {
+      await destination?.abort();
+      if (BJOBS[id]) BJOBS[id].exporting = false; exportOperation = null; task.finish();
+      btn.disabled = false; btn.textContent = "Download job zip"; $("#cancelExport").hidden = true;
+    }
   } else if (S.online) window.location.href = api(`/api/jobs/${id}/export`);
-};
+}
+$("#expZip").onclick = () => runJobExport();
+$("#expSave").onclick = () => runJobExport({ toFile: true });
+$("#expClip").onclick = () => runJobExport({ clipOnly: true });
+$("#cancelExport").onclick = () => exportOperation?.controller.abort();
+$("#expSave").hidden = typeof window.showSaveFilePicker !== "function";
 $("#expAoi").onclick = () => download("aois.geojson", JSON.stringify({ type: "FeatureCollection", features: S.aois }, null, 1));
 $("#expDet").onclick = async () => {
   if (S.annFC) return download(`detections_${S.clip ? S.clip.aoi_id + "_" + S.clip.date : "live"}.geojson`, JSON.stringify(S.annFC));
@@ -1418,13 +1580,17 @@ $("#expDet").onclick = async () => {
   download("annotations.geojson", JSON.stringify(a));
 };
 $("#expCsv").onclick = async () => {
-  const id = $("#jobSel").value || S.jobId, feats = [];
-  if (BJOBS[id]) { for (const r of BJOBS[id].results) feats.push(...(await readClip(r, { images: false, draft: false })).fc.features); }
-  else if (S.annFC) feats.push(...S.annFC.features);
-  if (!feats.length) return toast("Run a job or open a clip first");
-  const cols = ["id","aoi_name","imagery_date","release","class","status","confidence","length_m","width_m","heading_deg","lon","lat"];
-  const rows = feats.map(f => { const p = f.properties, c = p.centroid || [0, 0]; return cols.map(k => k === "id" ? f.id : k === "lon" ? c[0] : k === "lat" ? c[1] : (p[k] ?? "")).map(v => /[,"]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(","); });
-  download("detections.csv", [cols.join(","), ...rows].join("\n"), "text/csv");
+  if (exportOperation) return toast("Wait for the current export or cancel it first");
+  const id = $("#jobSel").value || S.jobId, job = BJOBS[id] || (S.annFC ? { results: [{ fc: S.annFC }] } : null);
+  if (!job) return toast("Run a job or open a clip first");
+  const task = exportOperation = auxiliaryTask(), signal = task.controller.signal; $("#cancelExport").hidden = false;
+  if (BJOBS[id]) BJOBS[id].exporting = true;
+  try {
+    const output = await E.exportCSV(job, { name: "detections.csv", signal, store: durable ? DB : null, limits: readBrowserLimits(),
+      readResult: BJOBS[id] ? r => readClip(r, { images: false, draft: false }) : undefined });
+    E.operations.check(signal); await presentOutput(output, "detections.csv", signal);
+  } catch (error) { if (pageActive) toast(error.name === "AbortError" ? "Export cancelled" : error.message, 5000); }
+  finally { if (BJOBS[id]) BJOBS[id].exporting = false; exportOperation = null; task.finish(); $("#cancelExport").hidden = true; }
 };
 
 // ---------------------------------------------------------------- boot
@@ -1492,6 +1658,10 @@ $("#deleteJob").onclick = async () => {
       }
       storageError = null; await flushWrites();
     } else await persistWrite(() => DB.deleteJob(id), id);
+    if (!durable && window.GVStreaming) {
+      const spools = new Set(job.results.flatMap(r => Object.values(r.blobs || {}).filter(value => value?.gmdArtifact).map(value => value.spool)));
+      for (const spool of spools) await window.GVStreaming.discardArtifact(spool);
+    }
     if (clipView?.clip?.job === id) { disposeClipView({ preserveDraft: false }); dirty = false; }
     for (const [key, entry] of draftCache) if (entry.job === id) draftCache.delete(key);
     if (comparing()) exitComparison();
@@ -1502,6 +1672,10 @@ $("#deleteJob").onclick = async () => {
 };
 window.addEventListener("pagehide", () => {
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
+  for (const record of [...downloadURLs.values()]) record.release();
+  datasetOperation?.controller.abort(); exportOperation?.controller.abort();
+  const auxiliary = Promise.allSettled([datasetOperation?.finished, exportOperation?.finished, clearExportParts(), stopPoll(serverPoll), stopPoll(trainingPoll)]);
+  serverPoll = trainingPoll = null; setServerRunning(false); $("#trainBtn").disabled = false;
   const previous = clipView?.ready ? { clip: S.clip, scope: clipView.scope } : null;
   if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
   disposeClipView(); suspendedClip = previous;
@@ -1513,17 +1687,19 @@ window.addEventListener("pagehide", () => {
     // records already suffice for recovery; no final unload write is required.
     const runtime = activeBrowserJob?.runtimeFinished;
     storageShutdown = storageShutdown.then(async () => {
-      await runtime;
+      await runtime; await auxiliary;
       await flushWrites(); await DB.close();
     });
   } else {
     for (const job of [...browserQueue]) cancelBrowserJob(job.id, "Page closed or suspended");
     if (activeBrowserJob) cancelBrowserJob(activeBrowserJob.id, "Page closed or suspended");
+    storageShutdown = storageShutdown.then(() => auxiliary);
   }
 });
 window.addEventListener("pageshow", async event => {
   if (!event.persisted) return;
   pageActive = true; loadReleases();
+  if (S.online && S.jobId && !BJOBS[S.jobId]) { setServerRunning(true); pollJob(S.jobId, S.api); }
   if (durable) {
     persistenceReady = false; renderStorage(); updateRunSelection();
     await storageShutdown;
@@ -1547,5 +1723,7 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   drafts: { retained: draftCache.size, dirty: [...draftCache.values()].filter(entry => entry.dirty).length },
   rowPayloads: RES.filter(row => row.blobs || row.fc || row.draftFC).length,
   comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
+  auxiliary: { dataset: Boolean(datasetOperation), export: Boolean(exportOperation), parts: exportParts?.parts.length || 0,
+    partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   downloadLeases: downloadURLs.size }) };
 })();

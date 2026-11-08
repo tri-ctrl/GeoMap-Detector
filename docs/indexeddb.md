@@ -2,7 +2,7 @@
 
 The portal now saves browser AOIs, detection jobs, queues, clip results, review
 drafts, saved training reviews, native image artifacts and imported model sources
-in IndexedDB. The database is `geomap-detector`, schema version **1**.
+in IndexedDB. The database is `geomap-detector`, schema version **2**.
 GitHub Pages remains a static host. Data belongs to this browser profile and
 origin; another device, profile or origin has a separate workspace.
 
@@ -22,7 +22,7 @@ data removes IndexedDB; browser-managed storage is not an external backup.
 | `queue` | Job ID, creation order and recoverable state | One browser execution slot; terminal jobs leave the queue |
 | `results` | Job/clip/AOI identity, bounds, native dimensions, counts, coverage and output metadata | Indexed by job/AOI; no imagery or feature payloads in catalog reads |
 | `predictions` | Immutable original FeatureCollection for one clip | Read by exact clip ID for viewing, comparison and export |
-| `artifacts` | Clip/job/kind and native PNG, TIFF, preview Blob or world-file text | Queried by clip ID; deleting a job removes its artifacts |
+| `artifacts` | Clip/job/kind and legacy Blobs, native PNG/TIFF chunk descriptors, bounded display/preview Blobs or world-file text; staging/chunk records use the same store | Queried by clip ID; chunks read individually; deleting a job removes its artifacts/chunks |
 | `drafts` | Editable FeatureCollection scoped to a clip, server clip, or `live` | Autosaved after review/class/delete/manual/finished geometry actions; distinct from raw predictions |
 | `reviews` | Explicitly saved reviewed features, scope, job/AOI provenance and external Feature IDs | Indexed by scope/job/AOI; training/export queries collect saved reviews; job deletion keeps them |
 | `models` / `weights` | Model metadata and recoverable imported ONNX Blob, keyed by durable import UUID | Metadata restores without reading weights; bytes load when a custom job runs; job deletion keeps user model sources |
@@ -60,6 +60,14 @@ Diagnostics report these direct row payload counts separately from job/draft
 ownership; they are not byte totals.
 
 ## Commit, migration and recovery contract
+
+Version 2 adds chunked artifact capabilities without rewriting version-1 data or
+changing existing stores/indexes. Older clients cannot open the newer database;
+existing tabs close on versionchange. Descriptors and owner-checked staging
+manifests commit with each clip. Interrupted staging is swept on first processing
+use, preserving committed artifacts; startup still hydrates no artifacts. Raw
+blocks/export parts are temporary. See [bounded processing](./bounded-processing.md)
+for format limits, chunk ownership, quota recovery and output-part reassembly.
 
 1. Submission saves the recoverable model source and frozen job/queue record
    before entering inference. Waiting jobs create no raster or ORT session.
@@ -143,9 +151,9 @@ to a static page.
   hashes and the limits of its measurements. Tiny-fixture commit/startup timings
   are diagnostics, not a production performance baseline or leak benchmark.
 
-GMD-009 still needs byte-budgeted caches and a smaller unannotated display image;
-GMD-010 still needs bounded ORT sessions; GMD-015 still needs bounded export
-writers (JSZip retains archive inputs); GMD-016 still needs the broader prediction
+GMD-006/015 now deliver bounded unannotated display images and chunked export
+writers, with legacy JSZip APIs retained for compatibility. GMD-009 still needs
+byte-budgeted caches; GMD-010 still needs bounded ORT sessions; GMD-016 still needs the broader prediction
 identity/legacy-resolution/backend contract. Large migrations and exports can
 produce temporary memory spikes. GMD-021 should measure repeated real DXB jobs,
 opening/closing/comparing/deleting clips, quota pressure and smaller devices,

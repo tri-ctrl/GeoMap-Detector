@@ -26,6 +26,7 @@ const libraries = {
   ort: { url: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js", ready: () => global.ort?.InferenceSession },
   fflate: { url: "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js", ready: () => global.fflate?.zlibSync },
   zip: { url: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", ready: () => global.JSZip },
+  streaming: { url: "streaming.js", ready: () => global.GVStreaming },
   shp: { url: "https://unpkg.com/shpjs@4.0.4/dist/shp.js", ready: () => global.shp },
   kml: { url: "https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js", ready: () => global.toGeoJSON },
 };
@@ -40,7 +41,8 @@ function configureOrt() {
   ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
   if (!global.crossOriginIsolated) ort.env.wasm.numThreads = 1;
 }
-function ensureLibrary(name) {
+function ensureLibrary(name, options) {
+  if (options?.signal) { if (options.signal.aborted) return Promise.reject(new DOMException("Cancelled", "AbortError")); return ownedRead(ensureLibrary(name), options.signal); }
   const library = libraries[name];
   if (!library) return Promise.reject(new Error("Unknown library: " + name));
   if (library.ready()) { if (name === "ort") configureOrt(); return Promise.resolve(); }
@@ -74,18 +76,62 @@ function ensureLibrary(name) {
 
 // Request owns its timeout and abort listener. A cancelled metadata lookup must
 // not continue walking releases or publish partially successful results.
+const activeOperations = new Map(); let operationSequence = 0;
+const lifecycleStats = { created: 0, closed: 0, timedOut: 0, pendingReads: 0, requests: 0, tileAttempts: 0, cacheWrites: 0, inference: 0, bitmaps: 0, tensors: 0 };
+function operation(label, { signal, timeoutMs = 0 } = {}) {
+  const controller = new AbortController(), id = ++operationSequence;
+  let expired = false, closed = false;
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
+  const timer = timeoutMs ? global.setTimeout?.(() => { expired = true; lifecycleStats.timedOut++; abort(); }, timeoutMs) : null;
+  const owner = { id, label, signal: controller.signal, abort, get timedOut() { return expired; },
+    check() {
+      if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (expired) throw Object.assign(new Error(`${label} timed out. Retry this operation.`), { name: "TimeoutError", code: "OPERATION_TIMEOUT" });
+      if (closed || controller.signal.aborted) throw new DOMException("Cancelled", "AbortError");
+    },
+    close() { if (closed) return; closed = true; if (timer != null) global.clearTimeout?.(timer); signal?.removeEventListener("abort", abort); controller.abort(); activeOperations.delete(id); lifecycleStats.closed++; } };
+  activeOperations.set(id, owner); lifecycleStats.created++; return owner;
+}
+function ownedRead(promise, signal) {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => { if (settled) return; settled = true; lifecycleStats.pendingReads--; signal.removeEventListener("abort", abort); fn(value); };
+    const abort = () => finish(reject, new DOMException("Cancelled", "AbortError"));
+    lifecycleStats.pendingReads++;
+    if (signal.aborted) abort(); else signal.addEventListener("abort", abort, { once: true });
+    Promise.resolve(promise).then(value => finish(resolve, value), error => finish(reject, error));
+  });
+}
+async function yieldTask(signal) { checkAbort(signal); if (global.scheduler?.yield) await global.scheduler.yield(); else await new Promise(resolve => global.setTimeout ? global.setTimeout(resolve, 0) : resolve()); checkAbort(signal); }
+async function cleanupOwned(failure, actions) {
+  const errors = [];
+  for (const action of actions) { try { await action(); } catch (error) { errors.push(error); lifecycleStats.cleanupFailures = (lifecycleStats.cleanupFailures || 0) + 1; } }
+  if (errors.length) { if (failure) failure.cleanupErrors = errors.map(error => error.message); else throw errors[0]; }
+}
 async function requestJSON(url, options = {}) {
   const { signal, timeoutMs = 20000, ...init } = options, controller = new AbortController();
+  checkAbort(signal); lifecycleStats.requests++;
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort(); else signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(abort, timeoutMs);
+  let expired = false;
+  const timer = setTimeout(() => { expired = true; abort(); }, timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
-    if (!response.ok) throw new Error(`Request failed (HTTP ${response.status}): ${url}`);
+    if (!response.ok) {
+      const detail = typeof response.json === "function" ? await response.json().catch(() => null) : null;
+      throw new Error(`Request failed (HTTP ${response.status}): ${url}${typeof detail?.detail === "string" ? ": " + detail.detail : ""}`);
+    }
     const json = await response.json();
-    if (controller.signal.aborted) throw new DOMException("Request cancelled or timed out", "AbortError");
+    checkAbort(signal);
+    if (expired) throw Object.assign(new Error(`Request timed out: ${url}`), { name: "TimeoutError", code: "REQUEST_TIMEOUT" });
     return json;
-  } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+  } catch (error) {
+    checkAbort(signal);
+    if (expired) throw Object.assign(new Error(`Request timed out: ${url}`), { name: "TimeoutError", code: "REQUEST_TIMEOUT" });
+    throw error;
+  } finally { lifecycleStats.requests--; clearTimeout(timer); signal?.removeEventListener("abort", abort); }
 }
 
 // ------------------------------------------------------------------ geo math
@@ -131,6 +177,8 @@ function pointInRings(rings, x, y) {          // even-odd over all rings (holes 
 const DEFAULT_LIMITS = Object.freeze({ maxPixels: 32000000, maxDimension: 8192, maxEstimatedBytes: 512 * 1024 * 1024 });
 let allocationDefaults = { ...DEFAULT_LIMITS }, allocationSequence = 0;
 const allocationLeases = new Map(), canvasOwners = new WeakMap();
+const allocationWaiters = new Set();
+const allocationChanged = () => { for (const wake of [...allocationWaiters]) wake(); };
 const allocationStats = { rejected: 0, canvasesCreated: 0, canvasesReleased: 0, liveCanvasBytes: 0, peakCanvasBytes: 0, peakReservedBytes: 0 };
 class AllocationError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = "AllocationError"; this.code = code; Object.assign(this, details); }
@@ -149,28 +197,45 @@ function dimensions(width, height, limits = limitsFor(), label = "Canvas") {
     throw new AllocationError("RASTER_LIMIT", `${label} ${width}×${height} px exceeds the ${limits.maxDimension} px side or ${(limits.maxPixels / 1e6).toFixed(2)} MP limit. Use a smaller AOI at the same zoom, or adjust Browser limits.`, { width, height, limits });
   return width * height * 4;
 }
-function reserveAllocation(label, estimatedBytes, values, processing = false) {
+function reserveAllocation(label, estimatedBytes, values, processing = false, kind = processing ? "processing" : "helper") {
   const limits = limitsFor(values);
   if (!Number.isSafeInteger(estimatedBytes) || estimatedBytes < 1) throw new AllocationError("INVALID_DIMENSIONS", "Invalid working-buffer estimate.");
   const active = [...allocationLeases.values()], total = active.reduce((sum, lease) => sum + lease.estimatedBytes, 0);
   if (processing && active.some(lease => lease.processing)) {
     allocationStats.rejected++; throw new AllocationError("RESOURCE_BUSY", "Another browser raster/dataset operation is active. Wait for it to finish and retry.");
   }
-  if (!processing && active.filter(lease => !lease.processing).length >= 2) { allocationStats.rejected++; throw new AllocationError("RESOURCE_BUSY", "Two browser image/export helpers are already active. Wait and retry."); }
+  if (kind === "download" && active.filter(lease => lease.kind === "download").length >= 4) throw new AllocationError("RESOURCE_BUSY", "Four downloads are pending. Wait for the browser to consume them, then retry.");
+  if (!processing && kind !== "download" && active.filter(lease => !lease.processing && lease.kind !== "download").length >= 2) { allocationStats.rejected++; throw new AllocationError("RESOURCE_BUSY", "Two browser image/export helpers are already active. Wait and retry."); }
   const cap = Math.min(limits.maxEstimatedBytes, ...active.map(lease => lease.limits.maxEstimatedBytes));
   if (estimatedBytes + total > cap) {
     allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} needs an estimated ${mib(estimatedBytes)}; ${mib(total)} is reserved and the working limit is ${mib(cap)}. Use a smaller AOI at the same zoom, disable GeoTIFF, or adjust Browser limits.`, { estimatedBytes, reservedBytes: total, limits });
   }
-  const lease = { id: ++allocationSequence, label, limits, processing, estimatedBytes, canvases: new Set(), canvasBytes: 0, closed: false,
+  const lease = { id: ++allocationSequence, label, limits, processing, kind, estimatedBytes, canvases: new Set(), canvasBytes: 0, closed: false,
     check(bytes) { if (this.closed) throw new AllocationError("RESOURCE_BUSY", "Allocation owner has already closed."); if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > this.estimatedBytes) { allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} exceeds its reserved working estimate.`, { estimatedBytes: bytes, reservedBytes: this.estimatedBytes }); } },
     resize(bytes) {
       const other = [...allocationLeases.values()].filter(value => value !== this), used = other.reduce((sum, value) => sum + value.estimatedBytes, 0);
       const cap = Math.min(this.limits.maxEstimatedBytes, ...other.map(value => value.limits.maxEstimatedBytes));
       if (this.closed || !Number.isSafeInteger(bytes) || bytes < 1 || bytes < this.canvasBytes || bytes + used > cap) { allocationStats.rejected++; throw new AllocationError("MEMORY_LIMIT", `${label} exceeds the estimated working limit ${mib(cap)}. Export fewer clips or adjust Browser limits.`, { estimatedBytes: bytes, reservedBytes: used, limits: this.limits }); }
       this.estimatedBytes = bytes; allocationStats.peakReservedBytes = Math.max(allocationStats.peakReservedBytes, used + bytes);
+      allocationChanged();
     },
-    release() { if (this.closed) return; for (const canvas of [...this.canvases]) releaseCanvas(canvas); this.closed = true; allocationLeases.delete(this.id); } };
+    release() { if (this.closed) return; for (const canvas of [...this.canvases]) releaseCanvas(canvas); this.closed = true; allocationLeases.delete(this.id); allocationChanged(); } };
   allocationLeases.set(lease.id, lease); allocationStats.peakReservedBytes = Math.max(allocationStats.peakReservedBytes, total + estimatedBytes); return lease;
+}
+async function acquireAllocation(label, bytes, limits, { signal, onWaiting } = {}) {
+  for (;;) {
+    checkAbort(signal);
+    try { return reserveAllocation(label, bytes, limits, true); }
+    catch (error) {
+      if (!["RESOURCE_BUSY", "MEMORY_LIMIT"].includes(error.code) || !allocationLeases.size || bytes > limitsFor(limits).maxEstimatedBytes) throw error;
+      await new Promise((resolve, reject) => {
+        const finish = error => { allocationWaiters.delete(wake); signal?.removeEventListener("abort", abort); error ? reject(error) : resolve(); };
+        const wake = () => finish(), abort = () => finish(new DOMException("Cancelled", "AbortError"));
+        allocationWaiters.add(wake); if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
+        try { onWaiting?.(); } catch (error) { finish(error); }
+      });
+    }
+  }
 }
 function releaseCanvas(canvas) {
   if (!canvas) return;
@@ -311,14 +376,18 @@ async function checkCoverage(release, zoom, extent, { signal } = {}) {
 async function fetchTile(release, z, x, y, signal) {
   const url = TILE_URL(release, z, y, x);
   checkAbort(signal);
-  if (_tileCache === null) _tileCache = ("caches" in global) ? await caches.open("gv-wayback-tiles").catch(() => false) : false;
-  let cached = _tileCache ? await _tileCache.match(url).catch(() => null) : null;
+  if (_tileCache === null) {
+    const cache = ("caches" in global) ? await ownedRead(caches.open("gv-wayback-tiles").catch(() => false), signal) : false;
+    checkAbort(signal); _tileCache = cache;
+  }
+  let cached = _tileCache ? await ownedRead(_tileCache.match(url).catch(() => null), signal) : null;
   checkAbort(signal);
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController(), abort = () => controller.abort();
     let timedOut = false, bitmap, fromCache = Boolean(cached);
     signal?.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { timedOut = true; abort(); }, 10000);
+    lifecycleStats.tileAttempts++;
     try {
       checkAbort(signal);
       const response = cached || await fetch(url, { signal: controller.signal, mode: "cors" });
@@ -332,7 +401,8 @@ async function fetchTile(release, z, x, y, signal) {
       catch { throw new ImageryError("TILE_DECODE", "Imagery response could not be decoded"); }
       checkAbort(signal);
       if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
-      if (copy) _tileCache.put(url, copy).catch(() => {});
+      if (copy) { lifecycleStats.cacheWrites++; try { await _tileCache.put(url, copy).catch(() => {}); } finally { lifecycleStats.cacheWrites--; } checkAbort(signal); }
+      if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
       return { bitmap };
     } catch (error) {
       bitmap?.close(); checkAbort(signal);
@@ -341,7 +411,7 @@ async function fetchTile(release, z, x, y, signal) {
       const retry = fromCache || code === "TILE_TIMEOUT" || code === "TILE_NETWORK" || (code === "TILE_HTTP" && (error.httpStatus >= 500 || [408, 429].includes(error.httpStatus)));
       if (attempt === 0 && retry) continue;
       return { failure: { code, url, httpStatus: error.httpStatus || null } };
-    } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+    } finally { lifecycleStats.tileAttempts--; clearTimeout(timer); signal?.removeEventListener("abort", abort); }
   }
 }
 async function pool(items, n, fn) {
@@ -408,6 +478,27 @@ function estimateRaster(geometry, zoom = 18, options = {}) {
   if (!Number.isSafeInteger(modelSize) || modelSize < 0) throw new AllocationError("INVALID_DIMENSIONS", "Model input size is invalid.");
   const encodedAllowance = Math.ceil(rgbaBytes * 1.02) + 65536, stripBytes = layout.width * Math.min(64, layout.height) * 4;
   const stages = { tiles: rgbaBytes + Math.min(concurrency, layout.tiles) * TILE * TILE * 4 };
+  if (options.bounded) {
+    const singleBlock = !options.forceBlocks && layout.width <= Math.min(2048, limits.maxDimension) && layout.height <= Math.min(2048, limits.maxDimension) && layout.pixels <= limits.maxPixels;
+    const scale = Math.min(1, 2048 / Math.max(layout.width, layout.height), limits.maxDimension / Math.max(layout.width, layout.height), Math.sqrt(limits.maxPixels / layout.pixels));
+    const displayWidth = Math.max(1, Math.round(layout.width * scale)), displayHeight = Math.max(1, Math.round(layout.height * scale));
+    const cacheBytes = Math.max(TILE * TILE * 4, Math.min(16 * 1048576, Math.floor(limits.maxEstimatedBytes / 8)));
+    const candidateBytes = modelSize ? Math.min(32 * 1048576, Math.floor(limits.maxEstimatedBytes / 8)) : 0;
+    const estimatedBytes = Math.ceil(cacheBytes + candidateBytes + Math.min(concurrency, layout.tiles) * TILE * TILE * 16
+      + displayWidth * displayHeight * 12 + modelSize * modelSize * 16 + 8 * 1048576 + layout.tiles * 64);
+    const violations = [];
+    if (layout.tiles > maxTiles) violations.push({ code: "TILE_LIMIT", message: `The AOI still needs ${layout.tiles} tiles at z10, above ${maxTiles}. Split it into smaller AOIs.` });
+    try { dimensions(TILE, TILE, limits, "Acquisition block"); dimensions(displayWidth, displayHeight, limits, "Display preview"); if (modelSize) dimensions(modelSize, modelSize, limits, "Model input"); }
+    catch (error) { violations.push({ code: error.code, message: error.message }); }
+    if (!Number.isSafeInteger(layout.pixels) || layout.pixels < 1 || layout.width * 4 + 1 > 262144 || layout.height > 0x7fffffff)
+      violations.push({ code: "NATIVE_ROW_LIMIT", message: "Native output dimensions exceed the bounded row writer. Split this AOI." });
+    if (!Number.isSafeInteger(estimatedBytes) || estimatedBytes > limits.maxEstimatedBytes)
+      violations.push({ code: "MEMORY_LIMIT", message: `Bounded working buffers need an estimated ${mib(estimatedBytes)}, exceeding ${mib(limits.maxEstimatedBytes)}. Reduce the AOI/preview or adjust Browser limits.` });
+    const spoolBytes = rgbaBytes * (1 + (options.png === false ? 0 : 1.02) + (options.geotiff === false ? 0 : 2.04)) + 1048576;
+    if (spoolBytes > (options.maxSpoolBytes ?? 2 * 1024 ** 3)) violations.push({ code: "SPOOL_LIMIT", message: "The native imagery/output estimate exceeds the 2 GiB temporary-storage policy. Split the AOI or select fewer formats." });
+    return { ...layout, requestedZoom: zoom, zoomReduced: z !== zoom, maxTiles, concurrency, limits, rgbaBytes, estimatedBytes, spoolBytes,
+      bounded: true, blockSide: TILE, singleBlock, maskVersion: singleBlock ? "canvas-v1" : "area-evenodd-v1", displayWidth, displayHeight, cacheBytes, candidateBytes, allowed: !violations.length, violations };
+  }
   if (mode === "clip") {
     stages.inference = rgbaBytes + (modelSize ? inferenceBytes(layout.width, layout.height, modelSize, options.overlap) : 0);
     stages.png = rgbaBytes * 2 + encodedAllowance;
@@ -431,7 +522,7 @@ function requireRaster(plan) {
 /** Mosaic Wayback tiles over the AOI and make everything outside the polygon transparent. */
 async function buildRaster(geom, release, zoom = 18, opt = {}) {
   checkAbort(opt.signal);
-  const plan = requireRaster(estimateRaster(geom, zoom, { ...opt, mode: "raster" }));
+  const plan = requireRaster(estimateRaster(geom, zoom, { ...opt, bounded: false, mode: "raster" }));
   const { zoom: z, res, gx0, gy0, width: w, height: h } = plan;
   const lease = opt.allocation || reserveAllocation("AOI raster", plan.estimatedBytes, plan.limits, true), ownLease = !opt.allocation;
   lease.check(plan.estimatedBytes);
@@ -474,10 +565,15 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
     coverage.status = missing ? "partial" : "full";
     const x0 = -ORIGIN + gx0 * res, y0 = ORIGIN - gy0 * res;
     const rings = polygonsOf(geom).flatMap(p => p.map(ring => ring.map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - x0) / res, (y0 - my) / res]; })));
+    if (opt.maskVersion === "area-evenodd-v1") {
+      await ensureLibrary("streaming", { signal: opt.signal });
+      const pixels = ctx.getImageData(0, 0, w, h); await global.GVStreaming.masker(rings)(pixels.data, 0, 0, w, h, opt.signal); ctx.putImageData(pixels, 0, 0);
+    } else {
     ctx.globalCompositeOperation = "destination-in";
     ctx.beginPath(); rings.forEach(r => { r.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); });
     ctx.fillStyle = "#000"; ctx.fill("evenodd");
     ctx.globalCompositeOperation = "source-over";
+    }
     retained = true;
     return { canvas, w, h, x0, y0, res, zoom: z, requestedZoom: zoom, release, rings, tiles: tiles.length, missing, coverage, allocation: lease,
       release() { releaseCanvas(canvas); if (ownLease) lease.release(); } };
@@ -538,10 +634,36 @@ function mkDet(cls, conf, pts) {
   const poly = ccw(pts), xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
   return { cls, conf, poly, area: Math.abs(area(poly)), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
 }
+async function nmsAsync(dets, thr, useMin, signal) {
+  const keep = [], byCls = {}; let comparisons = 0;
+  dets.forEach(d => (byCls[d.cls] = byCls[d.cls] || []).push(d));
+  for (const group of Object.values(byCls)) {
+    group.sort((a, b) => b.conf - a.conf); const kept = [];
+    for (const d of group) {
+      checkAbort(signal); let ok = true;
+      for (const k of kept) {
+        if (++comparisons % 512 === 0) await yieldTask(signal);
+        if (d.bb[0] > k.bb[2] || k.bb[0] > d.bb[2] || d.bb[1] > k.bb[3] || k.bb[1] > d.bb[3]) continue;
+        const inter = interArea(d.poly, k.poly), den = useMin ? Math.min(d.area, k.area) : d.area + k.area - inter;
+        if (inter / Math.max(den, 1e-9) > thr) { ok = false; break; }
+      }
+      if (ok) kept.push(d);
+    }
+    keep.push(...kept);
+  }
+  checkAbort(signal); return keep;
+}
 
 // ------------------------------------------------------------------ model
 const _sessions = new Map();
 async function loadModel(spec) {
+  checkAbort(spec.signal);
+  const owner = operation("Model loading", { signal: spec.signal, timeoutMs: spec.timeoutMs ?? 120000 });
+  try { return await loadModelOwned({ ...spec, signal: owner.signal }, owner); }
+  catch (error) { owner.check(); throw error; }
+  finally { owner.close(); }
+}
+async function loadModelOwned(spec, owner) {
   // spec: {key, url | buffer, names[], imgsz, signal}
   if (_sessions.has(spec.key)) return _sessions.get(spec.key);
   let src = spec.buffer;
@@ -559,16 +681,19 @@ async function loadModel(spec) {
     if (!response.ok) throw new Error(`Could not download ONNX model ${spec.url} (HTTP ${response.status}). ${help}`);
     if ((response.headers.get("content-type") || "").toLowerCase().includes("text/html"))
       throw new Error(`The server returned an HTML page instead of ONNX model ${spec.url}. ${help}`);
-    src = new Uint8Array(await response.arrayBuffer());
+    src = new Uint8Array(await response.arrayBuffer()); owner.check();
     if (!src.byteLength) throw new Error(`ONNX model ${spec.url} is empty. ${help}`);
   }
-  await ensureLibrary("ort");
-  if (spec.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+  await ensureLibrary("ort", { signal: spec.signal }); owner.check();
   let session = null, provider = "wasm";
-  if (global.navigator && navigator.gpu) {
-    try { session = await ort.InferenceSession.create(src, { executionProviders: ["webgpu"], graphOptimizationLevel: "all" }); provider = "webgpu"; } catch (e) { session = null; }
-  }
-  if (!session) session = await ort.InferenceSession.create(src, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+  try {
+    if (global.navigator && navigator.gpu) {
+      try { session = await ort.InferenceSession.create(src, { executionProviders: ["webgpu"], graphOptimizationLevel: "all" }); provider = "webgpu"; } catch (e) { owner.check(); }
+    }
+    owner.check();
+    if (!session) session = await ort.InferenceSession.create(src, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+    owner.check();
+  } catch (error) { if (session?.release) await session.release(); throw error; }
   const dims = (session.inputMetadata && session.inputMetadata[0] && session.inputMetadata[0].dimensions) || null;
   const m = { session, provider, names: spec.names || DOTA_NAMES, imgsz: spec.imgsz || (dims && typeof dims[2] === "number" ? dims[2] : 1024), key: spec.key };
   _sessions.set(spec.key, m);
@@ -582,8 +707,13 @@ function windows(h, w, size, overlap) {
   if (xs[xs.length - 1] + size < w) xs.push(w - size);
   const out = []; ys.forEach(y => xs.forEach(x => out.push([Math.max(x, 0), Math.max(y, 0)]))); return out;
 }
+function* windowPositions(h, w, size, overlap) {
+  const step = Math.max(size - overlap, 1);
+  function* axis(length) { let last = 0; for (let p = 0; p <= Math.max(length - size, 0); p += step) { last = p; yield p; } if (last + size < length) yield length - size; }
+  for (const y of axis(h)) for (const x of axis(w)) yield [Math.max(x, 0), Math.max(y, 0)];
+}
 /** Decode a YOLO OBB output [1, 4+nc+1, N] (cx, cy, w, h, scores..., angle). Axis-aligned YOLO [1, 4+nc, N] also works. */
-function decode(out, names, conf, wanted) {
+function decode(out, names, conf, wanted, candidatesOnly = false) {
   const [, C, N] = out.dims, d = out.data, obb = C - 4 > names.length, nc = obb ? C - 5 : C - 4, res = [];
   for (let n = 0; n < N; n++) {
     let best = 0, k = -1;
@@ -597,39 +727,57 @@ function decode(out, names, conf, wanted) {
       [cx - v1[0] - v2[0], cy - v1[1] - v2[1]], [cx - v1[0] + v2[0], cy - v1[1] + v2[1]]]));
   }
   res.sort((a, b) => b.conf - a.conf);
-  return nms(res.slice(0, 3000), 0.45, false);
+  return candidatesOnly ? res.slice(0, 3000) : nms(res.slice(0, 3000), 0.45, false);
 }
 async function detect(r, model, opt = {}) {
   const S = model.imgsz, wanted = opt.classes && opt.classes.length ? new Set(opt.classes) : null;
   const limits = r.allocation?.limits || limitsFor(opt.limits);
-  const rasterBytes = dimensions(r.w, r.h, limits, "Detection raster");
+  const rasterBytes = r.bounded ? r.workingBytes : dimensions(r.w, r.h, limits, "Detection raster");
   dimensions(S, S, limits, "Model input");
-  const needed = rasterBytes + inferenceBytes(r.w, r.h, S, opt.overlap);
+  const needed = rasterBytes + (r.bounded ? S * S * 16 : inferenceBytes(r.w, r.h, S, opt.overlap));
   const lease = r.allocation || reserveAllocation("Detection", needed, limits, true), ownLease = !r.allocation;
   if (lease.estimatedBytes < needed) lease.resize(needed);
   try {
   lease.check(needed);
-  const ctx = ctx2d(r.canvas), wins = windows(r.h, r.w, S, opt.overlap ?? 256), all = [];
+  const ctx = r.readPixels ? null : ctx2d(r.canvas), all = [], overlap = opt.overlap ?? 256;
+  const countAxis = length => { const step = Math.max(S - overlap, 1), count = Math.floor(Math.max(length - S, 0) / step) + 1; return count + ((count - 1) * step + S < length ? 1 : 0); };
+  const count = countAxis(r.w) * countAxis(r.h); let i = 0;
   const buf = new Float32Array(3 * S * S), plane = S * S;
-  for (let i = 0; i < wins.length; i++) {
+  for (const [x, y] of windowPositions(r.h, r.w, S, overlap)) {
     if (opt.signal && opt.signal.aborted) throw new DOMException("Cancelled", "AbortError");
-    const [x, y] = wins[i], px = ctx.getImageData(x, y, S, S).data;
+    const px = r.readPixels ? await r.readPixels(x, y, S, S) : ctx.getImageData(x, y, S, S).data;
+    checkAbort(opt.signal);
     let cover = 0; for (let j = 3; j < px.length; j += 64) if (px[j]) cover++;
     if (cover / (px.length / 64) >= 0.02) {
-      for (let j = 0, p = 0; j < plane; j++, p += 4) { buf[j] = px[p] / 255; buf[plane + j] = px[p + 1] / 255; buf[2 * plane + j] = px[p + 2] / 255; }
-      const feeds = { [model.session.inputNames[0]]: new ort.Tensor("float32", buf, [1, 3, S, S]) };
-      const out = (await model.session.run(feeds))[model.session.outputNames[0]];
-      for (const d of decode(out, model.names, opt.conf ?? 0.3, wanted)) {
+      for (let j = 0, p = 0; j < plane; j++, p += 4) {
+        if (j && j % (S * 64) === 0) await yieldTask(opt.signal);
+        buf[j] = px[p] / 255; buf[plane + j] = px[p + 1] / 255; buf[2 * plane + j] = px[p + 2] / 255;
+      }
+      checkAbort(opt.signal);
+      const input = new ort.Tensor("float32", buf, [1, 3, S, S]); let outputs;
+      lifecycleStats.tensors++;
+      try {
+      lifecycleStats.inference++;
+      try { outputs = await model.session.run({ [model.session.inputNames[0]]: input }); }
+      finally { lifecycleStats.inference--; }
+      checkAbort(opt.signal);
+      const candidates = decode(outputs[model.session.outputNames[0]], model.names, opt.conf ?? 0.3, wanted, true);
+      for (const d of await nmsAsync(candidates, 0.45, false, opt.signal)) {
         const pts = d.poly.map(([a, b]) => [a + x, b + y]);
         const cx = pts.reduce((s, p) => s + p[0], 0) / 4, cy = pts.reduce((s, p) => s + p[1], 0) / 4;
         if (cx < 0 || cy < 0 || cx >= r.w || cy >= r.h || !pointInRings(r.rings, cx, cy) || d.area < 4) continue;
         all.push(mkDet(d.cls, d.conf, pts));
+        if (r.bounded && all.length * 2048 > r.candidateBytes) throw new AllocationError("CANDIDATE_LIMIT", "Candidate metadata exceeds the bounded working budget. Split this dense AOI; detections have not been silently truncated.");
+      }
+      } finally {
+        for (const tensor of new Set([input, ...Object.values(outputs || {})])) { try { tensor?.dispose?.(); } catch { lifecycleStats.tensorCleanupFailures = (lifecycleStats.tensorCleanupFailures || 0) + 1; } }
+        lifecycleStats.tensors--;
       }
     }
-    if (opt.onProgress) opt.onProgress((i + 1) / wins.length);
-    await new Promise(res => setTimeout(res, 0));   // keep the page responsive
+    checkAbort(opt.signal); if (opt.onProgress) opt.onProgress(++i / count);
+    await yieldTask(opt.signal);
   }
-  return nms(all, 0.45, true);                       // IoMin removes tile-overlap duplicates
+  return await nmsAsync(all, 0.45, true, opt.signal); // Identical confidence/tie and IoMin suppression rules.
   } finally { if (ownLease) lease.release(); }
 }
 function toFeatures(dets, r, props) {
@@ -707,10 +855,181 @@ function geotiffBlob(r, encodedBytes = 0) {
 }
 const worldFile = r => `${r.res}\n0.0\n0.0\n${-r.res}\n${r.x0 + r.res / 2}\n${r.y0 - r.res / 2}\n`;
 
+// Native acquisition blocks are stored independently. A model window reads the
+// original global chip grid across as many blocks as needed; blocks never reset
+// window origins or apply local suppression. Native writers consume the same rows.
+async function buildTiledRaster(geometry, release, zoom, opt) {
+  const plan = opt.plan || requireRaster(estimateRaster(geometry, zoom, { ...opt, bounded: true }));
+  if (plan.singleBlock) {
+    // A scene which fits one fixed 2048-side block keeps the original Canvas
+    // mask verbatim. It still uses row writers, bounded output and cancellation.
+    const r = await buildRaster(geometry, release, zoom, { ...opt, maskVersion: "canvas-v1" });
+    return { ...r, bounded: true, singleBlock: true, candidateBytes: plan.candidateBytes, workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16,
+      readPixels: async (x, y, width, height) => { checkAbort(opt.signal); return ctx2d(r.canvas).getImageData(x, y, width, height).data; },
+      diagnostics: () => ({ cachedBytes: 0, peakCachedBytes: 0, cacheLimit: plan.cacheBytes, singleBlock: true }),
+      release: async () => r.release() };
+  }
+  const lease = opt.allocation, spool = opt.spool, owner = operation("Imagery loading", { signal: opt.signal, timeoutMs: opt.imageryTimeoutMs ?? 120000 });
+  const { width: w, height: h, gx0, gy0, res, extent } = plan;
+  const x0 = gx0 * res - ORIGIN, y0 = ORIGIN - gy0 * res;
+  const rings = polygonsOf(geometry).flat().map(ring => ring.map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - x0) / res, (y0 - my) / res]; }));
+  const mask = global.GVStreaming.masker(rings);
+  let display, retained = false, failureCause; const cache = new Map(); let cachedBytes = 0, peakCachedBytes = 0;
+  const absent = new Uint8Array(plan.tiles);
+  try {
+    owner.check();
+    const { states, ...coverage } = await checkCoverage(release, plan.zoom, extent, { signal: owner.signal });
+    owner.check(); opt.onCoverage?.({ ...coverage, zoom: plan.zoom, release });
+    if (coverage.status === "unavailable") throw new ImageryError("NO_IMAGERY", `No imagery coverage for release ${release} at z${plan.zoom}. Choose another date or explicitly choose a different imagery zoom.`, { release, zoom: plan.zoom, coverage });
+    display = makeCanvas(plan.displayWidth, plan.displayHeight, lease);
+    let missing = 0, done = 0; const failures = {};
+    const indices = Array.from({ length: plan.tiles }, (_, i) => i);
+    await pool(indices, plan.concurrency, async index => {
+      let canvas, bitmap;
+      try {
+        owner.check();
+        const tx = extent.left + index % extent.width, ty = extent.top + Math.floor(index / extent.width);
+        const tile = states[index] === 2 ? { failure: { code: "TILE_UNAVAILABLE" } } : await fetchTile(release, plan.zoom, tx, ty, owner.signal);
+        bitmap = tile.bitmap;
+        if (bitmap) lifecycleStats.bitmaps++;
+        owner.check();
+        if (!bitmap) { absent[index] = 1; missing++; const code = tile.failure.code; failures[code] = (failures[code] || 0) + 1; coverage.sampleFailure ||= tile.failure; }
+        else {
+          canvas = makeCanvas(TILE, TILE, lease); const ctx = ctx2d(canvas), dx = tx * TILE - gx0, dy = ty * TILE - gy0;
+          ctx.drawImage(bitmap, 0, 0, TILE, TILE);
+          const sx = Math.max(0, -dx), sy = Math.max(0, -dy), width = Math.min(TILE, w - dx) - sx, height = Math.min(TILE, h - dy) - sy;
+          const image = ctx.getImageData(sx, sy, width, height); await mask(image.data, dx + sx, dy + sy, width, height, owner.signal);
+          // Use the same browser premultiply/unpremultiply normalization as the
+          // whole-image reference before handing bytes to inference or writers.
+          ctx.putImageData(image, sx, sy); const data = ctx.getImageData(sx, sy, width, height).data;
+          owner.check(); await spool.put("raw", index, data); owner.check();
+        }
+        owner.check(); opt.onProgress?.(++done / plan.tiles);
+      } catch (error) { failureCause ||= error; owner.abort(); throw error; }
+      finally { if (bitmap) { bitmap.close(); lifecycleStats.bitmaps--; } releaseCanvas(canvas); }
+    });
+    Object.assign(coverage, { missing, failures, status: missing ? "partial" : "full" });
+    if (missing === plan.tiles) throw new ImageryError("IMAGERY_FETCH_FAILED", "No Wayback images could be fetched or decoded. This does not confirm absent coverage; retry this release.", { release, zoom: plan.zoom, coverage, failures });
+    owner.check(); retained = true;
+    async function getTile(index) {
+      checkAbort(opt.signal); if (absent[index]) return null;
+      if (cache.has(index)) { const value = cache.get(index); cache.delete(index); cache.set(index, value); return value; }
+      const value = await spool.get("raw", index); checkAbort(opt.signal);
+      const data = value?.arrayBuffer ? new Uint8Array(await value.arrayBuffer()) : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      const dx = (extent.left + index % extent.width) * TILE - gx0, dy = (extent.top + Math.floor(index / extent.width)) * TILE - gy0;
+      const sx = Math.max(0, -dx), sy = Math.max(0, -dy), width = Math.min(TILE, w - dx) - sx, height = Math.min(TILE, h - dy) - sy;
+      if (data.length !== width * height * 4) throw new ImageryError("INVALID_RAW_BLOCK", "A native imagery block is incomplete");
+      while (cache.size && cachedBytes + data.length > plan.cacheBytes) { const key = cache.keys().next().value; cachedBytes -= cache.get(key).data.length; cache.delete(key); }
+      const tile = { data, width, sx, sy }; cache.set(index, tile); cachedBytes += data.length; peakCachedBytes = Math.max(peakCachedBytes, cachedBytes); return tile;
+    }
+    return { w, h, x0, y0, gx0, gy0, res, zoom: plan.zoom, requestedZoom: plan.requestedZoom, rings, coverage, missing, tiles: plan.tiles,
+      canvas: display, allocation: lease, bounded: true, candidateBytes: plan.candidateBytes,
+      workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16,
+      diagnostics: () => ({ cachedBytes, peakCachedBytes, cacheLimit: plan.cacheBytes }),
+      async readPixels(x, y, width, height) {
+        checkAbort(opt.signal);
+        if (![x, y, width, height].every(Number.isSafeInteger) || width < 1 || height < 1 || width * height * 4 > Math.max(1048576, (opt.modelSize || 1024) ** 2 * 4))
+          throw new AllocationError("ROW_BUFFER_LIMIT", "Native read window exceeds the bounded pixel buffer");
+        const output = new Uint8ClampedArray(width * height * 4);
+        const left = Math.max(0, x), top = Math.max(0, y), right = Math.min(w, x + width), bottom = Math.min(h, y + height);
+        for (let ty = Math.floor((gy0 + top) / TILE); ty <= Math.floor((gy0 + bottom - 1) / TILE); ty++) {
+          for (let tx = Math.floor((gx0 + left) / TILE); tx <= Math.floor((gx0 + right - 1) / TILE); tx++) {
+            const index = (ty - extent.top) * extent.width + tx - extent.left, tile = await getTile(index); if (!tile) continue;
+            const a = Math.max(gx0 + left, tx * TILE), b = Math.min(gx0 + right, (tx + 1) * TILE);
+            const c = Math.max(gy0 + top, ty * TILE), d = Math.min(gy0 + bottom, (ty + 1) * TILE);
+            for (let row = c; row < d; row++) {
+              const start = ((row - ty * TILE - tile.sy) * tile.width + a - tx * TILE - tile.sx) * 4;
+              output.set(tile.data.subarray(start, start + (b - a) * 4), ((row - gy0 - y) * width + a - gx0 - x) * 4);
+            }
+          }
+        }
+        checkAbort(opt.signal); return output;
+      },
+      async release() { cache.clear(); cachedBytes = 0; releaseCanvas(display); await spool.removeFile("raw"); },
+    };
+  } catch (error) { error = failureCause || error; if (opt.signal?.aborted) checkAbort(opt.signal); if (error.code !== "NO_IMAGERY" && error.name === "AbortError") owner.check(); throw error; }
+  finally { owner.close(); if (!retained) { cache.clear(); releaseCanvas(display); } }
+}
+
+async function renderDisplay(r, signal) {
+  if (r.singleBlock) return;
+  const width = r.canvas.width, height = r.canvas.height, pixels = new Uint8ClampedArray(width * height * 4);
+  const xLeft = new Int32Array(width), xRight = new Int32Array(width), fractions = new Float64Array(width);
+  for (let x = 0; x < width; x++) { const px = Math.max(0, Math.min(r.w - 1, (x + .5) * r.w / width - .5)); xLeft[x] = Math.floor(px) * 4; xRight[x] = Math.min(r.w - 1, Math.floor(px) + 1) * 4; fractions[x] = px - Math.floor(px); }
+  let previousY = -1, previousRow, lastYield = now();
+  for (let y = 0; y < height; y++) {
+    checkAbort(signal); const py = Math.max(0, Math.min(r.h - 1, (y + .5) * r.h / height - .5)), a = Math.floor(py), b = Math.min(r.h - 1, a + 1), fy = py - a;
+    const top = previousY === a ? previousRow : await r.readPixels(0, a, r.w, 1), bottom = b === a ? top : await r.readPixels(0, b, r.w, 1);
+    previousY = b; previousRow = bottom;
+    for (let x = 0; x < width; x++) {
+      const left = xLeft[x], right = xRight[x], fx = fractions[x], a = (1 - fx) * (1 - fy), b = fx * (1 - fy), c = (1 - fx) * fy, d = fx * fy;
+      const alpha = top[left + 3] * a + top[right + 3] * b + bottom[left + 3] * c + bottom[right + 3] * d;
+      const out = (y * width + x) * 4; pixels[out + 3] = Math.round(alpha);
+      for (let channel = 0; channel < 3; channel++) {
+        const value = top[left + channel] * top[left + 3] * a + top[right + channel] * top[right + 3] * b + bottom[left + channel] * bottom[left + 3] * c + bottom[right + channel] * bottom[right + 3] * d;
+        pixels[out + channel] = alpha ? Math.round(value / alpha) : 0;
+      }
+    }
+    if (now() - lastYield >= 8) { await yieldTask(signal); lastYield = now(); }
+  }
+  checkAbort(signal); ctx2d(r.canvas).putImageData(new ImageData(pixels, width, height), 0, 0);
+}
+
+async function processClipBounded(aoi, rel, opt) {
+  const owner = operation("Clip processing", { signal: opt.signal, timeoutMs: opt.timeoutMs ?? 1800000 });
+  const started = now(), timings = {}; let stage = started;
+  const mark = name => { timings[name] = now() - stage; stage = now(); };
+  let raster, spool, lease, complete = false, failure;
+  try {
+    owner.check();
+    const plan = requireRaster(estimateRaster(aoi.geometry, opt.zoom ?? 18, { ...opt, bounded: true, modelSize: opt.model?.imgsz || 0 }));
+    opt.onEstimate?.(plan); lease = await acquireAllocation("Bounded AOI clip", plan.estimatedBytes, plan.limits, { signal: owner.signal, onWaiting: opt.onWaiting });
+    await ensureLibrary("streaming", { signal: owner.signal }); await ensureLibrary("fflate", { signal: owner.signal }); owner.check();
+    spool = await global.GVStreaming.createSpool({ store: opt.store, jobId: opt.jobId, clipId: opt.clipId, signal: owner.signal, maxBytes: opt.maxSpoolBytes });
+    mark("prepareMs");
+    raster = await buildTiledRaster(aoi.geometry, rel.release, opt.zoom, { ...opt, plan, spool, allocation: lease, signal: owner.signal,
+      modelSize: opt.model?.imgsz || 0, onProgress: f => opt.onProgress?.(f * 0.4) }); owner.check();
+    mark("imageryMs");
+    const name = aoi.properties.name, aoi_id = slug(name), [, clat] = pixelToLonLat(raster, raster.w / 2, raster.h / 2);
+    const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: raster.zoom, gsd_m: +groundRes(raster, clat).toFixed(3),
+      source: "Esri Wayback", imagery_coverage: raster.coverage.status, missing_tiles: raster.missing };
+    const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
+    mark("detectionMs");
+    owner.check(); const features = toFeatures(dets, raster, props), counts = {}; for (const feature of features) counts[feature.properties.class] = (counts[feature.properties.class] || 0) + 1;
+    const IO = global.GVStreaming, blobs = { pgw: worldFile(raster) };
+    if (opt.png !== false) blobs.png = await IO.png(raster, IO.sink(spool, "png", "image/png", { signal: owner.signal }), { signal: owner.signal });
+    mark("pngMs");
+    owner.check(); opt.onProgress?.(0.9);
+    if (opt.geotiff !== false) blobs.tif = await IO.tiff(raster, IO.sink(spool, "tif", "image/tiff", { signal: owner.signal }), spool, { signal: owner.signal });
+    mark("tiffMs");
+    await renderDisplay(raster, owner.signal);
+    owner.check(); blobs.display = await canvasBlob(raster.canvas, "image/png"); owner.check();
+    const context = ctx2d(raster.canvas), sx = raster.canvas.width / raster.w, sy = raster.canvas.height / raster.h;
+    context.lineWidth = 2;
+    for (const d of dets) { context.strokeStyle = COLORS[d.cls] || "#fff"; context.beginPath(); d.poly.forEach(([x, y], i) => i ? context.lineTo(x * sx, y * sy) : context.moveTo(x * sx, y * sy)); context.closePath(); context.stroke(); }
+    blobs.preview = await canvasBlob(raster.canvas, "image/jpeg", 0.88); owner.check();
+    if (!blobs.display || !blobs.preview) throw new AllocationError("CANVAS_ENCODING", "Could not encode the bounded display image");
+    const bounds = rasterBounds(raster), result = { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: raster.zoom, bounds, counts, total: features.length,
+      tiles: raster.tiles, missing: raster.missing, coverage: raster.coverage, size: [raster.w, raster.h], requestedZoom: plan.requestedZoom,
+      displaySize: [raster.canvas.width, raster.canvas.height], maskVersion: plan.maskVersion, artifactSpool: spool.persistent ? spool.id : undefined,
+      timings,
+      allocation: { estimatedBytes: plan.estimatedBytes, rgbaBytes: plan.rgbaBytes, bounded: true, blockSide: TILE, limits: plan.limits, cache: raster.diagnostics() },
+      aoiFeature: aoi, fc: { type: "FeatureCollection", features, properties: { ...props, image_bounds: bounds } }, blobs };
+    mark("displayMs"); await raster.release(); raster = null; mark("cleanupMs"); timings.totalMs = now() - started; owner.check(); opt.onProgress?.(1); owner.check();
+    if (!blobs.png && !blobs.tif) { await spool.dispose(); spool = null; delete result.artifactSpool; }
+    complete = true; return result;
+  } catch (error) { try { if (owner.signal.aborted) owner.check(); } catch (reason) { error = reason; } failure = error; throw error; }
+  finally {
+    try { await cleanupOwned(failure, [async () => { if (raster) await raster.release(); }, async () => { if (!complete && spool) await global.GVStreaming.discard(spool); }]); }
+    finally { lease?.release(); owner.close(); }
+  }
+}
+
 // ------------------------------------------------------------------ process one AOI × release
 async function processClip(aoi, rel, opt = {}) {
   checkAbort(opt.signal);
   if (opt.model && (!Number.isSafeInteger(opt.model.imgsz) || opt.model.imgsz < 1)) throw new AllocationError("INVALID_DIMENSIONS", "Model input size is invalid.");
+  if (opt.bounded) return processClipBounded(aoi, rel, opt);
   const estimate = requireRaster(estimateRaster(aoi.geometry, opt.zoom ?? 18, { ...opt, overlap: 256, modelSize: opt.model?.imgsz || 0 }));
   const lease = reserveAllocation("AOI clip", estimate.estimatedBytes, estimate.limits, true);
   let r;
@@ -741,6 +1060,7 @@ const slug = s => String(s).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g,
 
 // ------------------------------------------------------------------ exports
 async function exportJobZip(job, extra = {}) {
+  if (extra.streaming) return exportJobZipStream(job, extra);
   const lease = reserveAllocation("Job ZIP export", 65536, extra.limits);
   try {
   await ensureLibrary("zip");
@@ -772,6 +1092,7 @@ async function exportJobZip(job, extra = {}) {
 }
 /** YOLO-OBB dataset from reviewed annotations (rejected objects are left unlabeled = negatives). */
 async function exportDataset(annFC, opt = {}) {
+  if (opt.streaming) return exportDatasetStream(annFC, opt);
   const feats = annFC.features.filter(f => f.properties.status !== "rejected" && f.properties.class && f.properties.release);
   if (!feats.length) throw new Error("No reviewed objects yet");
   const classes = [...new Set(feats.map(f => f.properties.class))].sort(), cid = Object.fromEntries(classes.map((c, i) => [c, i]));
@@ -866,12 +1187,145 @@ function convexHull(p) {
   return lo.slice(0, -1).concat(up.slice(0, -1));
 }
 
+async function exportOutput(name, opt, produce) {
+  const owner = operation("Export", { signal: opt.signal, timeoutMs: opt.timeoutMs ?? 1800000 });
+  let spool, writer, lease, keep = false, failure;
+  try {
+    owner.check();
+    lease = opt.processing ? await acquireAllocation("Bounded dataset", opt.estimatedBytes, opt.limits, { signal: owner.signal, onWaiting: opt.onWaiting }) : reserveAllocation("Streaming export", opt.estimatedBytes || 8 * 1048576, opt.limits);
+    await ensureLibrary("streaming", { signal: owner.signal }); await ensureLibrary("fflate", { signal: owner.signal }); owner.check();
+    const IO = global.GVStreaming;
+    spool = await IO.createSpool({ store: opt.store, jobId: opt.jobId, signal: owner.signal, maxBytes: opt.maxSpoolBytes });
+    const output = IO.output(spool, { name, signal: owner.signal, destination: opt.destination, partBytes: opt.partBytes });
+    writer = opt.archive === false ? output : IO.zip(output, { signal: owner.signal });
+    await produce(writer, { spool, lease, signal: owner.signal, IO }); owner.check();
+    const result = await writer.close(); owner.check();
+    if (result.parts?.length === 1) {
+      lease.resize(Math.max(lease.estimatedBytes, result.parts[0].size * 3 + 8 * 1048576));
+      const blob = await IO.materialize(result.parts[0], { store: opt.store, signal: owner.signal }); owner.check(); return new Blob([blob], { type: name.endsWith(".zip") ? "application/zip" : "text/csv" });
+    }
+    keep = Boolean(result.parts?.length); return result;
+  } catch (error) { try { if (owner.signal.aborted) owner.check(); } catch (reason) { error = reason; } failure = error; throw error; }
+  finally {
+    try { await cleanupOwned(failure, [async () => { await writer?.abort?.(); if (!writer) await opt.destination?.abort?.(); }, async () => { if (!keep && spool) await global.GVStreaming.discard(spool); }]); }
+    finally { lease?.release(); owner.close(); }
+  }
+}
+function exportPaths(results) {
+  const seen = new Set(); return results.map((r, index) => {
+    const base = `${r.aoi_id}/${r.date || r.release}`; let path = base, suffix = index;
+    while (seen.has(path)) path = base + "__clip_" + suffix++;
+    seen.add(path); return path;
+  });
+}
+async function exportJobZipStream(job, opt = {}) {
+  const allPaths = exportPaths(job.results), selected = job.results.map((r, index) => ({ r, index })).filter(({ r }) => !opt.clipId || r.storeId === opt.clipId);
+  const results = selected.map(({ r }) => r);
+  if (opt.clipId && !results.length) throw new Error("Select a completed clip to export");
+  const paths = selected.map(({ index }) => allPaths[index]), root = String(job.id), readResult = opt.readResult || (async r => r);
+  return exportOutput(opt.name || `geovision_${job.id}.zip`, { ...opt, jobId: "export:" + job.id }, async (writer, { signal, IO }) => {
+    for (const [index, descriptor] of results.entries()) {
+      checkAbort(signal); const r = await readResult(descriptor); checkAbort(signal); const base = root + "/" + paths[index];
+      const fc = r.draftFC || r.fc, properties = { ...fc }; delete properties.features;
+      for (const [kind, name] of [["png", "image.png"], ["tif", "image.tif"], ["display", "display.png"], ["preview", "preview_detections.jpg"]])
+        if (r.blobs[kind]) await writer.add(base + "/" + name, IO.source(r.blobs[kind], { store: opt.store, signal }));
+      await writer.add(base + "/image.pgw", r.blobs.pgw, { compress: true }); await writer.add(base + "/image.prj", WKT_3857, { compress: true });
+      await writer.add(base + "/detections.geojson", IO.collection(fc.features, properties), { compress: true });
+      await writer.add(base + "/aoi.geojson", JSON.stringify(r.aoiFeature), { compress: true });
+      opt.onProgress?.({ percent: (index + 1) / Math.max(results.length, 1) * 90 });
+    }
+    async function* allFeatures() {
+      for (const descriptor of results) { checkAbort(signal); const r = await readResult(descriptor); checkAbort(signal); yield* (r.draftFC || r.fc).features; }
+    }
+    await writer.add(root + "/all_detections.geojson", IO.collection(allFeatures()), { compress: true });
+    await writer.add(root + "/aois.geojson", IO.collection(job.aois), { compress: true });
+    const summary = { job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
+      results: results.map((r, i) => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, requestedZoom: r.requestedZoom, bounds: r.bounds,
+        size: r.size, displaySize: r.displaySize, counts: r.counts, total: r.total, clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[i] })) };
+    await writer.add(root + "/summary.json", JSON.stringify(summary), { compress: true }); opt.onProgress?.({ percent: 100 });
+  });
+}
+async function exportDatasetStream(annFC, opt = {}) {
+  const features = annFC.features.filter(f => f.properties.status !== "rejected" && f.properties.class && f.properties.release);
+  if (!features.length) throw new Error("No reviewed objects yet");
+  const classes = [...new Set(features.map(f => f.properties.class))].sort(), classesByName = Object.fromEntries(classes.map((c, i) => [c, i])), groups = new Map();
+  for (const feature of features) {
+    validatedBounds(feature.geometry); const p = feature.properties, c = p.centroid || centroidOf(feature.geometry);
+    const key = `${p.release}|${p.zoom || 18}|${Math.round(c[0] / .02)}|${Math.round(c[1] / .02)}`;
+    if (!groups.has(key)) groups.set(key, []); groups.get(key).push(feature);
+  }
+  const plans = [];
+  for (const [key, items] of groups) {
+    const [release, zoom] = key.split("|").map(Number), bb = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const feature of items) { const bounds = bboxOf(feature.geometry); bb[0] = Math.min(bb[0], bounds[0]); bb[1] = Math.min(bb[1], bounds[1]); bb[2] = Math.max(bb[2], bounds[2]); bb[3] = Math.max(bb[3], bounds[3]); }
+    const pad = .0015, geometry = { type: "Polygon", coordinates: [[[bb[0] - pad, bb[1] - pad], [bb[2] + pad, bb[1] - pad], [bb[2] + pad, bb[3] + pad], [bb[0] - pad, bb[3] + pad], [bb[0] - pad, bb[1] - pad]]] };
+    const plan = requireRaster(estimateRaster(geometry, zoom, { ...opt, bounded: true, modelSize: 1024, png: false, geotiff: false }));
+    plans.push({ release, zoom, geometry, items, plan });
+  }
+  let chips = 0, first = null, groupIndex = 0;
+  const blob = await exportOutput(opt.name || "geovision_dataset.zip", { ...opt, processing: true, estimatedBytes: plans.reduce((n, p) => Math.max(n, p.plan.estimatedBytes), 0) }, async (writer, { signal, spool, lease, IO }) => {
+    for (const { release, zoom, geometry, items, plan } of plans) {
+      checkAbort(signal); opt.onEstimate?.(plan);
+      const r = await buildTiledRaster(geometry, release, zoom, { ...opt, plan, spool, allocation: lease, modelSize: 1024, signal });
+      try {
+        if (r.missing) throw new ImageryError("INCOMPLETE_TRAINING_IMAGERY", "Training export needs complete imagery; missing tiles must not become negative examples.");
+        const objects = items.map(f => ({ k: classesByName[f.properties.class], pts: minRect(f.geometry.coordinates[0].slice(0, -1).map(([lon, lat]) => { const [mx, my] = merc(lon, lat); return [(mx - r.x0) / r.res, (r.y0 - my) / r.res]; })) }));
+        for (const [x, y] of windowPositions(r.h, r.w, 1024, 200)) {
+          checkAbort(signal);
+          const lines = objects.filter(o => { const cx = o.pts.reduce((s, p) => s + p[0], 0) / 4, cy = o.pts.reduce((s, p) => s + p[1], 0) / 4; return cx >= x && cx < x + 1024 && cy >= y && cy < y + 1024; })
+            .map(o => o.k + " " + o.pts.map(([px, py]) => [(px - x) / 1024, (py - y) / 1024].map(v => Math.min(Math.max(v, 0), 1).toFixed(6)).join(" ")).join(" "));
+          const canvas = makeCanvas(1024, 1024, lease);
+          try {
+            const data = await r.readPixels(x, y, 1024, 1024); checkAbort(signal); const ctx = ctx2d(canvas);
+            ctx.putImageData(new ImageData(data, 1024, 1024), 0, 0); ctx.globalCompositeOperation = "destination-over"; ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 1024, 1024); ctx.globalCompositeOperation = "source-over";
+            const jpg = await canvasBlob(canvas, "image/jpeg", .92); checkAbort(signal); if (!jpg) throw new Error("Could not encode a training chip");
+            const split = chips % 7 === 6 ? "val" : "train", stem = `r${release}_z${r.zoom}_${String(chips).padStart(5, "0")}`;
+            await writer.add(`dataset/images/${split}/${stem}.jpg`, IO.source(jpg, { signal })); await writer.add(`dataset/labels/${split}/${stem}.txt`, lines.join("\n"), { compress: true });
+            if (!first && lines.length && chips < 7) first = { stem, jpg, text: lines.join("\n") }; chips++; if (chips >= 7) first = null;
+          } finally { releaseCanvas(canvas); }
+        }
+      } finally { await r.release(); }
+      opt.onProgress?.(++groupIndex / plans.length);
+    }
+    // Preserve the historical split policy here. GMD-018 owns its correction.
+    if (chips < 7 && first) { await writer.add(`dataset/images/val/${first.stem}.jpg`, IO.source(first.jpg, { signal })); await writer.add(`dataset/labels/val/${first.stem}.txt`, first.text, { compress: true }); }
+    await writer.add("dataset/data.yaml", `path: .\ntrain: images/train\nval: images/val\nnames:\n${classes.map((name, i) => `  ${i}: ${name}`).join("\n")}\n`, { compress: true });
+    const properties = { ...annFC }; delete properties.features;
+    await writer.add("dataset/annotations.geojson", IO.collection(annFC.features, properties), { compress: true });
+    await writer.add("dataset/TRAIN.md", `# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ${classes.join(", ")}\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n`, { compress: true });
+  });
+  return { blob, chips, classes };
+}
+async function exportCSV(job, opt = {}) {
+  const columns = ["id", "aoi_name", "imagery_date", "release", "class", "status", "confidence", "length_m", "width_m", "heading_deg", "lon", "lat"];
+  return exportOutput(opt.name || "detections.csv", { ...opt, archive: false }, async (output, { signal, IO }) => {
+    await output.write(fflate.strToU8(columns.join(",") + "\n"));
+    for (const descriptor of job.results) {
+      checkAbort(signal); const r = opt.readResult ? await opt.readResult(descriptor) : descriptor;
+      for (const feature of r.fc.features) {
+        const p = feature.properties, c = p.centroid || [0, 0], line = columns.map(k => k === "id" ? feature.id : k === "lon" ? c[0] : k === "lat" ? c[1] : p[k] ?? "")
+          .map(value => /[,"\r\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : value).join(",") + "\n";
+        for await (const chunk of IO.source(line, { signal })) await output.write(chunk);
+      }
+      await yieldTask(signal);
+    }
+  });
+}
+async function exportPart(artifact, { store, limits, signal, retainLease = false } = {}) {
+  const lease = reserveAllocation("Download part", Math.max(1048576, artifact.size * 3), limits, false, "download");
+  let handed = false;
+  try { checkAbort(signal); await ensureLibrary("streaming", { signal }); const blob = await global.GVStreaming.materialize(artifact, { store, signal }); if (retainLease) { handed = true; return { blob, release: () => lease.release() }; } return blob; }
+  finally { if (!handed) lease.release(); }
+}
+
 const allocationDiagnostics = () => ({ ...allocationStats, reservedBytes: [...allocationLeases.values()].reduce((sum, lease) => sum + lease.estimatedBytes, 0),
-  activeOperations: [...allocationLeases.values()].map(lease => ({ id: lease.id, label: lease.label, estimatedBytes: lease.estimatedBytes, canvasBytes: lease.canvasBytes, processing: lease.processing })), limits: { ...allocationDefaults }, maxConcurrentProcessing: 1 });
+  activeOperations: [...allocationLeases.values()].map(lease => ({ id: lease.id, label: lease.label, estimatedBytes: lease.estimatedBytes, canvasBytes: lease.canvasBytes, processing: lease.processing, kind: lease.kind })), waiting: allocationWaiters.size, limits: { ...allocationDefaults }, maxConcurrentProcessing: 1, maxConcurrentDownloads: 4 });
 const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDefaults }), configure(values) { allocationDefaults = limitsFor({ ...DEFAULT_LIMITS, ...values }); return { ...allocationDefaults }; },
-  dimensions, pngDimensions, reserve: reserveAllocation, makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
+  dimensions, pngDimensions, reserve: reserveAllocation, acquire: acquireAllocation, download: (bytes, limits) => reserveAllocation("Download", Math.max(65536, bytes * 3), limits, false, "download"), makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
+const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
 global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
-  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics() }),
-  buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset,
+  operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },
+  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),
+  buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset, exportCSV, exportPart,
   writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
 })(typeof window !== "undefined" ? window : globalThis);

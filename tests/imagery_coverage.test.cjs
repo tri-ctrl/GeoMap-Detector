@@ -131,6 +131,21 @@ test('bad cache entries are evicted and retried from the network', async () => {
   const raster = await f.engine.buildRaster(geometry(), 388);
   assert.equal(deleted, 2); assert.equal(raster.missing, 0); raster.release(); assertFreed(f);
 });
+test('a stalled cache read cancels promptly and a late cache hit cannot start decode or download', async () => {
+  let entered,finish;const ready=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>finish=resolve),controller=new AbortController();
+  const f=engineSetup({cache:{match:()=>{entered();return gate}}}),pending=f.engine.buildRaster(geometry(),388,18,{signal:controller.signal,concurrency:1});
+  await ready;controller.abort();await assert.rejects(pending,{name:'AbortError'});const before=f.calls.length;
+  finish(new Response('late cache hit'));await turn();assert.equal(f.calls.length,before);assert.equal(f.bitmaps.length,0);assertFreed(f);
+  assert.equal(f.engine.operations.diagnostics().pendingReads,0);assert.equal(f.engine.operations.diagnostics().active.length,0);
+});
+test('cancellation drains a pending cache write before acknowledgement, closes its bitmap and starts no retry', async () => {
+  let entered,finish,writes=0;const ready=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>finish=resolve),controller=new AbortController();
+  const f=engineSetup({cache:{match:async()=>undefined,put:async()=>{writes++;entered();await gate}}});
+  const pending=f.engine.buildRaster(geometry(),388,18,{signal:controller.signal,concurrency:1});let settled=false;pending.catch(()=>settled=true);
+  await ready;controller.abort();await turn();assert.equal(settled,false);assert.equal(f.engine.operations.diagnostics().cacheWrites,1);
+  finish();await assert.rejects(pending,{name:'AbortError'});assert.equal(writes,1);assert.equal(f.bitmaps.length,1);assertFreed(f);
+  const state=f.engine.operations.diagnostics();assert.equal(state.cacheWrites,0);assert.equal(state.tileAttempts,0);assert.equal(state.active.length,0);
+});
 test('drawing and encoding failures close bitmaps and release processing/preview canvases', async () => {
   const f = engineSetup({ draw: () => { throw new Error('draw failed'); } });
   await assert.rejects(f.engine.buildRaster(geometry(), 388), /draw failed/); assertFreed(f);

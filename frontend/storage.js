@@ -3,7 +3,7 @@
  */
 (function (global) {
 "use strict";
-const VERSION = 1, NAME = "geomap-detector", LEASE_MS = 30000;
+const VERSION = 2, NAME = "geomap-detector", LEASE_MS = 30000;
 const uuid = () => global.crypto?.randomUUID?.() || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
 const copy = value => JSON.parse(JSON.stringify(value));
 const fail = (message, name = "StorageError") => Object.assign(new Error(message), { name });
@@ -191,9 +191,17 @@ function create(options = {}) {
   function saveJob(job) { return transaction(["jobs", "queue"], "readwrite", s => putJob(s, job)); }
   function saveClip(job, result) {
     const meta = resultRecord(result, job.id);
-    return transaction(["jobs", "queue", "results", "predictions", "artifacts"], "readwrite", s => {
+    return transaction(["jobs", "queue", "results", "predictions", "artifacts"], "readwrite", (s, done, abort) => {
       s.results.put(meta); s.predictions.put({ id: meta.id, jobId: job.id, fc: copy(result.fc) });
       for (const [kind, value] of Object.entries(result.blobs)) if (value != null) s.artifacts.put({ id: meta.id + ":" + kind, clipId: meta.id, jobId: job.id, kind, value });
+      if (result.artifactSpool) {
+        const request = s.artifacts.get("spool:" + result.artifactSpool);
+        request.onsuccess = () => {
+          const spool = request.result;
+          if (!spool || spool.jobId !== job.id || spool.value.clipId !== meta.id) { abort(fail("Artifact staging owner does not match this job/clip")); return; }
+          s.artifacts.put({ ...spool, clipId: "gmd-committed", value: { ...spool.value, state: "committed" } });
+        };
+      }
       putJob(s, job);
     });
   }
@@ -221,12 +229,69 @@ function create(options = {}) {
       // Saved training reviews and user-imported model sources are independent.
     });
   }
+  // Staged chunks share the existing artifacts store/indexes. Result metadata
+  // commits their manifest atomically; clip() never hydrates the chunk payloads.
+  let sweptSpools = false;
+  const cancelled = signal => { if (signal?.aborted) throw new DOMException("Cancelled", "AbortError"); };
+  const chunkId = (id, file, sequence) => `chunk:${id}:${file}:${sequence}`;
+  async function discardSpool(id) {
+    await transaction(["artifacts"], "readwrite", s => {
+      s.artifacts.delete("spool:" + id); removeIndex(s.artifacts, "clipId", "chunks:" + id);
+    });
+  }
+  async function createSpool({ jobId, clipId, signal, maxBytes = 2 * 1024 ** 3 } = {}) {
+    cancelled(signal);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw fail("Temporary storage budget must be a positive whole number", "SpoolLimitError");
+    if (!sweptSpools) {
+      // Defer crash recovery to first processing/export use, preserving a lazy
+      // startup. Never sweep the live owner's or committed result manifests.
+      const records = await read("artifacts", "gmd-staging", "clipId");
+      for (const record of records) if (record.value.owner !== owner) await discardSpool(record.value.id);
+      sweptSpools = true;
+    }
+    const id = uuid(), manifest = { id: "spool:" + id, jobId: jobId || "temporary:" + id, clipId: "gmd-staging", kind: "spool",
+      value: { id, owner, clipId, state: "staging", createdAt: Date.now() } };
+    await transaction(["artifacts"], "readwrite", s => s.artifacts.put(manifest));
+    let bytes = 0, closed = false;
+    return { id, persistent: true, maxChunkBytes: 1048576,
+      async put(file, sequence, value) {
+        cancelled(signal); if (closed) throw fail("Temporary output owner is closed");
+        const length = value.size ?? value.byteLength;
+        if (!Number.isSafeInteger(length) || length > 1048576 || !Number.isSafeInteger(bytes + length) || bytes + length > maxBytes)
+          throw fail("Temporary imagery/output exceeds its storage budget. Use a smaller AOI or fewer native formats.", "SpoolLimitError");
+        // Concurrent acquisition callbacks reserve bytes before awaiting their
+        // transactions, so they cannot all pass against the same old total.
+        bytes += length;
+        try { await transaction(["artifacts"], "readwrite", s => s.artifacts.put({ id: chunkId(id, file, sequence),
+          jobId: manifest.jobId, clipId: "chunks:" + id, kind: "chunk", file, sequence, value })); }
+        catch (error) { bytes -= length; throw error; }
+        cancelled(signal);
+      },
+      async get(file, sequence) { cancelled(signal); const record = await read("artifacts", chunkId(id, file, sequence)); cancelled(signal); if (!record) throw fail("A temporary imagery/output chunk is missing"); return record.value; },
+      async removeFile(file) {
+        // Key prefixes avoid reading encoded pixel payloads while deleting.
+        await transaction(["artifacts"], "readwrite", s => {
+          const request = s.artifacts.index("clipId").openKeyCursor("chunks:" + id);
+          request.onsuccess = () => { const c = request.result; if (c) { if (String(c.primaryKey).startsWith(`chunk:${id}:${file}:`)) s.artifacts.delete(c.primaryKey); c.continue(); } };
+        });
+      },
+      async dispose() { if (closed) return; closed = true; await discardSpool(id); },
+      state: () => ({ id, bytes, maxBytes, closed }),
+    };
+  }
+  async function readArtifactChunk(artifact, sequence) {
+    if (artifact?.gmdArtifact !== 1 || !Number.isSafeInteger(sequence) || sequence < 0 || sequence >= artifact.chunks) throw fail("Invalid chunked artifact reference");
+    const record = await read("artifacts", chunkId(artifact.spool, artifact.file, sequence));
+    if (!record) throw fail("Saved image/export artifact is incomplete. Its metadata has been preserved.");
+    return record.value;
+  }
   async function close() {
     closing = true; global.clearInterval?.(heartbeat);
     if (db && writable) await transaction(["meta"], "readwrite", s => s.meta.delete("writer")).catch(() => {});
     writable = false; db?.close(); db = null; releaseLock?.(); releaseLock = null;
   }
   return { open, close, state, migrate, restore, saveAois, saveModel, saveJob, saveClip, clip, saveDraft, saveReviews, deleteJob,
+    createSpool, readArtifactChunk, discardSpool,
     migrated: async () => Boolean((await read("meta", "legacy-v1"))?.verifiedAt),
     reviews: async scope => ({ type: "FeatureCollection", features: (await read("reviews", scope, scope === undefined ? undefined : "scope")).sort((a, b) => (a.scope || "").localeCompare(b.scope || "") || (a.order || 0) - (b.order || 0)).map(r => r.feature) }),
     draft: async id => (await read("drafts", id))?.fc,

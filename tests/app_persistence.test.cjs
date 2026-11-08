@@ -16,6 +16,18 @@ async function appFixture({ indexedDB = new IDBFactory(), savedMap, beforeBoot, 
   await until(() => app.element('#model').options.length >= 2);
   return { app, repo, indexedDB };
 }
+test('session-only results with native PNG disabled can still open their display image and export', async () => {
+  const app=await setup(),process=app.context.GVEngine.processClip;
+  app.context.GVEngine.processClip=async(...args)=>{const result=await process(...args);result.blobs.display=result.blobs.png;delete result.blobs.png;return result};
+  await app.openClip();assert.equal(app.context.GVApp.diagnostics().views.imageLeases,1);assert.equal(app.context.GVApp.diagnostics().views.active,1);
+  let read=false;app.context.GVEngine.exportJobZip=async(job,options)=>{const clip=await options.readResult(job.results[0]);assert.ok(clip.blobs.display);assert.equal(clip.blobs.png,undefined);read=true;return new Blob(['zip'])};
+  await app.element('#expZip').onclick();assert.equal(read,true);app.events.get('pagehide')();
+});
+test('a selected-clip export does not mark the whole session job as backed up', async () => {
+  const app=await setup(),job=await app.element('#runBtn').onclick();await app.openClip();
+  app.context.GVEngine.exportJobZip=async(current,options)=>{assert.equal(current.id,job.id);assert.equal(options.clipId,job.results[0].storeId);return new Blob(['one clip'])};
+  await app.element('#expClip').onclick();assert.notEqual(job.exported,true);app.events.get('pagehide')();
+});
 test('full app reload restores AOIs, clips, drafts and saved reviews; opening reads only its clip and raw predictions stay unchanged', async t => {
   let f = await appFixture(); t.after(() => f.repo.close());
   const originalLegacy = f.app.saved.get('gv_aois');

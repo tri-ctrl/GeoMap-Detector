@@ -1,0 +1,4798 @@
+{
+  "checkedAt": "2026-11-08T19:54:08.440Z",
+  "mode": "Local native Chromium, bounded blocks/chunked IndexedDB/native writers; deterministic tiles and model outputs",
+  "sources": {
+    "index.html": "b01bc3077beba70b62d8674bc600bd580acdbcdcd2bcd063cb9d137f9cf72adb",
+    "engine.js": "7d9e4002c2d87d697ec67e8dd4f33ea253b7f9a8108e246a146f8d1663688e36",
+    "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+    "storage.js": "4ff94646a22992838d1d25c06cb8fbc9531324d6115fb7815f1426c44e80b628",
+    "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+    "app.js": "9509e7feb034f5b5036cd13545d1294db8f0ef66a6b43ebe1468a19bc692ecd4"
+  },
+  "limitations": [
+    "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+    "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "quality": [
+    {
+      "kind": "rectangle",
+      "size": [
+        1700,
+        1301
+      ],
+      "inputHashes": [
+        "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "referenceHashes": [
+        "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "originalHashes": [
+        "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "different": 0,
+      "canonicalDifferences": 0,
+      "examples": [],
+      "maxAlphaDelta": 0,
+      "maxPremultDelta": 0,
+      "opaqueDifferences": 0,
+      "changedPixels": 0,
+      "maxEdgeDistance": 0,
+      "comparedBytes": 8846800,
+      "referenceFeatures": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "features": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "cache": {
+        "cachedBytes": 8846800,
+        "peakCachedBytes": 8846800,
+        "cacheLimit": 16777216
+      }
+    },
+    {
+      "kind": "hole",
+      "size": [
+        1700,
+        1301
+      ],
+      "inputHashes": [
+        "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "referenceHashes": [
+        "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "originalHashes": [
+        "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "different": 0,
+      "canonicalDifferences": 0,
+      "examples": [],
+      "maxAlphaDelta": 0,
+      "maxPremultDelta": 0,
+      "opaqueDifferences": 0,
+      "changedPixels": 0,
+      "maxEdgeDistance": 0,
+      "comparedBytes": 8846800,
+      "referenceFeatures": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "features": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "cache": {
+        "cachedBytes": 8846800,
+        "peakCachedBytes": 8846800,
+        "cacheLimit": 16777216
+      }
+    },
+    {
+      "kind": "multi",
+      "size": [
+        1700,
+        1301
+      ],
+      "inputHashes": [
+        "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+        "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+        "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+        "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+      ],
+      "referenceHashes": [
+        "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+        "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+        "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+        "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+      ],
+      "originalHashes": [
+        "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+        "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+        "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+        "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+      ],
+      "different": 0,
+      "canonicalDifferences": 0,
+      "examples": [],
+      "maxAlphaDelta": 0,
+      "maxPremultDelta": 0,
+      "opaqueDifferences": 0,
+      "changedPixels": 0,
+      "maxEdgeDistance": 0,
+      "comparedBytes": 8846800,
+      "referenceFeatures": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "features": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "cache": {
+        "cachedBytes": 8846800,
+        "peakCachedBytes": 8846800,
+        "cacheLimit": 16777216
+      }
+    },
+    {
+      "kind": "diagonal-hole",
+      "size": [
+        1700,
+        1301
+      ],
+      "inputHashes": [
+        "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "referenceHashes": [
+        "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "originalHashes": [
+        "a99d6d03ce8e590580e041bf94b941bbdcac1cff5a32dbd85354f53c5fa89fdb",
+        "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+        "7815c614f3b88e0302e365d343a030300afdecde81799e0776b8bbc6b82b8004",
+        "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+      ],
+      "different": 558,
+      "canonicalDifferences": 0,
+      "examples": [
+        {
+          "x": 200,
+          "y": 151,
+          "channel": 1,
+          "old": 104,
+          "actual": 103
+        },
+        {
+          "x": 200,
+          "y": 151,
+          "channel": 3,
+          "old": 192,
+          "actual": 191
+        },
+        {
+          "x": 399,
+          "y": 151,
+          "channel": 3,
+          "old": 63,
+          "actual": 64
+        },
+        {
+          "x": 201,
+          "y": 153,
+          "channel": 1,
+          "old": 104,
+          "actual": 103
+        },
+        {
+          "x": 201,
+          "y": 153,
+          "channel": 3,
+          "old": 192,
+          "actual": 191
+        },
+        {
+          "x": 202,
+          "y": 155,
+          "channel": 1,
+          "old": 104,
+          "actual": 103
+        },
+        {
+          "x": 202,
+          "y": 155,
+          "channel": 3,
+          "old": 192,
+          "actual": 191
+        },
+        {
+          "x": 398,
+          "y": 156,
+          "channel": 0,
+          "old": 227,
+          "actual": 219
+        },
+        {
+          "x": 398,
+          "y": 156,
+          "channel": 1,
+          "old": 42,
+          "actual": 36
+        },
+        {
+          "x": 398,
+          "y": 156,
+          "channel": 2,
+          "old": 14,
+          "actual": 24
+        },
+        {
+          "x": 398,
+          "y": 156,
+          "channel": 3,
+          "old": 18,
+          "actual": 21
+        },
+        {
+          "x": 203,
+          "y": 157,
+          "channel": 1,
+          "old": 104,
+          "actual": 103
+        }
+      ],
+      "maxAlphaDelta": 3,
+      "maxPremultDelta": 2.011764705882353,
+      "opaqueDifferences": 0,
+      "changedPixels": 294,
+      "maxEdgeDistance": 0.4109974685269643,
+      "comparedBytes": 8846800,
+      "referenceFeatures": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "features": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0001",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3634687,
+                  25.2498529
+                ],
+                [
+                  55.3634559,
+                  25.2499297
+                ],
+                [
+                  55.3638272,
+                  25.2499804
+                ],
+                [
+                  55.36384,
+                  25.2499037
+                ],
+                [
+                  55.3634687,
+                  25.2498529
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.85,
+            "length_m": 37.8,
+            "width_m": 8.6,
+            "heading_deg": 81.4,
+            "centroid": [
+              55.3636479,
+              25.2499167
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "cache": {
+        "cachedBytes": 8846800,
+        "peakCachedBytes": 8846800,
+        "cacheLimit": 16777216
+      }
+    },
+    {
+      "kind": "diagonal-multi",
+      "size": [
+        1700,
+        1301
+      ],
+      "inputHashes": [
+        "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+        "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+        "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+        "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+      ],
+      "referenceHashes": [
+        "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+        "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+        "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+        "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+      ],
+      "originalHashes": [
+        "3e222921462c909b60fd765f1c9c528106122179c511268ee9a94c59f8faad86",
+        "f9cb29ee7b88067a16ee6b4262588f196a0c9a8f0aeaea7d2b3d6d0fe8ced161",
+        "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+        "9aab5af21c5509c01dc9d7c96782a3013f1cb3d46aa0ba7ae4207af8c9a6552c"
+      ],
+      "different": 6507,
+      "canonicalDifferences": 0,
+      "examples": [
+        {
+          "x": 1000,
+          "y": 50,
+          "channel": 3,
+          "old": 163,
+          "actual": 161
+        },
+        {
+          "x": 1004,
+          "y": 50,
+          "channel": 0,
+          "old": 26,
+          "actual": 43
+        },
+        {
+          "x": 1004,
+          "y": 50,
+          "channel": 1,
+          "old": 102,
+          "actual": 106
+        },
+        {
+          "x": 1004,
+          "y": 50,
+          "channel": 2,
+          "old": 153,
+          "actual": 149
+        },
+        {
+          "x": 1004,
+          "y": 50,
+          "channel": 3,
+          "old": 10,
+          "actual": 12
+        },
+        {
+          "x": 1000,
+          "y": 51,
+          "channel": 0,
+          "old": 38,
+          "actual": 36
+        },
+        {
+          "x": 1000,
+          "y": 51,
+          "channel": 1,
+          "old": 101,
+          "actual": 105
+        },
+        {
+          "x": 1000,
+          "y": 51,
+          "channel": 2,
+          "old": 149,
+          "actual": 150
+        },
+        {
+          "x": 1000,
+          "y": 51,
+          "channel": 3,
+          "old": 53,
+          "actual": 56
+        },
+        {
+          "x": 1005,
+          "y": 51,
+          "channel": 1,
+          "old": 103,
+          "actual": 102
+        },
+        {
+          "x": 1005,
+          "y": 51,
+          "channel": 2,
+          "old": 151,
+          "actual": 150
+        },
+        {
+          "x": 1005,
+          "y": 51,
+          "channel": 3,
+          "old": 210,
+          "actual": 209
+        }
+      ],
+      "maxAlphaDelta": 10,
+      "maxPremultDelta": 6.901960784313729,
+      "opaqueDifferences": 0,
+      "changedPixels": 2509,
+      "maxEdgeDistance": 0.5974810934413347,
+      "comparedBytes": 8846800,
+      "referenceFeatures": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "features": [
+        {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3629737,
+                  25.251853
+                ],
+                [
+                  55.3629865,
+                  25.25191
+                ],
+                [
+                  55.3632493,
+                  25.2518619
+                ],
+                [
+                  55.3632365,
+                  25.2518048
+                ],
+                [
+                  55.3629737,
+                  25.251853
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.92,
+            "length_m": 27,
+            "width_m": 6.5,
+            "heading_deg": 101.5,
+            "centroid": [
+              55.3631115,
+              25.2518574
+            ],
+            "status": "predicted"
+          }
+        }
+      ],
+      "cache": {
+        "cachedBytes": 8846800,
+        "peakCachedBytes": 8846800,
+        "cacheLimit": 16777216
+      }
+    },
+    {
+      "kind": "thin",
+      "size": [
+        8191,
+        5
+      ],
+      "inputHashes": [],
+      "referenceHashes": [],
+      "originalHashes": [],
+      "different": 0,
+      "canonicalDifferences": 0,
+      "examples": [],
+      "maxAlphaDelta": 0,
+      "maxPremultDelta": 0,
+      "opaqueDifferences": 0,
+      "changedPixels": 0,
+      "maxEdgeDistance": 0,
+      "comparedBytes": 163820,
+      "referenceFeatures": [],
+      "features": [],
+      "cache": {
+        "cachedBytes": 163820,
+        "peakCachedBytes": 163820,
+        "cacheLimit": 16777216
+      }
+    }
+  ],
+  "cancelInference": {
+    "code": "AbortError",
+    "waited": true,
+    "disposed": 1,
+    "afterInferenceMs": 24.100000023841858,
+    "operations": {
+      "created": 13,
+      "closed": 13,
+      "timedOut": 0,
+      "pendingReads": 0,
+      "requests": 0,
+      "tileAttempts": 0,
+      "cacheWrites": 0,
+      "inference": 0,
+      "bitmaps": 0,
+      "tensors": 0,
+      "active": []
+    },
+    "allocations": {
+      "rejected": 0,
+      "canvasesCreated": 274,
+      "canvasesReleased": 274,
+      "liveCanvasBytes": 0,
+      "peakCanvasBytes": 17693600,
+      "peakReservedBytes": 114623472,
+      "reservedBytes": 0,
+      "activeOperations": [],
+      "waiting": 0,
+      "limits": {
+        "maxPixels": 32000000,
+        "maxDimension": 8192,
+        "maxEstimatedBytes": 536870912
+      },
+      "maxConcurrentProcessing": 1,
+      "maxConcurrentDownloads": 4
+    }
+  },
+  "samples": [
+    {
+      "aoi": "DXB",
+      "ms": 16830.19999998808,
+      "size": [
+        9322,
+        6391
+      ],
+      "estimatedSize": [
+        9322,
+        6391
+      ],
+      "zoom": 18,
+      "requestedZoom": 18,
+      "pngSize": [
+        9322,
+        6391
+      ],
+      "pngBytes": 1823024,
+      "tiffBytes": 1798784,
+      "estimatedWorkingBytes": 72316672,
+      "cache": {
+        "cachedBytes": 16724088,
+        "peakCachedBytes": 16776748,
+        "cacheLimit": 16777216
+      },
+      "requests": 934,
+      "canvasCount": 1922,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 1263,
+        "canvasesReleased": 1263,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 4362525,
+        "chunksWritten": 26,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "aoi": "SHJ",
+      "ms": 9627.099999964237,
+      "size": [
+        5966,
+        4745
+      ],
+      "estimatedSize": [
+        5966,
+        4745
+      ],
+      "zoom": 18,
+      "requestedZoom": 18,
+      "pngSize": [
+        5966,
+        4745
+      ],
+      "pngBytes": 915041,
+      "tiffBytes": 915484,
+      "estimatedWorkingBytes": 77813760,
+      "cache": {
+        "cachedBytes": 16771240,
+        "peakCachedBytes": 16773640,
+        "cacheLimit": 16777216
+      },
+      "requests": 481,
+      "canvasCount": 961,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 1744,
+        "canvasesReleased": 1744,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 6193050,
+        "chunksWritten": 34,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "aoi": "AUH",
+      "ms": 17292.69999998808,
+      "size": [
+        8762,
+        6963
+      ],
+      "estimatedSize": [
+        8762,
+        6963
+      ],
+      "zoom": 18,
+      "requestedZoom": 18,
+      "pngSize": [
+        8762,
+        6963
+      ],
+      "pngBytes": 1816213,
+      "tiffBytes": 1788888,
+      "estimatedWorkingBytes": 77821184,
+      "cache": {
+        "cachedBytes": 16775528,
+        "peakCachedBytes": 16777088,
+        "cacheLimit": 16777216
+      },
+      "requests": 981,
+      "canvasCount": 1961,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 2725,
+        "canvasesReleased": 2725,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 9798151,
+        "chunksWritten": 48,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "aoi": "DWC",
+      "ms": 18219.899999976158,
+      "size": [
+        9321,
+        6988
+      ],
+      "estimatedSize": [
+        9321,
+        6988
+      ],
+      "zoom": 18,
+      "requestedZoom": 18,
+      "pngSize": [
+        9321,
+        6988
+      ],
+      "pngBytes": 1999922,
+      "tiffBytes": 1973458,
+      "estimatedWorkingBytes": 75540992,
+      "cache": {
+        "cachedBytes": 16592088,
+        "peakCachedBytes": 16777128,
+        "cacheLimit": 16777216
+      },
+      "requests": 1065,
+      "canvasCount": 2129,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 3790,
+        "canvasesReleased": 3790,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 13771531,
+        "chunksWritten": 64,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "aoi": "JEA_PORT",
+      "ms": 6766.300000011921,
+      "size": [
+        5593,
+        3601
+      ],
+      "estimatedSize": [
+        5593,
+        3601
+      ],
+      "zoom": 17,
+      "requestedZoom": 18,
+      "pngSize": [
+        5593,
+        3601
+      ],
+      "pngBytes": 640941,
+      "tiffBytes": 640216,
+      "estimatedWorkingBytes": 70186560,
+      "cache": {
+        "cachedBytes": 16662220,
+        "peakCachedBytes": 16775588,
+        "cacheLimit": 16777216
+      },
+      "requests": 346,
+      "canvasCount": 691,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 4136,
+        "canvasesReleased": 4136,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 15052688,
+        "chunksWritten": 70,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "aoi": "RASHID_PORT",
+      "ms": 5196.699999988079,
+      "size": [
+        4288,
+        3712
+      ],
+      "estimatedSize": [
+        4288,
+        3712
+      ],
+      "zoom": 18,
+      "requestedZoom": 18,
+      "pngSize": [
+        4288,
+        3712
+      ],
+      "pngBytes": 510142,
+      "tiffBytes": 510662,
+      "estimatedWorkingBytes": 81340416,
+      "cache": {
+        "cachedBytes": 16708096,
+        "peakCachedBytes": 16777216,
+        "cacheLimit": 16777216
+      },
+      "requests": 289,
+      "canvasCount": 577,
+      "maxCanvasSide": 2048,
+      "allCanvasesReleased": true,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 4425,
+        "canvasesReleased": 4425,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 3177,
+        "bytesWritten": 16073492,
+        "chunksWritten": 74,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    }
+  ],
+  "ui": {
+    "status": "done",
+    "size": [
+      400,
+      128
+    ],
+    "displaySize": [
+      400,
+      128
+    ],
+    "pngDescriptor": 1,
+    "tiffDescriptor": 1,
+    "storedOwner": "d3419edb-5ef5-4840-bb86-7bad7c6fa10a",
+    "mapImage": "blob:http://127.0.0.1:57336/53ca9bf6-8528-403f-acc0-52682d058208",
+    "diagnostics": {
+      "views": {
+        "created": 1,
+        "disposed": 0,
+        "imageURLsCreated": 1,
+        "imageURLsRevoked": 0,
+        "staleReads": 0,
+        "active": 1,
+        "loading": false,
+        "imageLeases": 1,
+        "imageLayers": 1,
+        "selected": false,
+        "editing": false,
+        "scope": "browser_20261108_195530_cac93b3a:clip:0"
+      },
+      "drafts": {
+        "retained": 1,
+        "dirty": 0
+      },
+      "rowPayloads": 1,
+      "comparisonRowPayloads": 0,
+      "auxiliary": {
+        "dataset": false,
+        "export": false,
+        "parts": 0,
+        "partReads": 0,
+        "partDownloads": 0,
+        "serverPoll": false,
+        "trainingPoll": false
+      },
+      "downloadLeases": 0
+    }
+  },
+  "file": {
+    "saved": true,
+    "entries": [
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/image.png",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/image.tif",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/display.png",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/preview_detections.jpg",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/image.pgw",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/image.prj",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/detections.geojson",
+      "browser_20261108_195530_cac93b3a/Allocation/2026-10-29/aoi.geojson",
+      "browser_20261108_195530_cac93b3a/all_detections.geojson",
+      "browser_20261108_195530_cac93b3a/aois.geojson",
+      "browser_20261108_195530_cac93b3a/summary.json"
+    ],
+    "pngBytes": 1934
+  },
+  "dataset": {
+    "chips": 1,
+    "classes": [
+      "ship"
+    ],
+    "old": {
+      "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+      "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+      "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+      "dataset/images/train/r101_z18_00000.jpg": [
+        1024,
+        1024
+      ],
+      "dataset/images/val/r101_z18_00000.jpg": [
+        1024,
+        1024
+      ],
+      "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+      "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+    },
+    "bounded": {
+      "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+      "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+      "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+      "dataset/images/train/r101_z18_00000.jpg": [
+        1024,
+        1024
+      ],
+      "dataset/images/val/r101_z18_00000.jpg": [
+        1024,
+        1024
+      ],
+      "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+      "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+    }
+  },
+  "formats": {
+    "keys": [
+      "pgw",
+      "tif",
+      "display",
+      "preview"
+    ],
+    "size": [
+      400,
+      128
+    ]
+  },
+  "failure": [
+    {
+      "target": "raw",
+      "message": "injected raw write failure",
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 4433,
+        "canvasesReleased": 4433,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 134217728
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "operations": {
+        "created": 31,
+        "closed": 31,
+        "timedOut": 0,
+        "pendingReads": 0,
+        "requests": 0,
+        "tileAttempts": 0,
+        "cacheWrites": 0,
+        "inference": 0,
+        "bitmaps": 0,
+        "tensors": 0,
+        "active": []
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 17168,
+        "bytesWritten": 16115738,
+        "chunksWritten": 78,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "target": "png",
+      "message": "injected png write failure",
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 4452,
+        "canvasesReleased": 4452,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 134217728
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "operations": {
+        "created": 33,
+        "closed": 33,
+        "timedOut": 0,
+        "pendingReads": 0,
+        "requests": 0,
+        "tileAttempts": 0,
+        "cacheWrites": 0,
+        "inference": 0,
+        "bitmaps": 0,
+        "tensors": 0,
+        "active": []
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 17168,
+        "bytesWritten": 16115738,
+        "chunksWritten": 78,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    },
+    {
+      "target": "tiff-strips",
+      "message": "injected tiff-strips write failure",
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 4471,
+        "canvasesReleased": 4471,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 17693600,
+        "peakReservedBytes": 114623472,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 134217728
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "operations": {
+        "created": 35,
+        "closed": 35,
+        "timedOut": 0,
+        "pendingReads": 0,
+        "requests": 0,
+        "tileAttempts": 0,
+        "cacheWrites": 0,
+        "inference": 0,
+        "bitmaps": 0,
+        "tensors": 0,
+        "active": []
+      },
+      "io": {
+        "pendingBytes": 0,
+        "peakPendingBytes": 17168,
+        "bytesWritten": 16143793,
+        "chunksWritten": 79,
+        "activeWriters": 0,
+        "cleanupFailures": 0,
+        "memorySpools": 0,
+        "memoryBytes": 0
+      }
+    }
+  ],
+  "parts": {
+    "parts": [
+      {
+        "size": 262144
+      },
+      {
+        "size": 262144
+      },
+      {
+        "size": 262144
+      },
+      {
+        "size": 22603
+      }
+    ],
+    "bytes": 809035
+  },
+  "narrow": {
+    "viewport": 390,
+    "width": 390
+  },
+  "final": {
+    "operations": {
+      "created": 36,
+      "closed": 36,
+      "timedOut": 0,
+      "pendingReads": 0,
+      "requests": 0,
+      "tileAttempts": 0,
+      "cacheWrites": 0,
+      "inference": 0,
+      "bitmaps": 0,
+      "tensors": 0,
+      "active": []
+    },
+    "allocations": {
+      "rejected": 0,
+      "canvasesCreated": 4471,
+      "canvasesReleased": 4471,
+      "liveCanvasBytes": 0,
+      "peakCanvasBytes": 17693600,
+      "peakReservedBytes": 114623472,
+      "reservedBytes": 0,
+      "activeOperations": [],
+      "waiting": 0,
+      "limits": {
+        "maxPixels": 32000000,
+        "maxDimension": 8192,
+        "maxEstimatedBytes": 134217728
+      },
+      "maxConcurrentProcessing": 1,
+      "maxConcurrentDownloads": 4
+    },
+    "io": {
+      "pendingBytes": 0,
+      "peakPendingBytes": 262215,
+      "bytesWritten": 16952828,
+      "chunksWritten": 83,
+      "activeWriters": 0,
+      "cleanupFailures": 0,
+      "memorySpools": 0,
+      "memoryBytes": 0
+    },
+    "allBitmapsClosed": true
+  },
+  "reload": {
+    "pngDescriptor": 1,
+    "mapImage": "blob:http://127.0.0.1:57336/cc1c4850-eba3-4e8d-bd26-fe81b9cfe695"
+  },
+  "followUp": {
+    "scope": "Final-source bounded CI probe, including the concurrent spool-budget guard and session-only format compatibility; full six-sample benchmark above retains its own recorded source hashes.",
+    "boundedCI": {
+      "checkedAt": "2026-11-08T20:11:45.459Z",
+      "mode": "Local native Chromium, bounded blocks/chunked IndexedDB/native writers; deterministic tiles and model outputs",
+      "sources": {
+        "index.html": "b01bc3077beba70b62d8674bc600bd580acdbcdcd2bcd063cb9d137f9cf72adb",
+        "engine.js": "77bbfdcee83cf5dd57e4944616e6ce6e7b0bf981bc3016362c8b4456b34a7a6b",
+        "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+        "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "app.js": "debb044d169ac417a418be19b5804c48e962bc548833158e1206844e3072eb1c"
+      },
+      "limitations": [
+        "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+        "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "quality": [
+        {
+          "kind": "rectangle",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "hole",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "multi",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "referenceHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "originalHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "diagonal-hole",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "a99d6d03ce8e590580e041bf94b941bbdcac1cff5a32dbd85354f53c5fa89fdb",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "7815c614f3b88e0302e365d343a030300afdecde81799e0776b8bbc6b82b8004",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 558,
+          "canonicalDifferences": 0,
+          "examples": [
+            {
+              "x": 200,
+              "y": 151,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 200,
+              "y": 151,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 399,
+              "y": 151,
+              "channel": 3,
+              "old": 63,
+              "actual": 64
+            },
+            {
+              "x": 201,
+              "y": 153,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 201,
+              "y": 153,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 202,
+              "y": 155,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 202,
+              "y": 155,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 0,
+              "old": 227,
+              "actual": 219
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 1,
+              "old": 42,
+              "actual": 36
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 2,
+              "old": 14,
+              "actual": 24
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 3,
+              "old": 18,
+              "actual": 21
+            },
+            {
+              "x": 203,
+              "y": 157,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            }
+          ],
+          "maxAlphaDelta": 3,
+          "maxPremultDelta": 2.011764705882353,
+          "opaqueDifferences": 0,
+          "changedPixels": 294,
+          "maxEdgeDistance": 0.4109974685269643,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0001",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "diagonal-multi",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+            "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+          ],
+          "referenceHashes": [
+            "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+            "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+          ],
+          "originalHashes": [
+            "3e222921462c909b60fd765f1c9c528106122179c511268ee9a94c59f8faad86",
+            "f9cb29ee7b88067a16ee6b4262588f196a0c9a8f0aeaea7d2b3d6d0fe8ced161",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "9aab5af21c5509c01dc9d7c96782a3013f1cb3d46aa0ba7ae4207af8c9a6552c"
+          ],
+          "different": 6507,
+          "canonicalDifferences": 0,
+          "examples": [
+            {
+              "x": 1000,
+              "y": 50,
+              "channel": 3,
+              "old": 163,
+              "actual": 161
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 0,
+              "old": 26,
+              "actual": 43
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 1,
+              "old": 102,
+              "actual": 106
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 2,
+              "old": 153,
+              "actual": 149
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 3,
+              "old": 10,
+              "actual": 12
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 0,
+              "old": 38,
+              "actual": 36
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 1,
+              "old": 101,
+              "actual": 105
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 2,
+              "old": 149,
+              "actual": 150
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 3,
+              "old": 53,
+              "actual": 56
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 1,
+              "old": 103,
+              "actual": 102
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 2,
+              "old": 151,
+              "actual": 150
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 3,
+              "old": 210,
+              "actual": 209
+            }
+          ],
+          "maxAlphaDelta": 10,
+          "maxPremultDelta": 6.901960784313729,
+          "opaqueDifferences": 0,
+          "changedPixels": 2509,
+          "maxEdgeDistance": 0.5974810934413347,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "Allocation_101_0000",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "thin",
+          "size": [
+            8191,
+            5
+          ],
+          "inputHashes": [],
+          "referenceHashes": [],
+          "originalHashes": [],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 163820,
+          "referenceFeatures": [],
+          "features": [],
+          "cache": {
+            "cachedBytes": 163820,
+            "peakCachedBytes": 163820,
+            "cacheLimit": 16777216
+          }
+        }
+      ],
+      "cancelInference": {
+        "code": "AbortError",
+        "waited": true,
+        "disposed": 1,
+        "afterInferenceMs": 23.100000023841858,
+        "operations": {
+          "created": 13,
+          "closed": 13,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 274,
+          "canvasesReleased": 274,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 17693600,
+          "peakReservedBytes": 114623472,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        }
+      },
+      "samples": [
+        {
+          "aoi": "DXB",
+          "ms": 15022.900000035763,
+          "size": [
+            9322,
+            6391
+          ],
+          "estimatedSize": [
+            9322,
+            6391
+          ],
+          "zoom": 18,
+          "requestedZoom": 18,
+          "pngSize": [
+            9322,
+            6391
+          ],
+          "pngBytes": 1823024,
+          "tiffBytes": 1798784,
+          "estimatedWorkingBytes": 72316672,
+          "cache": {
+            "cachedBytes": 16724088,
+            "peakCachedBytes": 16776748,
+            "cacheLimit": 16777216
+          },
+          "requests": 934,
+          "canvasCount": 1922,
+          "maxCanvasSide": 2048,
+          "allCanvasesReleased": true,
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1263,
+            "canvasesReleased": 1263,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 3177,
+            "bytesWritten": 4362525,
+            "chunksWritten": 26,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        }
+      ],
+      "ui": {
+        "status": "done",
+        "size": [
+          400,
+          128
+        ],
+        "displaySize": [
+          400,
+          128
+        ],
+        "pngDescriptor": 1,
+        "tiffDescriptor": 1,
+        "storedOwner": "c1ad6db3-4553-4224-9923-f419c9af16f9",
+        "mapImage": "blob:http://127.0.0.1:61241/218d6012-5b12-4d21-b613-d4b7084e00a9",
+        "diagnostics": {
+          "views": {
+            "created": 1,
+            "disposed": 0,
+            "imageURLsCreated": 1,
+            "imageURLsRevoked": 0,
+            "staleReads": 0,
+            "active": 1,
+            "loading": false,
+            "imageLeases": 1,
+            "imageLayers": 1,
+            "selected": false,
+            "editing": false,
+            "scope": "browser_20261108_201207_ae57ad4b:clip:0"
+          },
+          "drafts": {
+            "retained": 1,
+            "dirty": 0
+          },
+          "rowPayloads": 1,
+          "comparisonRowPayloads": 0,
+          "auxiliary": {
+            "dataset": false,
+            "export": false,
+            "parts": 0,
+            "partReads": 0,
+            "partDownloads": 0,
+            "serverPoll": false,
+            "trainingPoll": false
+          },
+          "downloadLeases": 0
+        }
+      },
+      "file": {
+        "saved": true,
+        "entries": [
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/image.png",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/image.tif",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/display.png",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/preview_detections.jpg",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/image.pgw",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/image.prj",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/detections.geojson",
+          "browser_20261108_201207_ae57ad4b/Allocation/2026-10-29/aoi.geojson",
+          "browser_20261108_201207_ae57ad4b/all_detections.geojson",
+          "browser_20261108_201207_ae57ad4b/aois.geojson",
+          "browser_20261108_201207_ae57ad4b/summary.json"
+        ],
+        "pngBytes": 1934
+      },
+      "dataset": {
+        "chips": 1,
+        "classes": [
+          "ship"
+        ],
+        "old": {
+          "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+          "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+          "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+          "dataset/images/train/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/images/val/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+          "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+        },
+        "bounded": {
+          "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+          "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+          "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+          "dataset/images/train/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/images/val/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+          "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+        }
+      },
+      "formats": {
+        "keys": [
+          "pgw",
+          "tif",
+          "display",
+          "preview"
+        ],
+        "size": [
+          400,
+          128
+        ]
+      },
+      "failure": [
+        {
+          "target": "raw",
+          "message": "injected raw write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1271,
+            "canvasesReleased": 1271,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 21,
+            "closed": 21,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4404771,
+            "chunksWritten": 30,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        },
+        {
+          "target": "png",
+          "message": "injected png write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1290,
+            "canvasesReleased": 1290,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 23,
+            "closed": 23,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4404771,
+            "chunksWritten": 30,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        },
+        {
+          "target": "tiff-strips",
+          "message": "injected tiff-strips write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1309,
+            "canvasesReleased": 1309,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 25,
+            "closed": 25,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4432826,
+            "chunksWritten": 31,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        }
+      ],
+      "parts": {
+        "parts": [
+          {
+            "size": 262144
+          },
+          {
+            "size": 262144
+          },
+          {
+            "size": 262144
+          },
+          {
+            "size": 22616
+          }
+        ],
+        "bytes": 809048
+      },
+      "narrow": {
+        "viewport": 390,
+        "width": 390
+      },
+      "final": {
+        "operations": {
+          "created": 26,
+          "closed": 26,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 1309,
+          "canvasesReleased": 1309,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 17693600,
+          "peakReservedBytes": 114623472,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 134217728
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "io": {
+          "pendingBytes": 0,
+          "peakPendingBytes": 262215,
+          "bytesWritten": 5241874,
+          "chunksWritten": 35,
+          "activeWriters": 0,
+          "cleanupFailures": 0,
+          "memorySpools": 0,
+          "memoryBytes": 0
+        },
+        "allBitmapsClosed": true
+      },
+      "reload": {
+        "pngDescriptor": 1,
+        "mapImage": "blob:http://127.0.0.1:61241/33e11363-b896-4886-b917-3c05dd78ed10"
+      }
+    },
+    "legacyAllocation": {
+      "checkedAt": "2026-11-08T20:07:33.404Z",
+      "mode": "Local source, native Chromium; deterministic tiles and fixed inference outputs",
+      "sources": {
+        "index.html": "b01bc3077beba70b62d8674bc600bd580acdbcdcd2bcd063cb9d137f9cf72adb",
+        "engine.js": "77bbfdcee83cf5dd57e4944616e6ce6e7b0bf981bc3016362c8b4456b34a7a6b",
+        "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+        "storage.js": "4ff94646a22992838d1d25c06cb8fbc9531324d6115fb7815f1426c44e80b628",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "app.js": "f629de507c9c53e3095fbd5c7be43fd11cc6c81e5c45c1f1f4c9b30b0d733131"
+      },
+      "limitations": [
+        "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+        "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "sampleEstimates": [
+        {
+          "aoi": "DXB",
+          "size": [
+            9322,
+            6391
+          ],
+          "tiles": 988,
+          "zoom": 18,
+          "estimatedBytes": 1259509660,
+          "allowed": false,
+          "codes": [
+            "RASTER_LIMIT",
+            "MEMORY_LIMIT"
+          ]
+        },
+        {
+          "aoi": "SHJ",
+          "size": [
+            5966,
+            4745
+          ],
+          "tiles": 480,
+          "zoom": 18,
+          "estimatedBytes": 629444912,
+          "allowed": false,
+          "codes": [
+            "MEMORY_LIMIT"
+          ]
+        },
+        {
+          "aoi": "AUH",
+          "size": [
+            8762,
+            6963
+          ],
+          "tiles": 980,
+          "zoom": 18,
+          "estimatedBytes": 1295331548,
+          "allowed": false,
+          "codes": [
+            "RASTER_LIMIT",
+            "MEMORY_LIMIT"
+          ]
+        },
+        {
+          "aoi": "DWC",
+          "size": [
+            9321,
+            6988
+          ],
+          "tiles": 1064,
+          "zoom": 18,
+          "estimatedBytes": 1376564704,
+          "allowed": false,
+          "codes": [
+            "RASTER_LIMIT",
+            "MEMORY_LIMIT"
+          ]
+        },
+        {
+          "aoi": "JEA_PORT",
+          "size": [
+            5593,
+            3601
+          ],
+          "tiles": 345,
+          "zoom": 17,
+          "estimatedBytes": 453578548,
+          "allowed": true,
+          "codes": []
+        },
+        {
+          "aoi": "RASHID_PORT",
+          "size": [
+            4288,
+            3712
+          ],
+          "tiles": 288,
+          "zoom": 18,
+          "estimatedBytes": 381300180,
+          "allowed": true,
+          "codes": []
+        }
+      ],
+      "rejections": {
+        "checks": [
+          {
+            "name": "long-side",
+            "code": "RASTER_LIMIT",
+            "zoom": 18
+          },
+          {
+            "name": "pixels",
+            "code": "RASTER_LIMIT",
+            "zoom": 18
+          },
+          {
+            "name": "memory",
+            "code": "MEMORY_LIMIT",
+            "zoom": 18
+          },
+          {
+            "name": "tensor",
+            "code": "MEMORY_LIMIT",
+            "zoom": 18
+          },
+          {
+            "name": "floor",
+            "code": "TILE_LIMIT",
+            "zoom": 10
+          }
+        ],
+        "created": 0,
+        "requests": 0
+      },
+      "native": {
+        "size": [
+          400,
+          128
+        ],
+        "estimatedSize": [
+          400,
+          128
+        ],
+        "requestedZoom": 18,
+        "zoom": 18,
+        "counts": {
+          "aircraft": 1
+        },
+        "prediction": {
+          "type": "Feature",
+          "id": "Allocation_101_0000",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  55.3590238,
+                  25.253051
+                ],
+                [
+                  55.3590238,
+                  25.2531092
+                ],
+                [
+                  55.3591311,
+                  25.2531092
+                ],
+                [
+                  55.3591311,
+                  25.253051
+                ],
+                [
+                  55.3590238,
+                  25.253051
+                ]
+              ]
+            ]
+          },
+          "properties": {
+            "aoi_id": "Allocation",
+            "aoi_name": "Allocation",
+            "release": 101,
+            "imagery_date": "2026-10-29",
+            "zoom": 18,
+            "gsd_m": 0.54,
+            "source": "Esri Wayback",
+            "imagery_coverage": "full",
+            "missing_tiles": 0,
+            "class": "aircraft",
+            "confidence": 0.9,
+            "length_m": 10.8,
+            "width_m": 6.5,
+            "heading_deg": 90,
+            "centroid": [
+              55.3590775,
+              25.2530801
+            ],
+            "status": "predicted"
+          }
+        },
+        "solid": [
+          40,
+          90,
+          150,
+          255
+        ],
+        "hole": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "pixelsCompared": 204800,
+        "different": 0,
+        "tiffSize": [
+          400,
+          128
+        ],
+        "scale": [
+          0.5971642834779395,
+          0.5971642834779395,
+          0
+        ],
+        "expectedGeo": [
+          0.5971642834779395,
+          0.5971642834779395,
+          0
+        ],
+        "tie": [
+          0,
+          0,
+          0,
+          6162515.649036016,
+          2906890.6310567185,
+          0
+        ],
+        "epsg": 3857,
+        "world": [
+          0.5971642834779395,
+          0,
+          0,
+          -0.5971642834779395,
+          6162515.947618158,
+          2906890.332474577
+        ],
+        "legacySize": [
+          400,
+          128
+        ],
+        "ms": 90.19999998807907,
+        "estimateBytes": 16982080,
+        "allocations": {
+          "rejected": 5,
+          "canvasesCreated": 3,
+          "canvasesReleased": 3,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 409600,
+          "peakReservedBytes": 16982080,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        }
+      },
+      "ui": {
+        "blocked": true,
+        "text": "Allocation · z18 · 400×128 px · 2 tiles · 0.05 MP · estimated 10.8 MiBBounded working buffers need an estimated 10.8 MiB, exceeding 1.0 MiB. Reduce the AOI/preview or adjust Browser limits.",
+        "enabled": true,
+        "status": "done",
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 67108864
+        },
+        "summary": [
+          {
+            "size": [
+              400,
+              128
+            ],
+            "zoom": 18,
+            "requestedZoom": 18
+          }
+        ]
+      },
+      "narrow": {
+        "viewport": 390,
+        "width": 390,
+        "preflight": 354
+      },
+      "repeated": {
+        "cycles": 10,
+        "ms": 35.89999997615814,
+        "rejected": 5,
+        "canvasesCreated": 24,
+        "canvasesReleased": 24,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 409600,
+        "peakReservedBytes": 19488896,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 67108864
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      }
+    },
+    "persistence": {
+      "checkedAt": "2026-11-08T20:06:31.776Z",
+      "mode": "Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim",
+      "sources": {
+        "index.html": "b01bc3077beba70b62d8674bc600bd580acdbcdcd2bcd063cb9d137f9cf72adb",
+        "engine.js": "77bbfdcee83cf5dd57e4944616e6ce6e7b0bf981bc3016362c8b4456b34a7a6b",
+        "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+        "storage.js": "4ff94646a22992838d1d25c06cb8fbc9531324d6115fb7815f1426c44e80b628",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "app.js": "f629de507c9c53e3095fbd5c7be43fd11cc6c81e5c45c1f1f4c9b30b0d733131"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "startup": {
+        "ms": 173.19999998807907,
+        "reads": {
+          "meta": 3,
+          "aois": 2,
+          "reviews": 1,
+          "jobs": 1,
+          "results": 1,
+          "queue": 1,
+          "models": 1,
+          "drafts": 1
+        }
+      },
+      "beforeReload": {
+        "jobs": [
+          {
+            "id": "browser_20261108_200633_67d73e0e",
+            "status": "running",
+            "clips": 1
+          },
+          {
+            "id": "browser_20261108_200633_3646ae6e",
+            "status": "queued",
+            "clips": 0
+          }
+        ],
+        "queue": [
+          "browser_20261108_200633_67d73e0e",
+          "browser_20261108_200633_3646ae6e"
+        ]
+      },
+      "recovery": {
+        "jobs": [
+          {
+            "status": "interrupted",
+            "clips": 1
+          },
+          {
+            "status": "queued",
+            "clips": 0
+          }
+        ],
+        "calls": [],
+        "reads": {
+          "meta": 1,
+          "aois": 2,
+          "jobs": 2,
+          "results": 2,
+          "queue": 2,
+          "models": 2,
+          "drafts": 1
+        },
+        "status": "Idle · 2/10 queued · paused"
+      },
+      "resumed": [
+        {
+          "release": 100,
+          "model": "url:alpha.onnx"
+        },
+        {
+          "release": 101,
+          "model": "url:beta.onnx"
+        }
+      ],
+      "reviews": {
+        "raw": "predicted",
+        "draft": "verified",
+        "legacy": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"legacy-review\",\"properties\":{\"class\":\"ship\",\"status\":\"verified\",\"release\":101},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]}}]}",
+        "saved": 2,
+        "clipId": "browser_20261108_200633_67d73e0e:clip:0",
+        "commit": 0.5
+      },
+      "afterDraftReload": {
+        "stats": "1/1 reviewed",
+        "urls": {
+          "created": 1,
+          "revoked": 0
+        },
+        "reads": {
+          "meta": 1,
+          "aois": 1,
+          "jobs": 1,
+          "results": 2,
+          "queue": 1,
+          "models": 1,
+          "drafts": 2,
+          "predictions": 1,
+          "artifacts": 1
+        }
+      },
+      "imageOwnership": {
+        "created": 2,
+        "revoked": 1
+      },
+      "lazyDrawing": {
+        "loadedBeforeEdit": false,
+        "existingPolygons": 1
+      },
+      "dragSwitch": {
+        "disabled": true,
+        "detached": true,
+        "events": [],
+        "markers": 0,
+        "selected": false,
+        "activeDrag": false
+      },
+      "switches": {
+        "count": 20,
+        "medianMs": 206,
+        "maxMs": 208,
+        "last": {
+          "ms": 206,
+          "created": 23,
+          "disposed": 22,
+          "imageURLsCreated": 43,
+          "imageURLsRevoked": 42,
+          "staleReads": 0,
+          "active": 1,
+          "loading": false,
+          "imageLeases": 1,
+          "imageLayers": 1,
+          "selected": false,
+          "editing": false,
+          "scope": "browser_20261108_200633_67d73e0e:clip:1",
+          "rowPayloads": 1,
+          "markers": 0,
+          "obsoleteMapListeners": 0
+        },
+        "measurement": "UI/poll end-to-end on tiny local fixtures; not production latency or a memory/leak benchmark"
+      },
+      "editedDraft": {
+        "draftMatches": true,
+        "rawUnchanged": true
+      },
+      "reorderedRead": {
+        "created": 25,
+        "disposed": 24,
+        "imageURLsCreated": 44,
+        "imageURLsRevoked": 43,
+        "staleReads": 1,
+        "active": 1,
+        "loading": false,
+        "imageLeases": 1,
+        "imageLayers": 1,
+        "selected": false,
+        "editing": false,
+        "scope": "browser_20261108_200633_67d73e0e:clip:1"
+      },
+      "export": {
+        "files": [
+          "browser_20261108_200633_67d73e0e/",
+          "browser_20261108_200633_67d73e0e/Persistence/",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/image.tif",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/image.png",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/image.pgw",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/image.prj",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/preview_detections.jpg",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/detections.geojson",
+          "browser_20261108_200633_67d73e0e/Persistence/2026-10-29/aoi.geojson",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/image.tif",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/image.png",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/image.pgw",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/image.prj",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/preview_detections.jpg",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/detections.geojson",
+          "browser_20261108_200633_67d73e0e/Persistence/2025-03-27/aoi.geojson",
+          "browser_20261108_200633_67d73e0e/all_detections.geojson",
+          "browser_20261108_200633_67d73e0e/aois.geojson",
+          "browser_20261108_200633_67d73e0e/summary.json"
+        ],
+        "dimensions": [
+          32,
+          16
+        ],
+        "pgw": "1\n0\n0\n-1\n10\n20",
+        "tiff": "native-tiff-fixture",
+        "status": "verified"
+      },
+      "collidingExport": {
+        "images": 2,
+        "paths": [
+          "Persistence/2026-10-29",
+          "Persistence/2026-10-29__clip_1"
+        ]
+      },
+      "secondTab": {
+        "writable": false,
+        "blocked": true
+      },
+      "quotaRollback": {
+        "error": "QuotaExceededError",
+        "before": 2,
+        "after": 2,
+        "missing": true
+      },
+      "deletion": {
+        "jobs": 1,
+        "before": 2,
+        "after": 2,
+        "missing": true
+      },
+      "deletedView": {
+        "views": {
+          "created": 25,
+          "disposed": 25,
+          "imageURLsCreated": 44,
+          "imageURLsRevoked": 44,
+          "staleReads": 1,
+          "active": 0,
+          "loading": false,
+          "imageLeases": 0,
+          "imageLayers": 0,
+          "selected": false,
+          "editing": false,
+          "scope": null
+        },
+        "drafts": {
+          "retained": 0,
+          "dirty": 0
+        },
+        "rowPayloads": 0,
+        "comparisonRowPayloads": 0,
+        "auxiliary": {
+          "dataset": false,
+          "export": false,
+          "parts": 0,
+          "partReads": 0,
+          "partDownloads": 0,
+          "serverPoll": false,
+          "trainingPoll": false
+        },
+        "downloadLeases": 0
+      },
+      "otherDocument": {
+        "status": "Read only · close the other tab and reload to edit.",
+        "runDisabled": true
+      },
+      "disabledStorage": {
+        "status": "Session only · storage unavailable. Export before closing.",
+        "map": true,
+        "runEnabled": true
+      },
+      "upgradeRollback": {
+        "error": "AbortError",
+        "status": "Not saved · Storage ownership changed. Reload this tab to recover."
+      },
+      "afterUpgradeRollback": {
+        "jobs": 1,
+        "reviews": true
+      },
+      "newerSchema": {
+        "error": "VersionError",
+        "version": 3
+      },
+      "exceptions": []
+    },
+    "map": {
+      "checkedAt": "2026-11-08T20:08:27.808Z",
+      "mode": "Local app/engine overrides; not a deployed-source check",
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "appSha256": "f629de507c9c53e3095fbd5c7be43fd11cc6c81e5c45c1f1f4c9b30b0d733131",
+      "unchangedRelease": {
+        "tileLayers": 0,
+        "tileUrls": 0,
+        "fits": 0,
+        "geoJSON": 0,
+        "annotationReads": 0,
+        "annotationFetches": 0,
+        "detectionFetches": 0
+      },
+      "changedRelease": {
+        "tileLayers": 0,
+        "tileUrls": 1,
+        "fits": 0,
+        "geoJSON": 0,
+        "annotationReads": 0,
+        "annotationFetches": 0,
+        "detectionFetches": 0
+      },
+      "imageToggle": {
+        "tileLayers": 0,
+        "tileUrls": 0,
+        "fits": 0,
+        "geoJSON": 0,
+        "annotationReads": 0,
+        "annotationFetches": 0,
+        "detectionFetches": 0
+      },
+      "editingPreserved": true,
+      "runtimeErrors": [],
+      "jobLog": "00:08:22  Queued: Imagery only · 1 AOI(s). Settings captured for this job.\n00:08:22  Review_small: 1 release(s) 2026-10-29\n00:08:22  [1/1] Review_small · 2026-10-29\n00:08:22      Budget: z18 · 374×413 px · 6 tiles · estimated 31.8 MiB\n00:08:24      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.2s\n00:08:26      z18 · 374×413 px · 0 objects \n00:08:26  Finished: 0 objects across 1 AOI/date clips. Saved on this device. Export a zip for a separate backup.",
+      "runSelection": {
+        "imported": 2,
+        "selectedAtStart": 1,
+        "runningButtonDisabled": false,
+        "excludedAoiProcessed": false,
+        "jobClips": 1
+      },
+      "childPanel": {
+        "focused": "runAoiSearch",
+        "inlineSelector": false,
+        "adjacent": true,
+        "columns": [
+          "Process",
+          "AOI name",
+          "Map"
+        ],
+        "withinSidebar": true,
+        "normalControlsHidden": true,
+        "noModal": true,
+        "desktop": {
+          "width": 379,
+          "height": 837.234375,
+          "withinSidebar": true,
+          "mapUncovered": true,
+          "mapHit": true,
+          "mapHeight": 913
+        },
+        "mobile": {
+          "width": 390,
+          "height": 311.46875,
+          "withinSidebar": true,
+          "mapUncovered": true,
+          "mapHit": true,
+          "mapHeight": 382.328125
+        },
+        "mapControlsInteractive": true,
+        "mapDragInteractive": true,
+        "zoom": {
+          "centre": [
+            55.38100183010101,
+            25.251001075157113
+          ],
+          "selected": "2",
+          "focus": "map",
+          "active": "Do_not_run",
+          "staysOpen": true,
+          "search": "DO_NOT"
+        },
+        "escapeFocus": "runAoiBtn"
+      },
+      "detectionPointer": {
+        "x": 942,
+        "y": 457,
+        "zoomBefore": 20,
+        "fitsBefore": 4,
+        "hitDetection": true,
+        "zoomAfter": 20,
+        "fitsAfter": 4,
+        "infoShown": true,
+        "card": "\n    aircraftmanual\n    Confidence0.91Size—\n    Heading—Centre25.25075, 55.36075\n    aircraftshiphelicopterstorage tanklarge vehiclesmall vehicleharborbridgeswimming poolroundabouttennis courtbasketball courtbaseball diamondsoccer fieldtrack field\n    AcceptRejectEdit shapeDelete"
+      }
+    },
+    "imagery": {
+      "checkedAt": "2026-11-08T20:10:01.415Z",
+      "mode": "Local source overrides; live provider/model assets; not deployed verification",
+      "forcedProvider": null,
+      "sources": {
+        "index.html": "b01bc3077beba70b62d8674bc600bd580acdbcdcd2bcd063cb9d137f9cf72adb",
+        "app.js": "f629de507c9c53e3095fbd5c7be43fd11cc6c81e5c45c1f1f4c9b30b0d733131",
+        "engine.js": "77bbfdcee83cf5dd57e4944616e6ce6e7b0bf981bc3016362c8b4456b34a7a6b",
+        "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+        "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b"
+      },
+      "limitations": [
+        "Coverage is a live snapshot for the repository sample DXB polygon.",
+        "Small-clip inference is a provider/encoding smoke test, not an accuracy benchmark.",
+        "Resource counts verify this ownership path, not sustained JS/native/GPU memory or a general leak fix."
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "absentRaster": {
+        "code": "NO_IMAGERY",
+        "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+        "zoom": 18,
+        "coverage": {
+          "total": 988,
+          "available": 0,
+          "unavailable": 988,
+          "unknown": 0,
+          "checks": 2,
+          "ms": 1528.6000000238419,
+          "status": "unavailable",
+          "errors": []
+        },
+        "ms": 1530.199999988079,
+        "canvases": 0,
+        "bitmaps": 0,
+        "requests": [
+          "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171365/38/26",
+          "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/388/18/112045/171392/11/26"
+        ]
+      },
+      "coverageControls": [
+        {
+          "release": 388,
+          "zoom": 17,
+          "total": 280,
+          "available": 280,
+          "unavailable": 0,
+          "unknown": 0,
+          "checks": 1,
+          "ms": 328.80000001192093,
+          "status": "full",
+          "errors": []
+        },
+        {
+          "release": 43291,
+          "zoom": 18,
+          "total": 988,
+          "available": 988,
+          "unavailable": 0,
+          "unknown": 0,
+          "checks": 2,
+          "ms": 745,
+          "status": "full",
+          "errors": []
+        }
+      ],
+      "jobLog": "00:10:12  Queued: YOLO11 nano OBB · fast · 1 AOI(s). Settings captured for this job.\n00:10:12  Loading model YOLO11 nano OBB · fast…\n00:10:15  Model ready on GPU (WebGPU) · 1024 px input\n00:10:15  DXB_probe: 3 release(s) 2026-10-29, 2025-03-27, 2016-04-20\n00:10:15  [1/3] DXB_probe · 2026-10-29\n00:10:15      Budget: z18 · 374×413 px · 6 tiles · estimated 79.8 MiB\n00:10:16      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:16      z18 · 374×413 px · 1 objects aircraft:1\n00:10:16  [2/3] DXB_probe · 2025-03-27\n00:10:16      Budget: z18 · 374×413 px · 6 tiles · estimated 79.8 MiB\n00:10:17      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:19      z18 · 374×413 px · 0 objects \n00:10:19  [3/3] DXB_probe · 2016-04-20\n00:10:19      Budget: z18 · 374×413 px · 6 tiles · estimated 79.8 MiB\n00:10:19      Coverage z18: 0/6 tiles available, 6 unavailable, 0 unknown · 1 check(s) · 0.3s\n00:10:19      UNAVAILABLE: DXB_probe · 2016-04-20 · release 388 · z18 · NO_IMAGERY: No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.\n00:10:19  Finished (partial): 1 objects across 2 AOI/date clips; 1 unavailable, 0 failed, 0 with incomplete imagery. Saved on this device. Export a zip for a separate backup.",
+      "job": {
+        "status": "partial",
+        "provider": "webgpu",
+        "summary": {
+          "job": "browser_20261108_201012_259ac9ac",
+          "status": "partial",
+          "params": {
+            "release_mode": "selected",
+            "releases": [
+              43291,
+              6543,
+              388
+            ],
+            "zoom": 18,
+            "classes": [
+              "aircraft",
+              "ship",
+              "helicopter"
+            ],
+            "conf": 0.3,
+            "model": "YOLO11 nano OBB · fast",
+            "model_key": "url:yolo11n-obb.onnx",
+            "imgsz": 1024,
+            "detect": true,
+            "maxTiles": 1200,
+            "bounded": true,
+            "maskPolicy": "preserve-small-canvas/area-v1",
+            "png": true,
+            "geotiff": true,
+            "model_names": [
+              "plane",
+              "ship",
+              "storage tank",
+              "baseball diamond",
+              "tennis court",
+              "basketball court",
+              "ground track field",
+              "harbor",
+              "bridge",
+              "large vehicle",
+              "small vehicle",
+              "helicopter",
+              "roundabout",
+              "soccer ball field",
+              "swimming pool"
+            ],
+            "allocationLimits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "provider": "webgpu"
+          },
+          "outcomes": [
+            {
+              "clipId": "browser_20261108_201012_259ac9ac:clip:0",
+              "aoi": "DXB_probe",
+              "aoi_id": "DXB_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "requestedZoom": 18,
+              "status": "completed",
+              "allocation": {
+                "zoom": 18,
+                "res": 0.5971642834779395,
+                "gx0": 43874283,
+                "gy0": 28686878,
+                "width": 374,
+                "height": 413,
+                "pixels": 154462,
+                "tiles": 6,
+                "extent": {
+                  "left": 171383,
+                  "top": 112058,
+                  "width": 3,
+                  "height": 2
+                },
+                "requestedZoom": 18,
+                "zoomReduced": false,
+                "maxTiles": 1200,
+                "concurrency": 12,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "rgbaBytes": 617848,
+                "estimatedBytes": 83642856,
+                "spoolBytes": 3557038.8800000004,
+                "bounded": true,
+                "blockSide": 256,
+                "singleBlock": true,
+                "maskVersion": "canvas-v1",
+                "displayWidth": 374,
+                "displayHeight": 413,
+                "cacheBytes": 16777216,
+                "candidateBytes": 33554432,
+                "allowed": true,
+                "violations": []
+              },
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 332.2999999523163,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 1,
+              "committedStatus": "completed"
+            },
+            {
+              "clipId": "browser_20261108_201012_259ac9ac:clip:1",
+              "aoi": "DXB_probe",
+              "aoi_id": "DXB_probe",
+              "date": "2025-03-27",
+              "release": 6543,
+              "requestedZoom": 18,
+              "status": "completed",
+              "allocation": {
+                "zoom": 18,
+                "res": 0.5971642834779395,
+                "gx0": 43874283,
+                "gy0": 28686878,
+                "width": 374,
+                "height": 413,
+                "pixels": 154462,
+                "tiles": 6,
+                "extent": {
+                  "left": 171383,
+                  "top": 112058,
+                  "width": 3,
+                  "height": 2
+                },
+                "requestedZoom": 18,
+                "zoomReduced": false,
+                "maxTiles": 1200,
+                "concurrency": 12,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "rgbaBytes": 617848,
+                "estimatedBytes": 83642856,
+                "spoolBytes": 3557038.8800000004,
+                "bounded": true,
+                "blockSide": 256,
+                "singleBlock": true,
+                "maskVersion": "canvas-v1",
+                "displayWidth": 374,
+                "displayHeight": 413,
+                "cacheBytes": 16777216,
+                "candidateBytes": 33554432,
+                "allowed": true,
+                "violations": []
+              },
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 327.10000002384186,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "total": 0,
+              "committedStatus": "completed"
+            },
+            {
+              "clipId": "browser_20261108_201012_259ac9ac:clip:2",
+              "aoi": "DXB_probe",
+              "aoi_id": "DXB_probe",
+              "date": "2016-04-20",
+              "release": 388,
+              "requestedZoom": 18,
+              "status": "unavailable",
+              "allocation": {
+                "zoom": 18,
+                "res": 0.5971642834779395,
+                "gx0": 43874283,
+                "gy0": 28686878,
+                "width": 374,
+                "height": 413,
+                "pixels": 154462,
+                "tiles": 6,
+                "extent": {
+                  "left": 171383,
+                  "top": 112058,
+                  "width": 3,
+                  "height": 2
+                },
+                "requestedZoom": 18,
+                "zoomReduced": false,
+                "maxTiles": 1200,
+                "concurrency": 12,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "rgbaBytes": 617848,
+                "estimatedBytes": 83642856,
+                "spoolBytes": 3557038.8800000004,
+                "bounded": true,
+                "blockSide": 256,
+                "singleBlock": true,
+                "maskVersion": "canvas-v1",
+                "displayWidth": 374,
+                "displayHeight": 413,
+                "cacheBytes": 16777216,
+                "candidateBytes": 33554432,
+                "allowed": true,
+                "violations": []
+              },
+              "zoom": 18,
+              "coverage": {
+                "total": 6,
+                "available": 0,
+                "unavailable": 6,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 328.30000001192093,
+                "status": "unavailable",
+                "errors": []
+              },
+              "code": "NO_IMAGERY",
+              "message": "No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+              "committedStatus": "unavailable"
+            }
+          ],
+          "results": [
+            {
+              "aoi": "DXB_probe",
+              "date": "2026-10-29",
+              "release": 43291,
+              "zoom": 18,
+              "requestedZoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "size": [
+                374,
+                413
+              ],
+              "displaySize": [
+                374,
+                413
+              ],
+              "counts": {
+                "aircraft": 1
+              },
+              "total": 1,
+              "clipId": "browser_20261108_201012_259ac9ac:clip:0",
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 332.2999999523163,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "DXB_probe/2026-10-29"
+            },
+            {
+              "aoi": "DXB_probe",
+              "date": "2025-03-27",
+              "release": 6543,
+              "zoom": 18,
+              "requestedZoom": 18,
+              "bounds": [
+                55.35999476909637,
+                25.249999166993224,
+                55.36200106143951,
+                25.25200297505772
+              ],
+              "size": [
+                374,
+                413
+              ],
+              "displaySize": [
+                374,
+                413
+              ],
+              "counts": {},
+              "total": 0,
+              "clipId": "browser_20261108_201012_259ac9ac:clip:1",
+              "tiles": 6,
+              "missing": 0,
+              "coverage": {
+                "total": 6,
+                "available": 6,
+                "unavailable": 0,
+                "unknown": 0,
+                "checks": 1,
+                "ms": 327.10000002384186,
+                "status": "full",
+                "errors": [],
+                "missing": 0,
+                "failures": {}
+              },
+              "path": "DXB_probe/2025-03-27"
+            }
+          ]
+        },
+        "images": [
+          {
+            "date": "2026-10-29",
+            "size": [
+              374,
+              413
+            ],
+            "original": [
+              374,
+              413
+            ],
+            "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+            "tiffBytes": 373796
+          },
+          {
+            "date": "2025-03-27",
+            "size": [
+              374,
+              413
+            ],
+            "original": [
+              374,
+              413
+            ],
+            "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162646.726596237\n2906729.0981180356\n",
+            "tiffBytes": 330172
+          }
+        ],
+        "visible": true,
+        "text": "2 usable clip(s) · partial. Unavailable and failed dates have no detection count. Incomplete clips cover available tiles only.AOI / dateOutcomeDXB_probe2016-04-20unavailable · z18No imagery coverage for release 388 at z18. Choose a newer date, or explicitly lower Imagery zoom and rerun this date; detection detail will differ.",
+        "rows": 2,
+        "canvasSizes": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "bitmaps": 14,
+        "closed": 14
+      },
+      "trend": {
+        "indices": [
+          1,
+          0
+        ],
+        "titles": [
+          "DXB_probe · 2025-03-27\nYOLO11 nano OBB · fast\nTotal: 0",
+          "DXB_probe · 2026-10-29\nYOLO11 nano OBB · fast\nTotal: 1\n1 aircraft"
+        ],
+        "point": {
+          "x": 186.92420959472656,
+          "y": 310.87953186035156
+        },
+        "hoverRequests": 0,
+        "mouseSelection": {
+          "pressed": "true",
+          "imagery": true,
+          "date": "2025-03-27"
+        },
+        "keyboardSelection": {
+          "row": 0,
+          "date": "2026-10-29"
+        }
+      },
+      "mobile": {
+        "visible": true,
+        "fits": true,
+        "bodyOverflow": false
+      },
+      "runtimeErrors": []
+    },
+    "automated": {
+      "javascript": 201,
+      "python": 12
+    }
+  }
+}

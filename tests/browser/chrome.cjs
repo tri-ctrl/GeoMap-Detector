@@ -5,7 +5,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function withChrome(run) {
+async function withChrome(run, startupAttempt = 0) {
   const executable = process.env.GMD_BROWSER_BIN || ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find(file => fs.existsSync(file));
   assert.ok(executable, "Chrome not found; set GMD_BROWSER_BIN");
@@ -13,13 +13,16 @@ async function withChrome(run) {
   const chrome = spawn(executable, ["--headless=new", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1", "--window-size=1440,1000",
     `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
-  let socket;
+  let socket, retryStartup = false;
   const pending = new Map();
-  const watchdog = setTimeout(() => { chrome.kill(); socket?.close(); }, 300000);
+  // The optional quality matrix runs three native pipelines for 16 fixtures;
+  // single-threaded WASM can legitimately exceed eight minutes. Each individual
+  // evaluation still has its own deadline; CI's offline cases keep eight minutes.
+  const watchdog = setTimeout(() => { chrome.kill(); socket?.close(); }, process.argv.includes('--quality') ? 900000 : 480000);
   try {
     const endpoint = await new Promise((resolve, reject) => {
       let stderr = "";
-      const timer = setTimeout(() => reject(new Error("Chrome startup timed out: " + stderr.slice(-2000))), 30000);
+      const timer = setTimeout(() => reject(new Error("Chrome startup timed out: " + stderr.slice(-2000))), 60000);
       chrome.once("error", error => { clearTimeout(timer); reject(error); });
       const exited = code => { clearTimeout(timer); reject(new Error(`Chrome exited during startup (${code}): ${stderr.slice(-2000)}`)); };
       chrome.once("exit", exited);
@@ -78,6 +81,11 @@ async function withChrome(run) {
       listeners.get(event).push(listener);
     } });
     await send("Browser.close");
+  } catch (error) {
+    // Retry only a failed browser launch, before any application check ran.
+    // Assertion/network/application failures remain immediate failures.
+    if (startupAttempt === 0 && error.message.startsWith("Chrome startup timed out:")) retryStartup = true;
+    else throw error;
   } finally {
     clearTimeout(watchdog); socket?.close();
     for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new Error("Browser session closed")); }
@@ -86,5 +94,6 @@ async function withChrome(run) {
     });
     fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
+  if (retryStartup) { console.error("Chrome launch timed out before testing; retrying once with a fresh owned profile."); return withChrome(run, 1); }
 }
 module.exports = { withChrome };

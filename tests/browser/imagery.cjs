@@ -11,7 +11,7 @@ const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), base = 'https://tri-ctrl.github.io/GeoMap-Detector/';
 const forceWasm = process.argv.includes('--wasm');
-const names = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js'];
+const names = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js'];
 const sources = Object.fromEntries(names.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const dxb = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'))).features.find(feature => feature.properties.name === 'DXB');
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source overrides; live provider/model assets; not deployed verification',
@@ -36,7 +36,8 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     if (forceWasm) await page('Page.addScriptToEvaluateOnNewDocument', { source: "Object.defineProperty(navigator,'gpu',{configurable:true,value:undefined});" });
     await page('Page.navigate', { url: base });
     await until("Boolean(window.GVEngine && document.querySelectorAll('#relList [data-r]').length && document.querySelector('.leaflet-tile-loaded'))");
-    assert.deepEqual([...overrides].sort(), [...names].sort());
+    assert.deepEqual([...overrides].sort(), names.filter(name => name !== 'streaming.js').sort());
+    await evaluate("GVEngine.ensureLibrary('zip')"); // Independent ZIP reader; production streams with fflate.
     await evaluate(`(() => {
       window.__gmd023 = { canvases:[], bitmaps:[] };
       const Canvas = window.OffscreenCanvas;

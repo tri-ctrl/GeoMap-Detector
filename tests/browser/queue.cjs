@@ -10,7 +10,7 @@ const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), base = 'https://tri-ctrl.github.io/GeoMap-Detector/';
-const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js'];
+const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source overrides; live nano/small inference; not deployed verification',
   forcedProvider: forceWasm ? 'wasm' : null, sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };
@@ -28,6 +28,7 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     await page('Page.navigate', { url: base });
     await until("Boolean(window.GVEngine&&document.querySelectorAll('#model option').length>=2&&document.querySelector('#relList [data-r]')&&document.querySelector('.leaflet-tile-loaded'))");
     console.log('Loaded local queue sources, real Leaflet and provider assets.');
+    await evaluate("GVEngine.ensureLibrary('zip')"); // Independent test reader; production writes with fflate.
     await evaluate(`(() => {
       const probe=window.__queueProbe={loads:[],clips:[],events:[],exported:[],active:0,maxActive:0,canvases:[],bitmaps:[]};
       const Canvas=OffscreenCanvas;window.OffscreenCanvas=new Proxy(Canvas,{construct(Target,args){const canvas=new Target(...args);probe.canvases.push(canvas);return canvas}});
@@ -107,6 +108,7 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
     await evaluate("document.querySelector('#jobQueue').scrollIntoView({block:'end'})");
     results.mobile = await evaluate("({overflow:document.documentElement.scrollWidth>innerWidth,cards:document.querySelectorAll('[data-queued-job]').length,body:document.querySelector('#jobQueue').getBoundingClientRect().width,panel:document.querySelector('aside.panel').getBoundingClientRect().width,queueHeight:document.querySelector('#jobQueue').getBoundingClientRect().height,cancelHidden:getComputedStyle(document.querySelector('#cancelBtn')).display==='none'})");
+    if (process.argv.includes('--quality')) await require('./quality-cases.cjs')({ evaluate, results });
     assert.equal(results.mobile.overflow, false); assert.ok(results.mobile.body <= results.mobile.panel);
     assert.ok(results.mobile.queueHeight > 150); assert.equal(results.mobile.cancelHidden, true);
     const mobileScreenshot = await page('Page.captureScreenshot', { format: 'png' });
@@ -117,5 +119,5 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     console.log('Queue, two-model inference, export and comparison checks passed.');
   });
   const output = process.env.GMD_RESULTS_PATH || path.join(os.tmpdir(), `geomap-queue${forceWasm ? '-wasm' : ''}.json`);
-  fs.writeFileSync(output, JSON.stringify(results, null, 2) + '\n'); console.log(JSON.stringify(results, null, 2)); console.log('Evidence: ' + output);
+  fs.writeFileSync(output, JSON.stringify(results, null, 2) + '\n'); if (!process.argv.includes('--quiet')) console.log(JSON.stringify(results, null, 2)); console.log('Evidence: ' + output);
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });

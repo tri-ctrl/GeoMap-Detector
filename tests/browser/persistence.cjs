@@ -10,7 +10,7 @@ const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..');
 const lifecycle = process.argv.includes('--lifecycle');
-const files = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'app.js'];
+const files = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'app.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim',
   sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };
@@ -39,10 +39,11 @@ const server = http.createServer((request, response) => {
   if (file === 'index.html') {
     type = 'text/html'; body = sources[file].replace('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', '/leaflet.js')
       .replace('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', '/leaflet.css').replace(/<link\b[^>]*href="https:\/\/[^\"]*"[^>]*>/g, '')
-      .replace('<script src="engine.js">', '<script src="jszip.js"></script><script src="engine.js">');
+      .replace('<script src="engine.js">', '<script src="fflate.js"></script><script src="jszip.js"></script><script src="engine.js">');
   } else if (file === 'leaflet.js' || file === 'leaflet.css') {
     type = file.endsWith('.css') ? 'text/css' : type; body = fs.readFileSync(require.resolve('leaflet/dist/' + file));
   } else if (file === 'jszip.js') body = fs.readFileSync(require.resolve('jszip/dist/jszip.min.js'));
+  else if (file === 'fflate.js') body = fs.readFileSync(path.resolve(path.dirname(require.resolve('fflate')), '../umd/index.js'));
   else if (file === 'leaflet-draw.js') body = fs.readFileSync(require.resolve('leaflet-draw/dist/leaflet.draw.js'));
   else if (file === 'engine.js') body = sources[file].replace('https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js', '/leaflet-draw.js') + '\n' + fixture;
   else if (file === 'storage.js') body = sources[file] + '\nconst createRepo=GVStorage.create;GVStorage.create=options=>{const repo=createRepo(options);window.__repo ||= repo;return repo};';
@@ -189,7 +190,7 @@ const server = http.createServer((request, response) => {
       assert.equal(results.disabledStorage.runEnabled, true);
       await page('Page.removeScriptToEvaluateOnNewDocument', { identifier: blocked.identifier }); await reloadDocument(); await ready();
       results.upgradeRollback = await evaluate(`(async()=>{
-        let error;await new Promise(resolve=>{const r=indexedDB.open(GVStorage.NAME,2);r.onupgradeneeded=()=>{r.result.createObjectStore('aborted-upgrade');r.transaction.abort()};r.onerror=()=>{error=r.error.name;resolve()}});
+        let error;await new Promise(resolve=>{const r=indexedDB.open(GVStorage.NAME,GVStorage.VERSION+1);r.onupgradeneeded=()=>{r.result.createObjectStore('aborted-upgrade');r.transaction.abort()};r.onerror=()=>{error=r.error.name;resolve()}});
         return {error,status:document.querySelector('#storageStatus').textContent}
       })()`);
       assert.equal(results.upgradeRollback.error, 'AbortError'); assert.match(results.upgradeRollback.status, /Reload this tab/);
@@ -197,12 +198,12 @@ const server = http.createServer((request, response) => {
       results.afterUpgradeRollback = await evaluate('__repo.restore().then(s=>({jobs:s.jobs.length,reviews:s.jobs.length&&__repo.state().available}))');
       assert.equal(results.afterUpgradeRollback.jobs, 1);
       results.newerSchema = await evaluate(`(async()=>{
-        await new Promise(resolve=>{const r=indexedDB.open(GVStorage.NAME,2);r.onsuccess=()=>{r.result.close();resolve()}});
+        await new Promise(resolve=>{const r=indexedDB.open(GVStorage.NAME,GVStorage.VERSION+1);r.onsuccess=()=>{r.result.close();resolve()}});
         const previous=GVStorage.create();let error;try{await previous.open()}catch(e){error=e.name}
         const db=await new Promise(resolve=>{const r=indexedDB.open(GVStorage.NAME);r.onsuccess=()=>resolve(r.result)});
         const version=db.version;db.close();return {error,version}
       })()`);
-      assert.deepEqual(results.newerSchema, { error: 'VersionError', version: 2 });
+      assert.deepEqual(results.newerSchema, { error: 'VersionError', version: 3 });
       results.exceptions = errors; assert.deepEqual(errors, []);
       const outputIndex = process.argv.indexOf('--output'); if (outputIndex >= 0) fs.writeFileSync(path.resolve(root, process.argv[outputIndex + 1]), JSON.stringify(results, null, 2) + '\n');
       console.log(JSON.stringify(results, null, 2));

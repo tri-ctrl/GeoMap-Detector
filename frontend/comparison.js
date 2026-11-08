@@ -29,6 +29,7 @@ function settingsNote(a, b) {
   if (a.params.conf !== b.params.conf) differences.push("confidence threshold");
   if (JSON.stringify([...(a.params.classes || [])].sort()) !== JSON.stringify([...(b.params.classes || [])].sort())) differences.push("object classes");
   if (a.params.imgsz && b.params.imgsz && a.params.imgsz !== b.params.imgsz) differences.push("model input size");
+  if ((a.maskVersion || "canvas-v1") !== (b.maskVersion || "canvas-v1")) differences.push("AOI edge mask");
   if (a.missing || b.missing) differences.push("missing imagery tiles");
   return differences.length ? "Runs differ in " + differences.join(", ") + ". Counts alone do not establish model accuracy or real-world change." : "Model predictions · matching recorded settings. Counts are not verified changes.";
 }

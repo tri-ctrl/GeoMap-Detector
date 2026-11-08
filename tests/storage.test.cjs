@@ -115,7 +115,7 @@ test('two tabs cannot write together; expired owners are fenced out even after a
 });
 test('storage unavailable is explicit; newer schemas are preserved rather than deleted', async () => {
   assert.equal((await factory().create({ indexedDB: null }).open()).available, false);
-  const f = factory(); await new Promise((resolve, reject) => { const r = f.indexedDB.open('geomap-detector', 2); r.onsuccess = () => { r.result.close(); resolve(); }; r.onerror = () => reject(r.error); });
+  const f = factory(); await new Promise((resolve, reject) => { const r = f.indexedDB.open('geomap-detector', 3); r.onsuccess = () => { r.result.close(); resolve(); }; r.onerror = () => reject(r.error); });
   await assert.rejects(f.create().open(), { name: 'VersionError' });
-  const r = f.indexedDB.open('geomap-detector'); await new Promise(resolve => { r.onsuccess = resolve; }); assert.equal(r.result.version, 2); r.result.close();
+  const r = f.indexedDB.open('geomap-detector'); await new Promise(resolve => { r.onsuccess = resolve; }); assert.equal(r.result.version, 3); r.result.close();
 });

@@ -8,7 +8,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
-const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'app.js'];
+const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'app.js'];
 const sources = Object.fromEntries(names.map(name => [name, fs.readFileSync(path.join(root, 'frontend', name), 'utf8')]));
 const samples = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'), 'utf8')).features;
 const result = { checkedAt: new Date().toISOString(), mode: 'Local source, native Chromium; deterministic tiles and fixed inference outputs',
@@ -20,7 +20,10 @@ const originalFetch=window.fetch.bind(window);let tile;
 window.fetch=async(url,options)=>{
   if(String(url).includes('/tilemap/')){__tileRequests++;const [rel,z,top,left,width,height]=String(url).split('/tilemap/')[1].split('/').map(Number);
     return new Response(JSON.stringify({valid:true,location:{top,left,width,height},data:Array(width*height).fill(1)}));}
-  if(String(url).includes('/MapServer/tile/')){__tileRequests++;if(!tile){const canvas=new OffscreenCanvas(256,256),g=canvas.getContext('2d');g.fillStyle='rgb(40,90,150)';g.fillRect(0,0,256,256);tile=await canvas.convertToBlob();canvas.width=canvas.height=1;}return new Response(tile);}
+  if(String(url).includes('/MapServer/tile/')){__tileRequests++;
+    if(window.__boundedFixture){const [ty,tx]=String(url).split('/').slice(-2).map(Number),canvas=new OffscreenCanvas(256,256),g=canvas.getContext('2d');
+      try{g.fillStyle='rgb('+(tx%31+20)+','+(ty%31+80)+',150)';g.fillRect(0,0,256,256);g.fillStyle='rgb(220,40,20)';g.fillRect(80,40,90,170);return new Response(await canvas.convertToBlob());}finally{canvas.width=canvas.height=1;}}
+    if(!tile){const canvas=new OffscreenCanvas(256,256),g=canvas.getContext('2d');g.fillStyle='rgb(40,90,150)';g.fillRect(0,0,256,256);tile=await canvas.convertToBlob();canvas.width=canvas.height=1;}return new Response(tile);}
   return originalFetch(url,options);
 };
 GVEngine.getReleases=async()=>[{release:101,date:'2026-10-29'}];
@@ -48,6 +51,7 @@ const server = http.createServer((request, response) => {
   else if (file === 'fflate.js') body = fs.readFileSync(path.resolve(path.dirname(require.resolve('fflate')), '../umd/index.js'));
   else if (file === 'jszip.js') body = fs.readFileSync(require.resolve('jszip/dist/jszip.min.js'));
   else if (file === 'engine.js') body = sources[file] + '\n' + fixture;
+  else if (file === 'storage.js') body = sources[file] + '\nconst createRepo=GVStorage.create;GVStorage.create=options=>{const repo=createRepo(options);window.__repo=repo;return repo};';
   else if (sources[file]) body = sources[file];
   else if (file === 'models/models.json') { type = 'application/json'; body = JSON.stringify([{ file: 'nano.onnx', label: 'Fixture', names: ['plane'], imgsz: 1024 }]); }
   else { response.writeHead(404); response.end(); return; }
@@ -58,9 +62,13 @@ const server = http.createServer((request, response) => {
   try {
     await withChrome(async ({ page, evaluate, until, errors }) => {
       await page('Page.setDownloadBehavior', { behavior: 'deny' });
+      if (process.argv.includes('--bounded')) await page('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__boundedFixture=true;' });
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (process.argv.includes('--bounded')) {
+        await require('./bounded-cases.cjs')({ page, evaluate, until, errors, result, samples: process.argv.includes('--ci') ? samples.filter(s=>s.properties.name==='DXB') : samples, quick: process.argv.includes('--quick') }); return;
+      }
       result.sampleEstimates = await evaluate(`(${JSON.stringify(samples)}).map(aoi=>{const p=GVEngine.estimateRaster(aoi.geometry,18,{modelSize:1024});return {aoi:aoi.properties.name,size:[p.width,p.height],tiles:p.tiles,zoom:p.zoom,estimatedBytes:p.estimatedBytes,allowed:p.allowed,codes:p.violations.map(v=>v.code)}})`);
       result.rejections = await evaluate(`(async()=>{
         const checks=[],before=GVEngine.allocations.diagnostics(),requests=__tileRequests;
@@ -125,6 +133,6 @@ const server = http.createServer((request, response) => {
       console.log('Preflight, frozen job limits, 390px layout and ten balanced native clip owners verified.');
     });
     const output = process.argv.indexOf('--output'); if (output >= 0) fs.writeFileSync(path.resolve(root, process.argv[output + 1]), JSON.stringify(result, null, 2) + '\n');
-    console.log(JSON.stringify(result, null, 2));
+    if (!process.argv.includes('--quiet')) console.log(JSON.stringify(result, null, 2));
   } finally { server.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -11,6 +11,7 @@ const modelBytes = new Uint8Array([8, 9, 18, 0]);
 function setup({ fetchModel, gpu = false, failGpu = false } = {}) {
   const downloads = [], sessions = [];
   const context = vm.createContext({
+    AbortController, DOMException,
     navigator: gpu ? { gpu: {} } : {},
     fetch: async (...args) => {
       downloads.push(args);
@@ -94,7 +95,7 @@ test("cancelling the model download preserves AbortError", async () => {
     options.signal.throwIfAborted();
   } });
   await assert.rejects(engine.loadModel({ ...spec, signal: controller.signal }), { name: "AbortError" });
-  assert.equal(downloads[0][1].signal, controller.signal);
+  assert.equal(downloads.length, 0);
   assert.equal(sessions.length, 0);
 });
 

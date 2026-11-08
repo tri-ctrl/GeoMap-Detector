@@ -7,6 +7,7 @@ const appSource = readFileSync(path.join(__dirname, "../../frontend/app.js"), "u
 const engineSource = readFileSync(path.join(__dirname, "../../frontend/engine.js"), "utf8");
 const comparisonSource = readFileSync(path.join(__dirname, "../../frontend/comparison.js"), "utf8");
 const storageSource = readFileSync(path.join(__dirname, "../../frontend/storage.js"), "utf8");
+const streamingSource = readFileSync(path.join(__dirname, "../../frontend/streaming.js"), "utf8");
 const releases = [{ release: 101, date: "2026-10-29" }, { release: 100, date: "2026-10-22" }];
 const aoi = { type: "Feature", properties: { name: "Review" }, geometry: {
   type: "Polygon", coordinates: [[[55.36, 25.25], [55.37, 25.25], [55.37, 25.26], [55.36, 25.25]]],
@@ -186,16 +187,17 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   let nextUrl = 0, nextTimer = 0;
   const events = new Map(), documentEvents = new Map();
   const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException, indexedDB,
-    setInterval, clearInterval, structuredClone, crypto: globalThis.crypto,
+    setInterval, clearInterval, structuredClone, crypto: globalThis.crypto, fflate: require('fflate'), scheduler: { yield: () => new Promise(setImmediate) },
     location: { hostname: "test.github.io" }, setTimeout: (callback, ms) => { const id = ++nextTimer; timers.set(id, { callback, ms }); return id; }, clearTimeout: id => timers.delete(id),
     localStorage: { getItem: key => { if (key === "gv_ann") metrics.annotationReads++; return saved.get(key) ?? null; }, setItem: (key, value) => saved.set(key, value) },
-    URL: { createObjectURL: () => { const url = "blob:test-" + ++nextUrl; urlEvents.push({ type: "create", url }); return url; },
+    URL: { createObjectURL: blob => { const url = "blob:test-" + ++nextUrl; urlEvents.push({ type: "create", url, blob }); return url; },
       revokeObjectURL: url => urlEvents.push({ type: "revoke", url, attached: groups[1]?.getLayers().some(layer => layer.url === url) || false }) }, addEventListener: (event, handler) => events.set(event, handler),
   });
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
   vm.runInContext(comparisonSource, context);
   vm.runInContext(storageSource, context);
+  vm.runInContext(streamingSource, context);
   context.GVEngine.getReleases = getReleases || (async () => releases);
   if (localChanges) context.GVEngine.localChanges = localChanges;
   context.GVEngine.processClip = async (feature, release) => ({...result(release),aoiFeature:feature});

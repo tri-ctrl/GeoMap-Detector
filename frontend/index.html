@@ -259,15 +259,16 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <p class="hint">Resolution shown at the equator; it is finer at UAE latitudes (×0.9). The tile limit can lower the processing zoom. Browser memory limits reject oversized clips without lowering zoom further.</p>
         <div class="row"><span style="flex:1">Tile limit per clip</span><input type="number" id="maxTiles" value="1200" min="50" step="100" style="width:100px"></div>
         <details style="margin-top:10px"><summary>Browser limits</summary>
-          <label class="row"><span style="flex:1">Maximum raster megapixels</span><input type="number" id="rasterMP" value="32" min="0.1" step="1" style="width:100px"></label>
+          <label class="row"><span style="flex:1">Maximum working canvas megapixels</span><input type="number" id="rasterMP" value="32" min="0.1" step="1" style="width:100px"></label>
           <label class="row"><span style="flex:1">Maximum canvas side (px)</span><input type="number" id="rasterSide" value="8192" min="1" step="1024" style="width:100px"></label>
           <label class="row"><span style="flex:1">Estimated working limit (MiB)</span><input type="number" id="rasterMemory" value="512" min="1" step="64" style="width:100px"></label>
-          <p class="hint">One raster/dataset operation runs at a time. Estimates cover known image/tensor/encoding buffers; model sessions, browser caches and archive assembly can use additional memory. Device limits vary. These settings also apply to training rasters and comparison previews.</p>
+          <p class="hint">Native imagery is processed in bounded blocks and saved on this device. The map uses a smaller display image; native exports keep full resolution. Limits cover working canvases and estimated buffers. Model/runtime caches use additional memory; device limits vary.</p>
         </details>
         <div class="hint" id="allocationPreflight" role="status" aria-live="polite" style="margin-top:10px"></div>
       </div>
       <div class="sec">
         <label class="row"><input type="checkbox" id="detectOn" checked style="accent-color:var(--accent)"> Run detection (untick to only clip imagery)</label>
+        <label class="row"><input type="checkbox" id="pngOn" checked style="accent-color:var(--accent)"> Keep native PNG + world file</label>
         <label class="row"><input type="checkbox" id="tifOn" checked style="accent-color:var(--accent)"> Write GeoTIFF for each clip</label>
         <div class="row">
           <button class="btn" id="runAoiBtn" aria-controls="runAoiPanel" aria-expanded="false">AOIs</button>
@@ -370,6 +371,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <span class="label">Train anywhere (no server)</span>
         <p class="hint">Builds a YOLO-OBB dataset in your browser: 1024 px chips from the same Wayback release as each annotation, oriented-box labels, <span class="mono">data.yaml</span> and the commands to train on your PC, Colab or Kaggle. Load the exported <span class="mono">best.onnx</span> back in Detect.</p>
         <button class="btn primary wide" id="dsBtn">Download training dataset</button>
+        <div class="row"><button class="btn" id="dsSave" hidden>Save dataset to file</button><button class="btn danger" id="cancelDataset" hidden>Cancel dataset</button></div>
         <div class="bar"><i id="dsProg"></i></div>
       </div>
       <div class="sec" id="serverTrain">
@@ -389,6 +391,13 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <span class="label">Full job package</span>
         <p class="hint">One folder per AOI and date: <span class="mono">image.tif</span> (GeoTIFF, EPSG:3857, clipped to AOI with alpha), <span class="mono">image.png + .pgw + .prj</span>, <span class="mono">detections.geojson</span>, <span class="mono">preview_detections.jpg</span>, plus <span class="mono">all_detections.geojson</span> and <span class="mono">summary.json</span>.</p>
         <button class="btn primary wide" id="expZip">Download job zip</button>
+        <div class="row"><button class="btn" id="expSave" hidden>Save ZIP to file</button><button class="btn" id="expClip">Selected clip ZIP</button><button class="btn danger" id="cancelExport" hidden>Cancel export</button></div>
+        <p class="hint">Large downloads use numbered parts of at most 16 MiB. Save ZIP to file streams one archive where supported. Unselected native image formats require a rerun to create later.</p>
+      </div>
+      <div class="sec" id="exportParts" hidden>
+        <span class="label">Download parts</span><p class="hint" id="exportPartsHint"></p>
+        <div id="exportPartList"></div>
+        <div class="row"><button class="btn" id="exportCombine">Download combine script</button><button class="btn" id="exportManifest">Download part manifest</button><button class="btn" id="exportDismiss">Dismiss parts</button></div>
       </div>
       <div class="sec">
         <span class="label">From this browser</span>

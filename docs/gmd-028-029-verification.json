@@ -1,0 +1,511 @@
+{
+  "checkedAt": "2026-11-09T17:39:53.972Z",
+  "scope": "Local implementation and deterministic browser checks; private user queue cannot be read from a public URL.",
+  "deployedBaseline": {
+    "url": "https://tri-ctrl.github.io/GeoMap-Detector/app.js",
+    "sha256": "22b31142f26b242398180d7232cc8d26e215fdc39c18e4f295981db3b0bbd512"
+  },
+  "automated": {
+    "javascript": 219,
+    "python": 12
+  },
+  "viewport": {
+    "checkedAt": "2026-11-09T17:37:16.396Z",
+    "mode": "Local source; real Leaflet/Draw mouse gestures and native AOI persistence; no inference",
+    "sources": {
+      "index.html": "cc67a5eb3c9e4e67897381f91b98539cf6c97091e76d2feb88117d0595c958d4",
+      "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+      "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+      "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "fa4fa6e7a17fce1aeb3b818a44ac29268c29d62e3f065ddfa6a0bd92b50f7d4f"
+    },
+    "limitations": [
+      "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+      "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+    ],
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "before": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "import": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "polygon": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "rectangle": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "mapClick": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "listClick": {
+      "center": [
+        25.250001592930975,
+        55.36000013351441
+      ],
+      "zoom": 18,
+      "fits": 1
+    },
+    "explicitZoom": {
+      "center": [
+        20.050013456068818,
+        35.04999999999997
+      ],
+      "zoom": 13,
+      "fits": 2
+    },
+    "persistedAOIs": 4
+  },
+  "persistence": {
+    "checkedAt": "2026-11-09T16:28:59.883Z",
+    "mode": "Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim",
+    "sources": {
+      "index.html": "cc67a5eb3c9e4e67897381f91b98539cf6c97091e76d2feb88117d0595c958d4",
+      "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+      "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+      "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "fa4fa6e7a17fce1aeb3b818a44ac29268c29d62e3f065ddfa6a0bd92b50f7d4f"
+    },
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "startup": {
+      "ms": 391.1999999284744,
+      "reads": {
+        "meta": 3,
+        "aois": 2,
+        "reviews": 1,
+        "jobs": 1,
+        "results": 1,
+        "queue": 1,
+        "models": 1,
+        "drafts": 1
+      }
+    },
+    "beforeReload": {
+      "jobs": [
+        {
+          "id": "browser_20261109_162911_3eb1f037",
+          "status": "running",
+          "clips": 1
+        },
+        {
+          "id": "browser_20261109_162911_e8e81a94",
+          "status": "queued",
+          "clips": 0
+        }
+      ],
+      "queue": [
+        "browser_20261109_162911_3eb1f037",
+        "browser_20261109_162911_e8e81a94"
+      ]
+    },
+    "recovery": {
+      "jobs": [
+        {
+          "status": "interrupted",
+          "clips": 1
+        },
+        {
+          "status": "queued",
+          "clips": 0
+        }
+      ],
+      "calls": [],
+      "reads": {
+        "meta": 1,
+        "aois": 2,
+        "jobs": 2,
+        "results": 2,
+        "queue": 2,
+        "models": 2,
+        "drafts": 1
+      },
+      "status": "Paused · 2/10 queued"
+    },
+    "resumed": [
+      {
+        "release": 100,
+        "model": "url:alpha.onnx"
+      },
+      {
+        "release": 101,
+        "model": "url:beta.onnx"
+      }
+    ],
+    "reviews": {
+      "raw": "predicted",
+      "draft": "verified",
+      "legacy": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"legacy-review\",\"properties\":{\"class\":\"ship\",\"status\":\"verified\",\"release\":101},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]}}]}",
+      "saved": 2,
+      "clipId": "browser_20261109_162911_3eb1f037:clip:0",
+      "commit": 0.5999999046325684
+    },
+    "afterDraftReload": {
+      "stats": "1/1 reviewed",
+      "urls": {
+        "created": 1,
+        "revoked": 0
+      },
+      "reads": {
+        "meta": 1,
+        "aois": 1,
+        "jobs": 1,
+        "results": 2,
+        "queue": 1,
+        "models": 1,
+        "drafts": 2,
+        "predictions": 1,
+        "artifacts": 1
+      }
+    },
+    "imageOwnership": {
+      "created": 2,
+      "revoked": 1
+    },
+    "lazyDrawing": {
+      "loadedBeforeEdit": false,
+      "existingPolygons": 1
+    },
+    "dragSwitch": {
+      "disabled": true,
+      "detached": true,
+      "events": [],
+      "markers": 0,
+      "selected": false,
+      "activeDrag": false
+    },
+    "switches": {
+      "count": 20,
+      "medianMs": 208,
+      "maxMs": 216,
+      "last": {
+        "ms": 209,
+        "created": 23,
+        "disposed": 22,
+        "imageURLsCreated": 43,
+        "imageURLsRevoked": 42,
+        "staleReads": 0,
+        "active": 1,
+        "loading": false,
+        "imageLeases": 1,
+        "imageLayers": 1,
+        "selected": false,
+        "editing": false,
+        "scope": "browser_20261109_162911_3eb1f037:clip:1",
+        "rowPayloads": 1,
+        "markers": 0,
+        "obsoleteMapListeners": 0
+      },
+      "measurement": "UI/poll end-to-end on tiny local fixtures; not production latency or a memory/leak benchmark"
+    },
+    "editedDraft": {
+      "draftMatches": true,
+      "rawUnchanged": true
+    },
+    "reorderedRead": {
+      "created": 25,
+      "disposed": 24,
+      "imageURLsCreated": 44,
+      "imageURLsRevoked": 43,
+      "staleReads": 1,
+      "active": 1,
+      "loading": false,
+      "imageLeases": 1,
+      "imageLayers": 1,
+      "selected": false,
+      "editing": false,
+      "scope": "browser_20261109_162911_3eb1f037:clip:1"
+    },
+    "export": {
+      "files": [
+        "browser_20261109_162911_3eb1f037/",
+        "browser_20261109_162911_3eb1f037/Persistence/",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/image.tif",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/image.png",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/image.pgw",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/image.prj",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/preview_detections.jpg",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/detections.geojson",
+        "browser_20261109_162911_3eb1f037/Persistence/2026-10-29/aoi.geojson",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/image.tif",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/image.png",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/image.pgw",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/image.prj",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/preview_detections.jpg",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/detections.geojson",
+        "browser_20261109_162911_3eb1f037/Persistence/2025-03-27/aoi.geojson",
+        "browser_20261109_162911_3eb1f037/all_detections.geojson",
+        "browser_20261109_162911_3eb1f037/aois.geojson",
+        "browser_20261109_162911_3eb1f037/summary.json"
+      ],
+      "dimensions": [
+        32,
+        16
+      ],
+      "pgw": "1\n0\n0\n-1\n10\n20",
+      "tiff": "native-tiff-fixture",
+      "status": "verified"
+    },
+    "collidingExport": {
+      "images": 2,
+      "paths": [
+        "Persistence/2026-10-29",
+        "Persistence/2026-10-29__clip_1"
+      ]
+    },
+    "secondTab": {
+      "writable": false,
+      "blocked": true
+    },
+    "quotaRollback": {
+      "error": "QuotaExceededError",
+      "before": 2,
+      "after": 2,
+      "missing": true
+    },
+    "deletion": {
+      "jobs": 1,
+      "before": 2,
+      "after": 2,
+      "missing": true
+    },
+    "deletedView": {
+      "views": {
+        "created": 25,
+        "disposed": 25,
+        "imageURLsCreated": 44,
+        "imageURLsRevoked": 44,
+        "staleReads": 1,
+        "active": 0,
+        "loading": false,
+        "imageLeases": 0,
+        "imageLayers": 0,
+        "selected": false,
+        "editing": false,
+        "scope": null
+      },
+      "drafts": {
+        "retained": 0,
+        "dirty": 0
+      },
+      "rowPayloads": 0,
+      "comparisonRowPayloads": 0,
+      "auxiliary": {
+        "dataset": false,
+        "export": false,
+        "parts": 0,
+        "partReads": 0,
+        "partDownloads": 0,
+        "serverPoll": false,
+        "trainingPoll": false
+      },
+      "mapSearch": {
+        "open": false,
+        "request": false,
+        "scheduled": false,
+        "marker": false
+      },
+      "queue": {
+        "state": "idle",
+        "label": "Idle",
+        "hint": "One job runs at a time. Queued jobs start when the current job finishes.",
+        "waiting": 0,
+        "activeId": null,
+        "paused": false,
+        "draining": false,
+        "pendingWrites": 0,
+        "headReady": true
+      },
+      "downloadLeases": 0
+    },
+    "queueRecovery": {
+      "calls": 0,
+      "state": {
+        "state": "paused",
+        "label": "Paused",
+        "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+        "waiting": 3,
+        "activeId": null,
+        "paused": true,
+        "draining": false,
+        "pendingWrites": 0,
+        "headReady": true
+      },
+      "status": "Paused · 3/10 queued",
+      "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+      "resumeVisible": true,
+      "after": {
+        "calls": 3,
+        "maxActive": 1,
+        "jobs": [
+          {
+            "id": "browser_20261109_162911_e8e81a94",
+            "status": "done"
+          },
+          {
+            "id": "recover-1",
+            "status": "done"
+          },
+          {
+            "id": "recover-2",
+            "status": "done"
+          },
+          {
+            "id": "recover-3",
+            "status": "done"
+          }
+        ],
+        "queued": 0,
+        "reviews": 2
+      }
+    },
+    "otherDocument": {
+      "status": "Read only · close the other tab and reload to edit.",
+      "runDisabled": true
+    },
+    "disabledStorage": {
+      "status": "Session only · storage unavailable. Export before closing.",
+      "map": true,
+      "runEnabled": true
+    },
+    "upgradeRollback": {
+      "error": "AbortError",
+      "status": "Not saved · Storage ownership changed. Reload this tab to recover."
+    },
+    "afterUpgradeRollback": {
+      "jobs": 1,
+      "reviews": true
+    },
+    "newerSchema": {
+      "error": "VersionError",
+      "version": 3
+    },
+    "exceptions": []
+  },
+  "mapRegression": {
+    "checkedAt": "2026-11-09T17:40:08.433Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "fa4fa6e7a17fce1aeb3b818a44ac29268c29d62e3f065ddfa6a0bd92b50f7d4f",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "21:40:03  Queued: Imagery only · 1 AOI(s). Settings captured for this job.\n21:40:03  Review_small: 1 release(s) 2026-10-29\n21:40:03  [1/1] Review_small · 2026-10-29\n21:40:03      Budget: z18 · 374×413 px · 6 tiles · estimated 31.8 MiB\n21:40:05      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.2s\n21:40:07      z18 · 374×413 px · 0 objects \n21:40:07  Finished: 0 objects across 1 AOI/date clips. Saved on this device. Export a zip for a separate backup.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": false,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "childPanel": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "withinSidebar": true,
+      "normalControlsHidden": true,
+      "noModal": true,
+      "desktop": {
+        "width": 379,
+        "height": 837.234375,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 913
+      },
+      "mobile": {
+        "width": 390,
+        "height": 311.46875,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 382.328125
+      },
+      "mapControlsInteractive": true,
+      "mapDragInteractive": true,
+      "zoom": {
+        "centre": [
+          55.380999999999986,
+          25.25100000695594
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run",
+        "staysOpen": true,
+        "search": "DO_NOT"
+      },
+      "escapeFocus": "runAoiBtn"
+    },
+    "detectionPointer": {
+      "x": 942,
+      "y": 457,
+      "zoomBefore": 20,
+      "fitsBefore": 3,
+      "hitDetection": true,
+      "zoomAfter": 20,
+      "fitsAfter": 3,
+      "infoShown": true,
+      "card": "\n    aircraftmanual\n    Confidence0.91Size—\n    Heading—Centre25.25075, 55.36075\n    aircraftshiphelicopterstorage tanklarge vehiclesmall vehicleharborbridgeswimming poolroundabouttennis courtbasketball courtbaseball diamondsoccer fieldtrack field\n    AcceptRejectEdit shapeDelete"
+    }
+  }
+}

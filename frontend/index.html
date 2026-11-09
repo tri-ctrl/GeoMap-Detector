@@ -217,6 +217,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <div class="row"><span class="label" style="flex:1">AOIs <span id="aoiCount" class="mono"></span></span>
           <button class="btn ghost" id="clearAoi">Clear all</button></div>
         <div class="list" id="aoiList"></div>
+        <p class="hint">Drawing, importing and selecting AOIs keep the map view. Use Zoom to navigate to an AOI.</p>
       </div>
     </section>
 
@@ -298,7 +299,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       </div>
       <div class="sec queue-section">
         <div class="row"><span class="label" style="flex:1">Browser job queue</span><span class="hint" id="queueStatus" role="status" aria-live="polite">Idle</span></div>
-        <p class="hint">One job runs at a time. Queue up to 10 more with different models or settings. Saved jobs stay on this device; unfinished work waits for Resume after reopening.</p>
+        <p class="hint" id="queueHint">One job runs at a time. Queue up to 10 more with different models or settings. Saved work waits for Resume after reopening.</p>
         <p class="hint" id="storageStatus" role="status" aria-live="polite">Opening device storage…</p>
         <div class="row"><button class="btn" id="resumeQueue" hidden>Resume queue</button><button class="btn" id="storageRetry" hidden>Retry saving</button></div>
         <div id="jobQueue" class="job-queue"><p class="hint">No browser jobs yet.</p></div>

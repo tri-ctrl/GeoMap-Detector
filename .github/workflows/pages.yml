@@ -23,13 +23,15 @@ jobs:
       - name: Test browser UI and model regressions
         run: node --test tests/*.test.cjs
       - name: Test native IndexedDB recovery and exports in Chromium
-        run: node tests/browser/persistence.cjs --lifecycle
+        run: node tests/browser/persistence.cjs --lifecycle --queue-recovery
       - name: Test native allocation limits and georeferenced pixels in Chromium
         run: node tests/browser/allocation.cjs
       - name: Test bounded mosaics, native writers and cancellation in Chromium
         run: node tests/browser/allocation.cjs --bounded --ci
       - name: Test map search, location permissions and mobile layout in Chromium
         run: node tests/browser/allocation.cjs --search
+      - name: Test drawn AOIs and selection preserve the map viewport
+        run: node tests/browser/allocation.cjs --viewport
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Test model asset checks (no ML dependencies)

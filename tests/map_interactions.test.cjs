@@ -2,6 +2,32 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { setup, turn, aoi } = require("./helpers/app.cjs");
 
+test("drawing polygons and rectangles preserves the map center and zoom even with existing AOIs", async () => {
+  const app = await setup({ beforeBoot: context => {
+    context.L.Draw.Polygon = context.L.Draw.Rectangle = class { enable() {} disable() {} };
+  } });
+  app.map.setView([24.5, 54.5], 18); const before = app.snapshot();
+  for (const button of ["#drawPoly", "#drawRect"]) {
+    await app.element(button).onclick();
+    app.map.handlers["draw:created"]({ layer: { toGeoJSON: () => ({ geometry: aoi.geometry }) } });
+    assert.deepEqual(app.map.position, [24.5, 54.5]); assert.equal(app.map.getZoom(), 18); assert.equal(app.snapshot().fits, before.fits);
+  }
+  assert.equal(JSON.parse(app.saved.get("gv_aois")).length, 3);
+});
+test("AOI map/list selection and repeated clicks preserve the viewport; only explicit Zoom fits", async () => {
+  const app = await setup(); app.map.setView([24.5, 54.5], 18); const before = app.snapshot();
+  for (let i = 0; i < 3; i++) {
+    app.selectAoi(0); app.element("#aoiList").children[0].onclick({ target: { closest: () => null } });
+  }
+  assert.deepEqual(app.map.position, [24.5, 54.5]); assert.equal(app.map.getZoom(), 18); assert.equal(app.snapshot().fits, before.fits);
+  app.element("#aoiList").querySelectorAll("[data-aoi-zoom]")[0].onclick(); assert.equal(app.snapshot().fits, before.fits + 1);
+});
+test("importing AOIs preserves the viewport instead of fitting all old and new polygons", async () => {
+  const app = await setup({ fetchHook: async url => url.endsWith("sample_aois/uae_airports_ports.geojson") ? { json: async () => ({ type: "FeatureCollection", features: [{ ...aoi, properties: { name: "Imported" } }] }) } : null });
+  app.map.setView([24.5, 54.5], 18); const before = app.snapshot(); await app.element("#loadSample").onclick();
+  assert.equal(app.element("#runN").textContent, 2); assert.equal(app.snapshot().fits, before.fits); assert.deepEqual(app.map.position, [24.5, 54.5]); assert.equal(app.map.getZoom(), 18);
+});
+
 test("selecting the current release five times leaves the existing basemap untouched", async () => {
   const app = await setup(), initial = app.snapshot(), tile = app.tiles[0];
   for (let i = 0; i < 5; i++) app.clickRelease(101);

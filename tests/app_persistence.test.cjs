@@ -69,7 +69,8 @@ test('interrupted job and queued successor restore paused; Resume skips committe
     const process = context.GVEngine.processClip;
     context.GVEngine.processClip = async (a, r, options) => { processed.push([r.release, options.model.key]); return process(a, r, options); };
   } });
-  assert.equal(processed.length, 0); assert.match(f.app.element('#queueStatus').textContent, /2\/10 queued · paused/);
+  assert.equal(processed.length, 0); assert.match(f.app.element('#queueStatus').textContent, /Paused · 2\/10 queued/);
+  assert.match(f.app.element('#queueHint').textContent, /Resume queue/);
   f.app.element('#resumeQueue').onclick(); await until(() => /Idle · 0\/10 queued$/.test(f.app.element('#queueStatus').textContent));
   const saved = await f.repo.restore(); assert.deepEqual(processed, [[100, 'url:alpha.onnx'], [101, 'url:beta.onnx']]);
   assert.deepEqual(Array.from(saved.jobs, job => job.status), ['done', 'done']); assert.equal(saved.jobs[0].results.length, 2);
@@ -128,7 +129,7 @@ test('page-show recovery waits for active cleanup and shares one shutdown before
   const job = f.app.element('#runBtn').onclick(); await until(() => started);
   f.app.events.get('pagehide')(); const shown = f.app.events.get('pageshow')({ persisted: true });
   assert.equal(f.app.element('#runBtn').disabled, true); cleanup(); await job; await shown;
-  assert.equal(f.repo.state().writable, true); assert.match(f.app.element('#queueStatus').textContent, /paused/);
+  assert.equal(f.repo.state().writable, true); assert.match(f.app.element('#queueStatus').textContent, /Paused/);
   assert.doesNotMatch(f.app.element('#storageStatus').textContent, /Not saved|Read only/);
 });
 test('deleting an old job under quota frees its artifacts, replays another job safely and keeps saved reviews', async t => {
@@ -149,6 +150,26 @@ test('deleting an old job under quota frees its artifacts, replays another job s
   const saved = await f.repo.restore(); assert.equal(saved.jobs.length, 1); assert.equal(saved.jobs[0].id, second.id); assert.equal(saved.jobs[0].results.length, 1);
   assert.equal((await f.repo.reviews()).features.length, 1); assert.equal(await f.repo.draft(first.results[0].storeId), undefined);
   assert.equal(second.results[0].persisted, true); assert.doesNotMatch(f.app.element('#storageStatus').textContent, /Not saved/);
+});
+test('three restored queued jobs explain their pause, survive deleting a cancelled job and resume sequentially', async t => {
+  let f=await appFixture({beforeBoot:context=>{context.confirm=()=>true}});t.after(()=>f.repo.close());
+  const done=await f.app.element('#runBtn').onclick(), template=f.app.context.GVStorage.jobRecord(done);
+  const seed=(id,status)=>({...template,id,createdAt:Date.now()+Number(id.slice(-1)||0),status,progress:0,log:[],plan:undefined,outcomes:[],params:{...template.params,detect:false},modelSpec:null,releaseSource:[{release:101,date:'2026-10-29'}]});
+  await f.repo.saveJob(seed('cancelled0','cancelled'));for(let i=1;i<=3;i++)await f.repo.saveJob(seed('queued'+i,'queued'));
+  const indexedDB=f.indexedDB,savedMap=f.app.saved;await f.repo.close();let active=0,max=0,processed=0;
+  f=await appFixture({indexedDB,savedMap,beforeBoot:context=>{context.confirm=()=>true;const process=context.GVEngine.processClip;context.GVEngine.processClip=async(...args)=>{max=Math.max(max,++active);try{processed++;await turn();return await process(...args)}finally{active--}}}});
+  assert.equal(processed,0);assert.match(f.app.element('#queueStatus').textContent,/Paused · 3\/10 queued/);assert.match(f.app.element('#queueHint').textContent,/Resume queue/);
+  assert.equal(f.app.element('#resumeQueue').hidden,false);assert.equal(f.app.element('#resumeQueue').disabled,false);
+  f.app.element('#jobSel').value='cancelled0';await f.app.element('#deleteJob').onclick();assert.equal(processed,0,'Deleting a terminal job must not override a reload pause');
+  f.app.element('#resumeQueue').onclick();await until(()=>f.app.context.GVApp.diagnostics().queue.waiting===0&&!f.app.context.GVApp.diagnostics().queue.activeId);
+  const saved=await f.repo.restore();assert.equal(processed,3);assert.equal(max,1);assert.equal(saved.jobs.length,4);assert.ok(saved.jobs.every(j=>j.status==='done'));assert.equal(saved.queue.length,0);
+});
+test('retrying an initially failed submission wakes a queue whose explicit Resume arrived before readiness', async t => {
+  let fail=true,finish;const gate=new Promise(resolve=>finish=resolve);
+  const f=await appFixture({beforeBoot:context=>{const create=context.GVStorage.create;context.GVStorage.create=options=>{const db=create(options),save=db.saveJob;db.saveJob=async(...args)=>{if(fail)throw new DOMException('Full','QuotaExceededError');await gate;return save(...args)};return db}}});t.after(()=>f.repo.close());
+  const job=await f.app.element('#runBtn').onclick();assert.equal(job.status,'queued');assert.equal(job.durableReady,false);assert.match(f.app.element('#queueHint').textContent,/saving failed/);
+  fail=false;const retry=f.app.element('#storageRetry').onclick();f.app.element('#resumeQueue').onclick();
+  assert.equal(job.status,'queued');finish();await retry;await until(()=>job.status==='done');assert.equal((await f.repo.restore()).queue.length,0);
 });
 test('session-only edits remain exportable and warn on closing even after another clip is opened', async () => {
   const app = await setup({ selected: true }), job = await app.element('#runBtn').onclick();

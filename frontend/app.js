@@ -56,8 +56,7 @@ function renderStorage() {
     : readOnly ? "Read only · close the other tab and reload to edit." : !durable ? "Session only · storage unavailable. Export before closing."
     : pendingWrites.length ? "Saving on this device…" : "Saved on this device · IndexedDB";
   $("#storageRetry").hidden = !storageError || readOnly;
-  $("#resumeQueue").hidden = !queuePaused || readOnly || !browserQueue.length;
-  $("#resumeQueue").disabled = Boolean(storageError);
+  renderQueueState();
   for (const id of ["fileIn", "loadSample", "clearAoi", "drawRect", "drawPoly", "onnxIn", "customNames", "annRect", "annPoly", "acceptAll", "saveAnn"])
     if ($("#" + id)) $("#" + id).disabled = !persistenceReady || readOnly;
 }
@@ -73,7 +72,12 @@ async function flushWrites() {
       catch (error) { storageError = error; queuePaused = true; item.reject(error); toast("Could not save on this device. Work is kept in this tab; retry saving or export it.", 6500); }
       renderStorage();
     }
-  } finally { writing = false; finished(); }
+  } finally {
+    writing = false; finished();
+    // Retried submissions may become runnable after their original caller has
+    // already returned. Completing persistence must wake the scheduler too.
+    if (browserQueue.length) drainBrowserQueue();
+  }
 }
 function persistWrite(action, owner = null) {
   if (!durable) return Promise.resolve();
@@ -116,7 +120,7 @@ async function readClip(source, options) {
   return payload;
 }
 $("#storageRetry").onclick = async () => { storageError = null; await flushWrites(); renderStorage(); };
-$("#resumeQueue").onclick = () => { if (storageError || readOnly) return; queuePaused = false; renderStorage(); drainBrowserQueue(); };
+$("#resumeQueue").onclick = () => { if (!pageActive || !persistenceReady || storageError || readOnly) return; queuePaused = false; renderStorage(); drainBrowserQueue(); };
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
@@ -347,7 +351,6 @@ function addAois(feats) {
   S.activeAoi = activeIndex >= 0 ? activeIndex : null;
   const added = S.aois.length - base, skipped = feats.length - added;
   saveAois(); renderAois();
-  if (aoiLayer.getLayers().length) map.fitBounds(aoiLayer.getBounds().pad(0.1));
   toast(`${added} AOI${added === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
 }
 function saveAois() {
@@ -369,13 +372,14 @@ function renderAois() {
     const it = document.createElement("div"); it.className = "item" + (act ? " active" : "");
     it.innerHTML = `<span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--muted)"></span>
       <div style="min-width:0"><div class="t">${esc(f.properties.name)}</div><div class="s mono">${kmW.toFixed(1)} × ${kmH.toFixed(1)} km${f.properties.type ? " · " + esc(f.properties.type) : ""}</div></div>
-      <div class="row" style="gap:0"><button class="icon-btn" data-ren="${i}" title="Rename" aria-label="Rename">✎</button><button class="icon-btn" data-del="${i}" title="Remove" aria-label="Remove">✕</button></div>`;
-    it.onclick = e => { if (e.target.closest("[data-del],[data-ren]")) return; selectAoi(i); };
+      <div class="row" style="gap:0"><button class="btn ghost" data-aoi-zoom="${i}" aria-label="Zoom to ${esc(f.properties.name)}">Zoom</button><button class="icon-btn" data-ren="${i}" title="Rename" aria-label="Rename">✎</button><button class="icon-btn" data-del="${i}" title="Remove" aria-label="Remove">✕</button></div>`;
+    it.onclick = e => { if (e.target.closest("[data-del],[data-ren],[data-aoi-zoom]")) return; selectAoi(i); };
     list.append(it);
   });
   if (!S.aois.length) list.innerHTML = `<div class="item"><span></span><span class="s">No AOIs yet. Import a file, draw one, or load the UAE sample (6 airports and ports).</span><span></span></div>`;
   list.querySelectorAll("[data-del]").forEach(b => { b.disabled = readOnly; b.onclick = () => { if (readOnly) return; S.aois.splice(+b.dataset.del, 1); S.activeAoi = null; saveAois(); renderAois(); }; });
   list.querySelectorAll("[data-ren]").forEach(b => { b.disabled = readOnly; b.onclick = () => { if (!readOnly) renameAoi(+b.dataset.ren, b.closest(".item")); }; });
+  list.querySelectorAll("[data-aoi-zoom]").forEach(button => button.onclick = () => zoomToAoi(Number(button.dataset.aoiZoom)));
   $("#aoiCount").textContent = S.aois.length ? `(${S.aois.length})` : "";
   renderRunAois();
 }
@@ -386,7 +390,7 @@ function updateRunSelection() {
   $("#runAoiCount").textContent = `${count} of ${S.aois.length} selected`;
   $("#runAoiHint").textContent = !S.aois.length ? "Add AOIs in the AOIs tab to get started."
     : !count ? "Select at least one AOI to enable Run."
-    : "Checked AOIs will use your Wayback date settings. Map selection controls the view.";
+    : "Checked AOIs will use your Wayback date settings. Use Zoom to navigate; selection keeps the map view.";
   const busy = Boolean(activeBrowserJob || browserQueue.length || queueDraining || datasetExportRunning);
   $("#runVerb").textContent = !isServer() && busy ? "Queue" : "Run";
   $("#runBtn").disabled = !persistenceReady || readOnly || Boolean(storageError) || count === 0 || serverRunning || (isServer() ? busy : browserQueue.length >= MAX_WAITING_JOBS);
@@ -444,7 +448,7 @@ function renderRunAois() {
     button.onclick = () => {
       const index = S.aois.indexOf(aoi);
       if (index < 0) return;
-      selectAoi(index); $("#map").focus({ preventScroll: true });
+      zoomToAoi(index); $("#map").focus({ preventScroll: true });
     };
   });
   updateRunSelection();
@@ -465,14 +469,18 @@ $("#runAoiClose").onclick = $("#runAoiDone").onclick = closeRunAoiPanel;
 $("#runAoiSearch").oninput = renderRunAois;
 $("#runAoiAll").onclick = () => { S.aois.forEach(aoi => runAoiSelection.add(aoi)); renderRunAois(); };
 $("#runAoiNone").onclick = () => { runAoiSelection.clear(); renderRunAois(); };
-function setServerRunning(running) { serverRunning = running; updateRunSelection(); }
+function setServerRunning(running) { serverRunning = running; updateRunSelection(); renderQueueState(); if (!running) drainBrowserQueue(); }
 function renameAoi(i, el) {
   const t = el.querySelector(".t"), inp = document.createElement("input"); inp.type = "text"; inp.value = S.aois[i].properties.name;
   t.replaceWith(inp); inp.focus(); inp.select();
   const done = () => { S.aois[i].properties.name = inp.value.trim() || S.aois[i].properties.name; saveAois(); renderAois(); };
   inp.onkeydown = e => { if (e.key === "Enter") done(); if (e.key === "Escape") renderAois(); }; inp.onblur = done;
 }
-function selectAoi(i) { S.activeAoi = i; renderAois(); map.fitBounds(L.geoJSON(S.aois[i]).getBounds().pad(0.15)); }
+function selectAoi(i) { if (!S.aois[i]) return; S.activeAoi = i; renderAois(); }
+function zoomToAoi(i) {
+  if (!S.aois[i]) return;
+  selectAoi(i); map.fitBounds(L.geoJSON(S.aois[i]).getBounds().pad(0.15), { animate: false });
+}
 async function readFile(file) {
   const n = file.name.toLowerCase();
   if (n.endsWith(".zip")) { await E.ensureLibrary("shp"); const g = await shp(await file.arrayBuffer()); return Array.isArray(g) ? { type: "FeatureCollection", features: g.flatMap(x => x.features) } : g; }
@@ -678,6 +686,33 @@ $("#conf").oninput = () => $("#confV").textContent = (+$("#conf").value).toFixed
 // ---------------------------------------------------------------- run
 const logEl = $("#jobLog");
 const pendingJob = job => ["queued", "running", "cancelling", "interrupted"].includes(job.status);
+function browserQueueState() {
+  let state = "idle", label = "Idle", hint = "One job runs at a time. Queued jobs start when the current job finishes.";
+  if (activeBrowserJob) {
+    state = "running"; label = activeBrowserJob.status === "cancelling" ? "Cancelling" : pendingJob(activeBrowserJob) ? "1 running" : "Finishing job";
+    hint = label === "Finishing job" ? "Saving the completed job before starting the next one." : "The current job must finish or finish cancelling before the next job starts.";
+  } else if (browserQueue.length) {
+    if (!pageActive) { state = "suspended"; label = "Suspended"; hint = "Return to this page and resume the saved queue."; }
+    else if (!persistenceReady) { state = "opening"; label = "Opening storage"; hint = "Waiting for saved jobs to finish loading."; }
+    else if (readOnly) { state = "read-only"; label = "Read only"; hint = "Another tab or a storage change prevents processing. Close the other tab and reload this page."; }
+    else if (storageError) { state = "storage-error"; label = "Saving blocked"; hint = "The queue is paused because saving failed. Retry saving, then choose Resume queue."; }
+    else if (serverRunning) { state = "server"; label = "Server job running"; hint = "Browser jobs will continue after the server job finishes."; }
+    else if (datasetExportRunning) { state = "dataset"; label = "Building dataset"; hint = "Browser jobs will continue after the dataset export finishes."; }
+    else if (queuePaused) { state = "paused"; label = "Paused"; hint = "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue."; }
+    else if (browserQueue[0].durableReady === false) { state = "saving"; label = "Saving queued job"; hint = "Waiting for the first queued job to finish saving before it can start."; }
+    else { state = "ready"; label = "Ready"; hint = "Waiting jobs are ready. Choose Start queue if processing has not started."; }
+  } else if (datasetExportRunning) { state = "dataset"; label = "Building dataset"; }
+  return { state, label, hint, waiting: browserQueue.length, activeId: activeBrowserJob?.id || null,
+    paused: queuePaused, draining: queueDraining, pendingWrites: pendingWrites.length, headReady: browserQueue[0]?.durableReady !== false };
+}
+function renderQueueState() {
+  const status = browserQueueState();
+  $("#queueStatus").textContent = `${status.label} · ${status.waiting}/${MAX_WAITING_JOBS} queued`;
+  $("#queueHint").textContent = status.hint;
+  $("#resumeQueue").hidden = !status.waiting || Boolean(activeBrowserJob) || readOnly;
+  $("#resumeQueue").disabled = !pageActive || !persistenceReady || Boolean(storageError) || serverRunning || datasetExportRunning || !status.headReady;
+  $("#resumeQueue").textContent = queuePaused ? "Resume queue" : "Start queue";
+}
 function updateJobProgress(job, refreshLog = false) {
   const percent = Math.round(job.progress * 100), bar = $("#queue-progress-" + job.id), label = $("#queue-percent-" + job.id);
   if (bar) { bar.style.width = percent + "%"; bar.setAttribute("aria-valuenow", String(percent)); }
@@ -704,8 +739,7 @@ function renderBrowserQueue() {
   const focusId = focusKey && focused[focusKey];
   const pending = [...(activeBrowserJob ? [activeBrowserJob] : []), ...browserQueue];
   const recent = Object.values(BJOBS).filter(job => !pendingJob(job)).slice(-5).reverse();
-  $("#queueStatus").textContent = `${activeBrowserJob ? "1 running" : datasetExportRunning ? "Building dataset" : "Idle"} · ${browserQueue.length}/${MAX_WAITING_JOBS} queued`;
-  if (queuePaused) $("#queueStatus").textContent += " · paused";
+  renderQueueState();
   $("#jobQueue").innerHTML = pending.concat(recent).map(job => `<div class="card queue-job${selectedBrowserJobId === job.id ? " selected" : ""}" data-queued-job="${job.id}">
     <div class="row"><b class="queue-model">${esc(GVCompare.modelName(job.params))}</b><span class="hint">${esc(job.status)}</span></div>
     <div class="hint">${job.aois.length} AOI(s) · ${esc(job.params.release_mode)} dates · z${job.params.zoom} · <span id="queue-percent-${job.id}">${Math.round(job.progress * 100)}%</span></div>
@@ -736,6 +770,7 @@ function cancelBrowserJob(id, reason = "Cancelled by user") {
     checkpointJob(job).catch(() => {});
   }
   renderBrowserQueue();
+  drainBrowserQueue();
 }
 async function drainBrowserQueue() {
   if (queueDraining || serverRunning || datasetExportRunning || !pageActive || queuePaused || !persistenceReady || readOnly || storageError) return;
@@ -1772,7 +1807,8 @@ $("#deleteJob").onclick = async () => {
     ++jobsGeneration; ++resultsGeneration; jobsController?.abort(); resultsController?.abort();
     delete BJOBS[id]; S.jobId = null; if (selectedBrowserJobId === id) selectedBrowserJobId = null;
     renderBrowserQueue(); await loadJobs(); toast("Job deleted. Saved training reviews are kept.");
-  } catch {} finally { job.deleting = false; renderStorage(); }
+  } catch (error) { toast("Could not delete this job: " + error.message, 5000); }
+  finally { job.deleting = false; renderStorage(); drainBrowserQueue(); }
 };
 window.addEventListener("pagehide", () => {
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
@@ -1831,5 +1867,6 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   auxiliary: { dataset: Boolean(datasetOperation), export: Boolean(exportOperation), parts: exportParts?.parts.length || 0,
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },
+  queue: browserQueueState(),
   downloadLeases: downloadURLs.size }) };
 })();

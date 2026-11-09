@@ -95,7 +95,7 @@ const server = http.createServer((request, response) => {
       // Reading a catalog is safe; restore itself normalizes interrupted status.
       await evaluate("sessionStorage.removeItem('hold')"); await reloadDocument(); await ready();
       results.recovery = await evaluate(`__repo.restore().then(s=>({jobs:s.jobs.map(j=>({status:j.status,clips:j.results.length})),calls:__calls,reads:__repo.state().reads,status:document.querySelector('#queueStatus').textContent}))`);
-      assert.equal(results.recovery.calls.length, 0); assert.match(results.recovery.status, /2\/10 queued · paused/);
+      assert.equal(results.recovery.calls.length, 0); assert.match(results.recovery.status, /Paused · 2\/10 queued/);
       assert.equal(results.recovery.reads.artifacts, undefined); assert.equal(results.recovery.jobs[0].clips, 1);
       await evaluate("document.querySelector('#resumeQueue').click()");
       await until("document.querySelector('#queueStatus').textContent==='Idle · 0/10 queued'&&document.querySelector('#storageStatus').textContent.startsWith('Saved')");
@@ -179,6 +179,20 @@ const server = http.createServer((request, response) => {
       results.deletion = await evaluate(`(async()=>{const before=(await __repo.reviews()).features.length;${lifecycle ? "await document.querySelector('#deleteJob').onclick()" : "await __repo.deleteJob('" + firstId + "')"};const s=await __repo.restore();let missing=false;try{await __repo.clip('${results.reviews.clipId}')}catch{missing=true}return {jobs:s.jobs.length,before,after:(await __repo.reviews()).features.length,missing}})()`);
       assert.deepEqual(results.deletion, { jobs: 1, before: 2, after: 2, missing: true });
       if (lifecycle) { results.deletedView = await evaluate('GVApp.diagnostics()'); assert.equal(results.deletedView.views.active, 0); assert.equal(results.deletedView.views.imageLeases, 0); assert.equal(results.deletedView.views.selected, false); }
+      if (process.argv.includes('--queue-recovery')) {
+        const before=await evaluate(`(async()=>{const s=await __repo.restore(),template=s.jobs[0];for(const [id,status]of [['recover-cancelled','cancelled'],['recover-1','queued'],['recover-2','queued'],['recover-3','queued']])await __repo.saveJob({...template,id,status,createdAt:Date.now(),progress:0,log:[],plan:null,outcomes:[],modelSpec:null,params:{...template.params,detect:false},releaseSource:[{release:101,date:'2026-10-29'}]});return{jobs:s.jobs.length,reviews:(await __repo.reviews()).features.length}})()`);
+        await reloadDocument();await ready();await until("document.querySelector('#jobSel').options.length===5");
+        results.queueRecovery=await evaluate("({calls:__calls.length,state:GVApp.diagnostics().queue,status:document.querySelector('#queueStatus').textContent,hint:document.querySelector('#queueHint').textContent,resumeVisible:!document.querySelector('#resumeQueue').hidden})");
+        assert.equal(results.queueRecovery.calls,0);assert.equal(results.queueRecovery.state.waiting,3);assert.equal(results.queueRecovery.state.state,'paused');assert.match(results.queueRecovery.hint,/Resume queue/);assert.equal(results.queueRecovery.resumeVisible,true);
+        await evaluate("(async()=>{document.querySelector('#jobSel').value='recover-cancelled';document.querySelector('#jobSel').onchange();await document.querySelector('#deleteJob').onclick()})()");
+        assert.equal(await evaluate('__calls.length'),0);
+        await evaluate("(()=>{window.__queueActive=0;window.__queueMax=0;const process=GVEngine.processClip;GVEngine.processClip=async(...args)=>{__queueMax=Math.max(__queueMax,++__queueActive);try{return await process(...args)}finally{__queueActive--}};document.querySelector('#resumeQueue').click()})()");
+        await until("GVApp.diagnostics().queue.waiting===0&&!GVApp.diagnostics().queue.activeId&&document.querySelector('#storageStatus').textContent.startsWith('Saved')");
+        results.queueRecovery.after=await evaluate("__repo.restore().then(async s=>({calls:__calls.length,maxActive:__queueMax,jobs:s.jobs.map(j=>({id:j.id,status:j.status})),queued:s.queue.length,reviews:(await __repo.reviews()).features.length}))");
+        assert.equal(results.queueRecovery.after.calls,3);assert.equal(results.queueRecovery.after.maxActive,1);assert.equal(results.queueRecovery.after.jobs.length,before.jobs+3);assert.ok(results.queueRecovery.after.jobs.every(j=>j.status==='done'));assert.equal(results.queueRecovery.after.reviews,before.reviews);
+        await evaluate("Promise.all(['recover-1','recover-2','recover-3'].map(id=>__repo.deleteJob(id)))");
+        console.log('Three saved queued jobs stay explicitly paused, survive cancelled-job deletion, then resume sequentially with reviews intact.');
+      }
       await evaluate("window.__otherDocument=document.createElement('iframe');__otherDocument.src='/';document.body.append(__otherDocument)");
       await until("__otherDocument.contentDocument?.querySelector('#storageStatus')?.textContent.startsWith('Read only')");
       results.otherDocument = await evaluate("({status:__otherDocument.contentDocument.querySelector('#storageStatus').textContent,runDisabled:__otherDocument.contentDocument.querySelector('#runBtn').disabled})");

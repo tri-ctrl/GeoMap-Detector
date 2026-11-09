@@ -156,6 +156,10 @@ let chrome, socket, watchdog;
     const input = document.querySelector('#fileIn'); input.files = files.files; input.dispatchEvent(new Event('change'));
     document.querySelector('#detectOn').checked = false; document.querySelector('#tifOn').checked = false;
   })()`);
+  // AOI import now preserves the current view. Navigation is an explicit user
+  // action, and also exposes the real map instance to the existing fit spy.
+  await until("Boolean(document.querySelector('#aoiList [data-aoi-zoom]'))");
+  await evaluate("document.querySelector('#aoiList [data-aoi-zoom]').click()");
   let runSelection, childPanel;
   if (selection) {
     await until("document.querySelector('#runN').textContent === '2'");

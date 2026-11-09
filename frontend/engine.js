@@ -670,7 +670,7 @@ async function buildRaster(geom, release, zoom = 18, opt = {}) {
     ctx.globalCompositeOperation = "source-over";
     }
     retained = true;
-    return { canvas, w, h, x0, y0, res, zoom: z, requestedZoom: zoom, release, rings, tiles: tiles.length, missing, coverage, allocation: lease,
+    return { canvas, w, h, x0, y0, res, zoom: z, requestedZoom: zoom, rings, tiles: tiles.length, missing, coverage, allocation: lease,
       release() { releaseCanvas(canvas); if (ownLease) lease.release(); } };
   } catch (error) {
     if (opt.signal?.aborted) throw new DOMException("Cancelled", "AbortError");

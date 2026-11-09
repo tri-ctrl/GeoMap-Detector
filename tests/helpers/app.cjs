@@ -65,6 +65,8 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     append(child) { this.children.push(child); this.queries.clear(); }
     addEventListener() {}
     setAttribute(name, value) { this.attributes = { ...this.attributes, [name]: value }; }
+    removeAttribute(name) { if (this.attributes) delete this.attributes[name]; }
+    contains(node) { return node === this || this.children.some(child => child.contains?.(node)); }
     focus() { document.activeElement = this; }
     click() { if (!this.disabled) return this.onclick?.({ target: this }); }
     remove() {}
@@ -151,6 +153,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
       layer.bringToBack = () => layer; tiles.push(layer); return layer;
     },
     imageOverlay: (url, imageBounds) => Object.assign(new Layer(), { url, bounds: imageBounds }),
+    circleMarker: (position, options) => Object.assign(new Layer(), { position, options }),
     geoJSON: (data, options = {}) => {
       metrics.geoJSON++;
       const group = new Group(); group.options = options;
@@ -186,7 +189,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   };
   let nextUrl = 0, nextTimer = 0;
   const events = new Map(), documentEvents = new Map();
-  const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException, indexedDB,
+  const context = vm.createContext({ document, L, fetch, Blob, AbortController, AbortSignal, DOMException, indexedDB, URLSearchParams,
     setInterval, clearInterval, structuredClone, crypto: globalThis.crypto, fflate: require('fflate'), scheduler: { yield: () => new Promise(setImmediate) },
     location: { hostname: "test.github.io" }, setTimeout: (callback, ms) => { const id = ++nextTimer; timers.set(id, { callback, ms }); return id; }, clearTimeout: id => timers.delete(id),
     localStorage: { getItem: key => { if (key === "gv_ann") metrics.annotationReads++; return saved.get(key) ?? null; }, setItem: (key, value) => saved.set(key, value) },

@@ -134,6 +134,101 @@ async function requestJSON(url, options = {}) {
   } finally { lifecycleStats.requests--; clearTimeout(timer); signal?.removeEventListener("abort", abort); }
 }
 
+// ------------------------------------------------------------------ transient map search (no persisted geocoder results)
+const GEOCODER = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/";
+const MAX_MAP_LAT = 85.05112878;
+function mapPoint(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
+    throw new Error("Enter valid latitude (−90 to 90), longitude (−180 to 180).");
+  if (Math.abs(lat) > MAX_MAP_LAT) throw new Error("Wayback map imagery supports latitudes between −85.05113 and 85.05113.");
+  return { lat, lon, label: `${lat.toFixed(6)}, ${lon.toFixed(6)}` };
+}
+function parseMapCoordinates(value) {
+  const text = String(value).trim().replace(/−/g, "-"), number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
+  let match = text.match(new RegExp("^" + number + "(?:\\s*[,;]\\s*|\\s+)" + number + "$"));
+  if (match) {
+    let lat = Number(match[1]), lon = Number(match[2]);
+    // Ambiguous decimal pairs are latitude, longitude, as shown by the hint.
+    if (Math.abs(lat) > 90 && Math.abs(lat) <= 180 && Math.abs(lon) <= 90) [lat, lon] = [lon, lat];
+    return mapPoint(lat, lon);
+  }
+  const named = new RegExp("\\b(latitude|lat|longitude|lon|lng)\\s*[:=]?\\s*" + number, "gi");
+  const directed = new RegExp(number + "\\s*°?\\s*([NSEW])\\b", "gi");
+  for (const [pattern, directions] of [[named, false], [directed, true]]) {
+    const parts = [...text.matchAll(pattern)];
+    if (parts.length !== 2 || text.replace(pattern, "").replace(/[\s,;]+/g, "")) continue;
+    const point = {};
+    for (const part of parts) {
+      const direction = directions ? part[2].toUpperCase() : null, axis = directions ? /[NS]/.test(direction) ? "lat" : "lon" : /^lat/i.test(part[1]) ? "lat" : "lon";
+      const n = Number(part[directions ? 1 : 2]);
+      if (point[axis] !== undefined || (directions && n < 0)) throw new Error("Use one latitude and one longitude; hemisphere coordinates use positive numbers.");
+      point[axis] = directions && /[SW]/.test(direction) ? -n : n;
+    }
+    return mapPoint(point.lat, point.lon);
+  }
+  if (/^[\d\s+.,;\-]+$/.test(text) && /[,;]/.test(text)) throw new Error("Enter two decimal coordinates: latitude, longitude (for example 25.25, 55.36).");
+  return null;
+}
+async function mapPlaceRequest(action, text, { signal, center, magicKey } = {}) {
+  checkAbort(signal);
+  if (typeof text !== "string" || !text.trim() || text.length > 300) throw new Error("Enter a place name of at most 300 characters.");
+  const parameters = new URLSearchParams({ f: "json" });
+  parameters.set(action === "suggest" ? "text" : "SingleLine", text.trim());
+  if (action === "suggest") parameters.set("maxSuggestions", "5");
+  else { parameters.set("maxLocations", "5"); parameters.set("outSR", "4326"); parameters.set("forStorage", "false"); if (magicKey) parameters.set("magicKey", magicKey); }
+  if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng) && Math.abs(center.lat) <= MAX_MAP_LAT && Math.abs(center.lng) <= 180)
+    parameters.set("location", `${center.lng},${center.lat}`);
+  const data = await requestJSON(GEOCODER + action + "?" + parameters, { signal, timeoutMs: 10000 });
+  checkAbort(signal);
+  if (data?.error) throw new Error("Place search is unavailable. Try again or enter latitude, longitude.");
+  return data;
+}
+async function suggestMapPlaces(text, options) {
+  const data = await mapPlaceRequest("suggest", text, options);
+  if (!Array.isArray(data?.suggestions)) throw new Error("Place search returned invalid suggestions. Try again.");
+  return data.suggestions.slice(0, 5).map(item => {
+    if (typeof item.text !== "string" || !item.text.trim() || item.text.length > 500 || typeof item.magicKey !== "string" || item.magicKey.length > 4096)
+      throw new Error("Place search returned invalid suggestions. Try again.");
+    return { label: item.text, magicKey: item.magicKey };
+  });
+}
+async function findMapPlace(text, options) {
+  const data = await mapPlaceRequest("findAddressCandidates", text, options);
+  if (!Array.isArray(data?.candidates)) throw new Error("Place search returned invalid locations. Try again.");
+  const candidate = data.candidates[0];
+  if (!candidate) return null;
+  if (typeof candidate.address !== "string" || !candidate.address.trim() || candidate.address.length > 500)
+    throw new Error("Place search returned an invalid location. Try again.");
+  const point = mapPoint(candidate.location?.y, candidate.location?.x), extent = candidate.extent;
+  const values = extent && [extent.xmin, extent.ymin, extent.xmax, extent.ymax];
+  const bounds = values?.every(Number.isFinite) && values[0] >= -180 && values[2] <= 180 && values[0] < values[2] && values[1] >= -90 && values[3] <= 90 && values[1] < values[3]
+    ? [[Math.max(-MAX_MAP_LAT, values[1]), values[0]], [Math.min(MAX_MAP_LAT, values[3]), values[2]]] : null;
+  return { ...point, label: candidate.address, bounds };
+}
+async function currentMapLocation({ signal, timeoutMs = 12000 } = {}) {
+  const owner = operation("Current location", { signal, timeoutMs });
+  try {
+    owner.check();
+    const geo = global.navigator?.geolocation;
+    if (!geo || global.isSecureContext === false) throw new Error("Current location is unavailable in this browser. Enter a place or coordinates instead.");
+    return await new Promise((resolve, reject) => {
+      let watch, settled = false;
+      const clear = () => { if (watch != null) { geo.clearWatch(watch); watch = null; } };
+      const finish = (error, point) => { if (settled) return; settled = true; owner.signal.removeEventListener("abort", abort); clear(); error ? reject(error) : resolve(point); };
+      const abort = () => { try { owner.check(); } catch (error) { finish(error); } };
+      owner.signal.addEventListener("abort", abort, { once: true });
+      try {
+        watch = geo.watchPosition(position => {
+          try { owner.check(); finish(null, mapPoint(position.coords.latitude, position.coords.longitude)); } catch (error) { finish(error); }
+        }, error => finish(new Error(error.code === 1 ? "Location permission was denied. Allow location access in your browser or enter coordinates."
+          : error.code === 3 ? "Current location timed out. Try again or enter coordinates." : "Your current location could not be found. Try a place name or coordinates.")),
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 });
+        if (settled) clear();
+      } catch (error) { finish(error); }
+    });
+  } finally { owner.close(); }
+}
+
 // ------------------------------------------------------------------ geo math
 const merc = (lon, lat) => { lat = Math.max(Math.min(lat, 85.05112878), -85.05112878);
   return [lon * ORIGIN / 180, Math.log(Math.tan((90 + lat) * Math.PI / 360)) * ORIGIN / Math.PI]; };
@@ -1324,6 +1419,7 @@ const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDe
   dimensions, pngDimensions, reserve: reserveAllocation, acquire: acquireAllocation, download: (bytes, limits) => reserveAllocation("Download", Math.max(65536, bytes * 3), limits, false, "download"), makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
 const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
 global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+  mapSearch: { parseCoordinates: parseMapCoordinates, suggest: suggestMapPlaces, find: findMapPlace, currentLocation: currentMapLocation },
   operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },
   diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),
   buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset, exportCSV, exportPart,

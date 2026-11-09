@@ -76,7 +76,7 @@ async function withChrome(run, startupAttempt = 0) {
       while (Date.now() < deadline) { if (await evaluate(expression)) return; await sleep(200); }
       throw new Error("Browser condition timed out: " + expression);
     };
-    await run({ page, evaluate, until, errors, exceptions, on: (event, listener) => {
+    await run({ page, browser: send, evaluate, until, errors, exceptions, on: (event, listener) => {
       if (!listeners.has(event)) listeners.set(event, []);
       listeners.get(event).push(listener);
     } });

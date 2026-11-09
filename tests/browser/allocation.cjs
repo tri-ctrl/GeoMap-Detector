@@ -60,12 +60,15 @@ const server = http.createServer((request, response) => {
 (async () => {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   try {
-    await withChrome(async ({ page, evaluate, until, errors }) => {
+    await withChrome(async ({ page, browser, evaluate, until, errors, on }) => {
       await page('Page.setDownloadBehavior', { behavior: 'deny' });
       if (process.argv.includes('--bounded')) await page('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__boundedFixture=true;' });
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (process.argv.includes('--search')) {
+        await require('./search-cases.cjs')({ page, browser, evaluate, until, errors, on, result }); return;
+      }
       if (process.argv.includes('--bounded')) {
         await require('./bounded-cases.cjs')({ page, evaluate, until, errors, result, samples: process.argv.includes('--ci') ? samples.filter(s=>s.properties.name==='DXB') : samples, quick: process.argv.includes('--quick') }); return;
       }

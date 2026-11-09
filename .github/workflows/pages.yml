@@ -28,6 +28,8 @@ jobs:
         run: node tests/browser/allocation.cjs
       - name: Test bounded mosaics, native writers and cancellation in Chromium
         run: node tests/browser/allocation.cjs --bounded --ci
+      - name: Test map search, location permissions and mobile layout in Chromium
+        run: node tests/browser/allocation.cjs --search
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Test model asset checks (no ML dependencies)

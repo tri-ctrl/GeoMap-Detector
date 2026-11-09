@@ -1,0 +1,223 @@
+{
+  "checkedAt": "2026-11-09T08:50:37.634Z",
+  "mode": "Local source; real Leaflet, input, permission and geolocation APIs; deterministic Esri responses",
+  "sources": {
+    "index.html": "291a5bed04f71a19eb6108b14e3ff08c6906a9dfb5d68983a9c65b6e6329f689",
+    "engine.js": "1ac348008d9b955f1995bc754349f2d585d2eb6542a1f00ef69ce4ecc8d1f400",
+    "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+    "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+    "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+    "app.js": "22b31142f26b242398180d7232cc8d26e215fdc39c18e4f295981db3b0bbd512"
+  },
+  "limitations": [
+    "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+    "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "coordinates": {
+    "center": [
+      9.88544,
+      114.33005
+    ],
+    "zoom": 16,
+    "markers": 1
+  },
+  "place": {
+    "visible": true,
+    "markers": 1,
+    "zoom": 15
+  },
+  "location": {
+    "center": [
+      25.265,
+      55.321
+    ],
+    "requested": 1,
+    "closed": 1,
+    "active": 0
+  },
+  "denied": {
+    "requested": 2,
+    "closed": 2,
+    "active": 0
+  },
+  "mobile": {
+    "overflow": false,
+    "inside": true,
+    "mapWidth": 390,
+    "searchWidth": 320
+  },
+  "preserved": {
+    "before": {
+      "date": "2026-10-29",
+      "aois": "1"
+    },
+    "after": {
+      "date": "2026-10-29",
+      "aois": "1"
+    }
+  },
+  "cleanup": {
+    "operations": {
+      "created": 10,
+      "closed": 10,
+      "timedOut": 0,
+      "pendingReads": 0,
+      "requests": 0,
+      "tileAttempts": 0,
+      "cacheWrites": 0,
+      "inference": 0,
+      "bitmaps": 0,
+      "tensors": 0,
+      "active": []
+    },
+    "markers": 0,
+    "watches": 0,
+    "popupHidden": true
+  },
+  "requests": [
+    {
+      "action": "suggest",
+      "query": "Dub"
+    },
+    {
+      "action": "findAddressCandidates",
+      "query": "Dubai International Airport"
+    },
+    {
+      "action": "findAddressCandidates",
+      "query": "Nowhere"
+    },
+    {
+      "action": "findAddressCandidates",
+      "query": "Broken"
+    },
+    {
+      "action": "findAddressCandidates",
+      "query": "Delayed"
+    },
+    {
+      "action": "suggest",
+      "query": "Dub"
+    }
+  ],
+  "runtimeErrors": [],
+  "automated": {
+    "javascript": 214,
+    "python": 12
+  },
+  "liveApi": {
+    "checkedAt": "2026-11-09T07:07:35.441Z",
+    "query": "Dubai International Airport",
+    "suggestions": 5,
+    "resolvedInExpectedRegion": true,
+    "sourceHashes": {
+      "index.html": "291a5bed04f71a19eb6108b14e3ff08c6906a9dfb5d68983a9c65b6e6329f689",
+      "engine.js": "1ac348008d9b955f1995bc754349f2d585d2eb6542a1f00ef69ce4ecc8d1f400",
+      "comparison.js": "b6d61591d18ca946df84ac38f3e74f50523a6167a1852e868d0678b8eef36866",
+      "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "f03dd681af40979ade046fabf202959ae6c3c89ecbe3a73f733e405490313519"
+    },
+    "note": "Actual browser CORS check; no returned live coordinates or geometry are retained in this evidence."
+  },
+  "verification": "Local source, not deployed verification. Geolocation uses actual browser permission/watch APIs with CDP-emulated coordinates. Provider fixtures exercise empty/error/stale cases; liveApi separately checks the public service. No accuracy, sustained-memory or latency claim.",
+  "baseRevision": "46e39558b3ecc1289c3c6dd9f7bdef3d184401b6",
+  "mapRegressions": {
+    "checkedAt": "2026-11-09T08:59:33.215Z",
+    "mode": "Local app/engine overrides; not a deployed-source check",
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "appSha256": "22b31142f26b242398180d7232cc8d26e215fdc39c18e4f295981db3b0bbd512",
+    "unchangedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "changedRelease": {
+      "tileLayers": 0,
+      "tileUrls": 1,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "imageToggle": {
+      "tileLayers": 0,
+      "tileUrls": 0,
+      "fits": 0,
+      "geoJSON": 0,
+      "annotationReads": 0,
+      "annotationFetches": 0,
+      "detectionFetches": 0
+    },
+    "editingPreserved": true,
+    "runtimeErrors": [],
+    "jobLog": "12:59:27  Queued: Imagery only · 1 AOI(s). Settings captured for this job.\n12:59:27  Review_small: 1 release(s) 2026-10-29\n12:59:27  [1/1] Review_small · 2026-10-29\n12:59:27      Budget: z18 · 374×413 px · 6 tiles · estimated 31.8 MiB\n12:59:29      Coverage z18: 6/6 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 1.2s\n12:59:31      z18 · 374×413 px · 0 objects \n12:59:31  Finished: 0 objects across 1 AOI/date clips. Saved on this device. Export a zip for a separate backup.",
+    "runSelection": {
+      "imported": 2,
+      "selectedAtStart": 1,
+      "runningButtonDisabled": false,
+      "excludedAoiProcessed": false,
+      "jobClips": 1
+    },
+    "childPanel": {
+      "focused": "runAoiSearch",
+      "inlineSelector": false,
+      "adjacent": true,
+      "columns": [
+        "Process",
+        "AOI name",
+        "Map"
+      ],
+      "withinSidebar": true,
+      "normalControlsHidden": true,
+      "noModal": true,
+      "desktop": {
+        "width": 379,
+        "height": 837.234375,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 913
+      },
+      "mobile": {
+        "width": 390,
+        "height": 311.46875,
+        "withinSidebar": true,
+        "mapUncovered": true,
+        "mapHit": true,
+        "mapHeight": 397.328125
+      },
+      "mapControlsInteractive": true,
+      "mapDragInteractive": true,
+      "zoom": {
+        "centre": [
+          55.38100183010101,
+          25.251001075157113
+        ],
+        "selected": "2",
+        "focus": "map",
+        "active": "Do_not_run",
+        "staysOpen": true,
+        "search": "DO_NOT"
+      },
+      "escapeFocus": "runAoiBtn"
+    },
+    "detectionPointer": {
+      "x": 942,
+      "y": 457,
+      "zoomBefore": 20,
+      "fitsBefore": 4,
+      "hitDetection": true,
+      "zoomAfter": 20,
+      "fitsAfter": 4,
+      "infoShown": true,
+      "card": "\n    aircraftmanual\n    Confidence0.91Size—\n    Heading—Centre25.25075, 55.36075\n    aircraftshiphelicopterstorage tanklarge vehiclesmall vehicleharborbridgeswimming poolroundabouttennis courtbasketball courtbaseball diamondsoccer fieldtrack field\n    AcceptRejectEdit shapeDelete"
+    }
+  }
+}

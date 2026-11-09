@@ -188,6 +188,110 @@ map.on("zoomend", () => $("#hudZ").textContent = map.getZoom());
 map.on("mousemove", e => $("#hudXY").textContent = e.latlng.lat.toFixed(5) + ", " + e.latlng.lng.toFixed(5));
 $("#hudZ").textContent = map.getZoom();
 
+// Map-owned navigation only: no AOI, release, job or annotation state is changed.
+const placeRoot = $("#mapSearch"), placeInput = $("#mapSearchInput"), placePopup = $("#mapSearchPopup");
+let placeGeneration = 0, placeOwner = null, placeTimer = null, placeRows = [], placeIndex = -1, placeMarker = null;
+map.createPane("gmd-search").style.zIndex = "450";
+map.getPane("gmd-search").style.pointerEvents = "none";
+function stopPlaceRequest() {
+  ++placeGeneration; clearTimeout(placeTimer); placeTimer = null;
+  const previous = placeOwner; placeOwner = null; previous?.abort();
+  placeInput.setAttribute("aria-busy", "false"); return previous?.pending;
+}
+function removePlaceMarker() { if (placeMarker) { map.removeLayer(placeMarker); placeMarker = null; } }
+function closePlaceSearch({ removeMarker = false } = {}) {
+  const pending = stopPlaceRequest(); placePopup.hidden = true; placeIndex = -1;
+  placeInput.setAttribute("aria-expanded", "false"); placeInput.removeAttribute("aria-activedescendant");
+  if (removeMarker) removePlaceMarker(); return pending;
+}
+function renderPlaceOptions(rows = [], message = "") {
+  placeRows = [{ kind: "location", label: "Use current location" }, ...rows]; placeIndex = -1;
+  placeInput.removeAttribute("aria-activedescendant");
+  $("#mapSearchOptions").innerHTML = placeRows.map((row, i) => `<button type="button" class="map-search-option" role="option" tabindex="-1" id="map-place-${i}" data-place-index="${i}" aria-selected="false"><span aria-hidden="true">${row.kind === "location" ? "⌖" : "↗"}</span><span>${esc(row.label)}</span></button>`).join("");
+  $("#mapSearchOptions").querySelectorAll("[data-place-index]").forEach(button => {
+    button.onpointerdown = event => event.preventDefault();
+    button.onclick = () => choosePlaceRow(Number(button.dataset.placeIndex));
+  });
+  $("#mapSearchStatus").textContent = message;
+  $("#mapSearchClear").hidden = !placeInput.value;
+  placePopup.hidden = false; placeInput.setAttribute("aria-expanded", "true");
+}
+function showPlacePoint(point) {
+  if (!pageActive) return;
+  if (point.bounds) map.fitBounds(point.bounds, { padding: [24, 24], maxZoom: 17, animate: false });
+  else map.setView([point.lat, point.lon], Math.max(16, map.getZoom()), { animate: false });
+  removePlaceMarker();
+  placeMarker = L.circleMarker([point.lat, point.lon], { pane: "gmd-search", interactive: false, radius: 7,
+    color: "#ffffff", weight: 2, fillColor: "#0b8fb3", fillOpacity: 1 }).addTo(map);
+  placeInput.value = point.label; $("#mapSearchClear").hidden = false; closePlaceSearch();
+}
+function runPlaceRequest(work, accept, message) {
+  stopPlaceRequest(); const generation = placeGeneration;
+  const owner = E.operations.open("Map search", { timeoutMs: 12000 }); placeOwner = owner;
+  renderPlaceOptions([], message); placeInput.setAttribute("aria-busy", "true");
+  const current = () => pageActive && generation === placeGeneration && placeOwner === owner;
+  owner.pending = (async () => {
+    try { const value = await work(owner.signal); owner.check(); if (current()) accept(value); }
+    catch (error) {
+      if (!current()) return;
+      try { owner.check(); } catch (reason) { error = reason; }
+      if (error.name !== "AbortError") renderPlaceOptions([], error.message);
+    } finally { if (placeOwner === owner) { placeOwner = null; placeInput.setAttribute("aria-busy", "false"); } owner.close(); }
+  })();
+  return owner.pending;
+}
+function findPlace(text, magicKey) {
+  return runPlaceRequest(signal => E.mapSearch.find(text, { signal, magicKey, center: map.getCenter() }),
+    point => point ? showPlacePoint(point) : renderPlaceOptions([], "No places found. Try a more specific name or latitude, longitude."), "Finding location…");
+}
+function choosePlaceRow(index) {
+  const row = placeRows[index]; if (!row) return;
+  if (row.kind === "location") return runPlaceRequest(signal => E.mapSearch.currentLocation({ signal }), showPlacePoint, "Finding your current location…");
+  if (row.kind === "coordinates") { stopPlaceRequest(); showPlacePoint(row.point); return; }
+  placeInput.value = row.label; return findPlace(row.label, row.magicKey);
+}
+function previewPlaceInput(search = false) {
+  stopPlaceRequest();
+  const text = placeInput.value.trim();
+  try {
+    const point = E.mapSearch.parseCoordinates(text);
+    if (point) return renderPlaceOptions([{ kind: "coordinates", label: "Go to " + point.label, point }]);
+    if (text.length > 300) return renderPlaceOptions([], "Enter a place name of at most 300 characters.");
+    renderPlaceOptions([], text && text.length < 3 ? "Type at least 3 characters for place suggestions." : "Enter a place name or latitude, longitude.");
+    if (search && text.length >= 3) placeTimer = setTimeout(() => {
+      placeTimer = null;
+      runPlaceRequest(signal => E.mapSearch.suggest(text, { signal, center: map.getCenter() }),
+        rows => renderPlaceOptions(rows.map(row => ({ ...row, kind: "place" })), rows.length ? "" : "No suggestions. Press Enter to search."), "Searching places…");
+    }, 350);
+  } catch (error) { renderPlaceOptions([], error.message); }
+}
+placeInput.onfocus = () => previewPlaceInput();
+placeInput.oninput = event => previewPlaceInput(!event?.isComposing);
+placeInput.oncompositionend = () => previewPlaceInput(true);
+$("#mapSearchForm").onsubmit = event => {
+  event.preventDefault();
+  if (placeIndex >= 0 && !placePopup.hidden) return choosePlaceRow(placeIndex);
+  const text = placeInput.value.trim(); stopPlaceRequest();
+  if (!text) return renderPlaceOptions();
+  try { const point = E.mapSearch.parseCoordinates(text); return point ? showPlacePoint(point) : findPlace(text); }
+  catch (error) { renderPlaceOptions([], error.message); }
+};
+placeInput.onkeydown = event => {
+  if (event.isComposing) { if (event.key === "Enter") event.preventDefault(); event.stopPropagation(); return; }
+  if (!["ArrowDown", "ArrowUp", "Escape"].includes(event.key)) return;
+  event.preventDefault(); event.stopPropagation();
+  if (event.key === "Escape") return closePlaceSearch();
+  if (placePopup.hidden) previewPlaceInput();
+  placeIndex = placeIndex < 0 ? event.key === "ArrowDown" ? 0 : placeRows.length - 1
+    : (placeIndex + (event.key === "ArrowDown" ? 1 : -1) + placeRows.length) % placeRows.length;
+  $("#mapSearchOptions").querySelectorAll("[data-place-index]").forEach((button, i) => button.setAttribute("aria-selected", String(i === placeIndex)));
+  const selected = $("#mapSearchOptions").querySelectorAll("[data-place-index]")[placeIndex];
+  placeInput.setAttribute("aria-activedescendant", selected.id || "map-place-" + placeIndex); selected.scrollIntoView?.({ block: "nearest" });
+};
+placeRoot.onkeydown = event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); placeInput.focus(); closePlaceSearch(); } };
+$("#mapSearchClear").onclick = () => { closePlaceSearch({ removeMarker: true }); placeInput.value = ""; placeInput.focus(); previewPlaceInput(); };
+document.addEventListener("pointerdown", event => { if (!placeRoot.contains(event.target)) closePlaceSearch(); });
+
 // ---------------------------------------------------------------- engine + server
 async function checkApi() {
   if (!S.api && location.hostname.endsWith("github.io")) { S.online = false; }
@@ -1672,6 +1776,7 @@ $("#deleteJob").onclick = async () => {
 };
 window.addEventListener("pagehide", () => {
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
+  closePlaceSearch({ removeMarker: true });
   for (const record of [...downloadURLs.values()]) record.release();
   datasetOperation?.controller.abort(); exportOperation?.controller.abort();
   const auxiliary = Promise.allSettled([datasetOperation?.finished, exportOperation?.finished, clearExportParts(), stopPoll(serverPoll), stopPoll(trainingPoll)]);
@@ -1725,5 +1830,6 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
   auxiliary: { dataset: Boolean(datasetOperation), export: Boolean(exportOperation), parts: exportParts?.parts.length || 0,
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
+  mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },
   downloadLeases: downloadURLs.size }) };
 })();

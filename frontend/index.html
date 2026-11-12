@@ -104,7 +104,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .run-aoi-panel th{position:sticky;top:0;background:var(--panel)}
 .run-aoi-panel td:nth-child(2){overflow-wrap:anywhere}
 .run-aoi-panel td:first-child,.run-aoi-panel td:last-child{width:1%;white-space:nowrap}
-#compareControls[hidden],#resultJobControls[hidden],#compareMap[hidden],.compare-check[hidden]{display:none}
+#compareControls[hidden],#resultJobControls[hidden],#compareMap[hidden],#timelineControls[hidden],#compareKindRow[hidden],#trendSec[hidden],.compare-check[hidden]{display:none}
+.timeline-map .compare-line,.timeline-map .compare-handle,.timeline-map .compare-badge.right{display:none}
+.timeline-map .compare-badge.left{max-width:calc(100% - 24px)}
+.timeline-dates{display:flex;justify-content:space-between;gap:8px;font:11px var(--f-mono);color:var(--muted)}
+.timeline-current{font:12px var(--f-mono);overflow-wrap:anywhere}
 .compare-map{position:absolute;inset:0;z-index:650;pointer-events:none;overflow:hidden;--compare-x:50%}
 .compare-line{position:absolute;top:0;bottom:0;left:var(--compare-x);width:2px;background:#fff;box-shadow:0 0 3px #16202b}
 .compare-handle{position:absolute;left:var(--compare-x);top:50%;transform:translate(-50%,-50%);width:40px;height:48px;justify-content:center;pointer-events:auto;touch-action:none;cursor:ew-resize;background:var(--panel);box-shadow:var(--shadow)}
@@ -321,18 +325,29 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
     <section class="tab" id="tab-res" role="tabpanel">
       <div class="sec">
         <label class="label" for="resultView">View</label>
-        <select id="resultView"><option value="review">Review results</option><option value="compare">Compare results</option></select>
+        <select id="resultView"><option value="review">Review results</option><option value="compare">Compare results</option><option value="timeline">Timeline · AOI history</option></select>
       </div>
       <div class="sec" id="resultJobControls">
         <span class="label">Job</span>
         <div class="row"><select id="jobSel" style="flex:1"></select><button class="btn" id="jobRefresh">Refresh</button><button class="btn ghost danger" id="deleteJob">Delete job</button></div>
       </div>
       <div class="sec" id="compareControls" hidden>
-        <label class="label" for="compareKind">Compare by</label>
-        <select id="compareKind"><option value="dates">Dates · same AOI and model</option><option value="models">Models · same AOI and date</option></select>
+        <div class="sec" id="compareKindRow"><label class="label" for="compareKind">Compare by</label>
+        <select id="compareKind"><option value="dates">Dates · same AOI and model</option><option value="models">Models · same AOI and date</option></select></div>
         <div class="row"><button class="btn" id="compareRefresh">Refresh runs</button><button class="btn ghost" id="compareClear">Clear pair</button><button class="btn ghost" id="compareExit">Back to review</button></div>
         <p class="hint" id="compareHint" role="status" aria-live="polite">Select two clips in the table.</p>
         <p class="hint" id="compareSettings"></p>
+        <p class="hint">Newest created first. Date is the imagery date; Created is the detection/run time. Older clips use their run's creation time, or Unknown when no timestamp was saved.</p>
+      </div>
+      <div class="sec" id="timelineControls" hidden>
+        <span class="label">AOI history</span>
+        <div class="row"><button class="btn" id="timelineSelectAOI" disabled>Select this AOI's history</button><button class="btn primary" id="timelineOpen" disabled>Open timeline</button></div>
+        <p class="hint" id="timelineSelection">Select two or more clips of one AOI, then open the timeline.</p>
+        <div class="row"><button class="btn" id="timelinePrev" aria-label="Previous imagery date" disabled>←</button><button class="btn" id="timelinePlay" aria-pressed="false" disabled>Play</button><button class="btn" id="timelineNext" aria-label="Next imagery date" disabled>→</button>
+          <label class="hint" for="timelineSpeed">Frame time</label><select id="timelineSpeed" style="width:auto"><option value="1000">1 second</option><option value="2000" selected>2 seconds</option><option value="4000">4 seconds</option></select></div>
+        <input id="timelineSlider" type="range" min="0" max="0" step="1" value="0" aria-label="AOI imagery timeline" aria-valuetext="No timeline selected" disabled>
+        <div class="timeline-dates"><span id="timelineStart">Older</span><span id="timelineEnd">Newer</span></div>
+        <div class="timeline-current" id="timelineCurrent" role="status" aria-live="polite">Open a timeline to view the selected history on the map.</div>
       </div>
       <div class="sec" id="trendSec" hidden>
         <span class="label">Objects per imagery date</span>
@@ -343,7 +358,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <span class="label" style="flex:1">AOI × date clips</span>
           <label class="row hint"><input type="checkbox" id="showImg" checked style="accent-color:var(--accent)"> clipped image</label>
         </div>
-        <div class="tablewrap"><table id="resTable"><thead><tr><th class="compare-check" id="compareColumn" hidden>Compare</th><th>AOI</th><th>Date</th><th>Model</th><th>Counts</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="resTable"><thead><tr><th class="compare-check" id="compareColumn" hidden>Compare</th><th>AOI</th><th>Date</th><th class="compare-check" id="compareCreatedColumn" hidden>Created ↓ (UTC)</th><th>Model</th><th>Counts</th></tr></thead><tbody></tbody></table></div>
         <p class="hint" id="resultHint">Select a row to load its clipped imagery and detections, then review them in Annotate.</p>
         <div id="jobOutcomes" role="status" aria-live="polite" hidden></div>
       </div>

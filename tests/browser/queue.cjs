@@ -101,7 +101,7 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     }
     await evaluate("document.querySelector('#resultView').value='compare';document.querySelector('#compareKind').value='models';document.querySelector('#resultView').dispatchEvent(new Event('change'))");
     await until("document.querySelectorAll('[data-compare-row]').length===2");
-    await evaluate("document.querySelector('[data-compare-row=\"0\"]').click();document.querySelector('[data-compare-row=\"1\"]').click()");
+    await evaluate("for(const model of ['nano','small'])[...document.querySelectorAll('[data-compare-row]')].find(box=>box.getAttribute('aria-label').includes(model)).click()");
     await until("!document.querySelector('#compareMap').hidden&&document.querySelector('#compareLeftLabel').textContent.includes('nano')&&document.querySelector('#compareRightLabel').textContent.includes('small')");
     results.comparison = await evaluate("({left:document.querySelector('#compareLeftLabel').textContent,right:document.querySelector('#compareRightLabel').textContent,settings:document.querySelector('#compareSettings').textContent})");
     await evaluate("document.querySelector('#compareExit').click();document.querySelector('[data-tab=det]').click();document.querySelector('#jobQueue').scrollIntoView({block:'center'})");

@@ -5,6 +5,41 @@ const abortError = () => new DOMException("Comparison cancelled", "AbortError");
 const check = signal => { if (signal?.aborted) throw abortError(); };
 const geometryKey = feature => feature?.geometry ? JSON.stringify(feature.geometry) : null;
 function modelName(params = {}) { return params.detect === false ? "Imagery only" : params.model || "Unknown model"; }
+function timestamp(value) {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 && value <= 8640000000000000 ? value : null;
+  if (typeof value !== "string" || !/^\d{4}-\d\d-\d\d(?:T.*)?$/.test(value)) return null;
+  const parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : null;
+}
+function creationTime(record = {}, job = {}) {
+  for (const value of [record.createdAt, record.created_at, job.createdAt, job.created_at]) {
+    const time = timestamp(value); if (time !== null) return time;
+  }
+  return typeof job.started === "number" ? timestamp(job.started * 1000) : null;
+}
+function newestFirst(records) {
+  return [...records].sort((a, b) => (b.createdAt ?? -Infinity) - (a.createdAt ?? -Infinity)
+    || String(b.job).localeCompare(String(a.job)) || (b.sourceIndex || 0) - (a.sourceIndex || 0) || String(a.key).localeCompare(String(b.key)));
+}
+function validDate(date) { return typeof date === "string" && /^\d{4}-\d\d-\d\d$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date; }
+function validateTimeline(records) {
+  if (records.length < 2) return { error: "Select at least two clips to open a timeline." };
+  if (!records[0].geometry || records.some(r => r.geometry !== records[0].geometry)) return { error: "Choose clips with the same AOI geometry for the timeline." };
+  if (records.some(r => !validDate(r.date))) return { error: "Timeline clips need recorded imagery dates." };
+  if (new Set(records.map(r => r.date)).size < 2) return { error: "Choose at least two different imagery dates for the timeline." };
+  return { frames: [...records].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt ?? -Infinity) - (b.createdAt ?? -Infinity) || String(a.key).localeCompare(String(b.key))) };
+}
+function timelineNote(frames) {
+  const first = frames[0], differences = new Set();
+  for (const frame of frames.slice(1)) {
+    if (frame.model !== first.model || frame.modelKey !== first.modelKey) differences.add("models");
+    if (frame.zoom !== first.zoom) differences.add("imagery zoom");
+    if (frame.params.conf !== first.params.conf) differences.add("confidence thresholds");
+    if (JSON.stringify([...(frame.params.classes || [])].sort()) !== JSON.stringify([...(first.params.classes || [])].sort())) differences.add("object classes");
+    if ((frame.maskVersion || "canvas-v1") !== (first.maskVersion || "canvas-v1")) differences.add("AOI edge masks");
+  }
+  if (frames.some(frame => frame.missing)) differences.add("missing imagery tiles");
+  return (differences.size ? "Selected runs differ in " + [...differences].join(", ") + ". " : "") + "Counts are model predictions, not verified changes. Same-date runs are shown separately.";
+}
 function validatePair(records, mode) {
   if (records.length !== 2) return { error: "Select two clips in the table to compare." };
   const [a, b] = records;
@@ -97,6 +132,7 @@ class Swipe {
     for (const [name, listener] of [["pointerdown", this.down], ["pointermove", this.move], ["pointerup", this.up], ["pointercancel", this.up], ["keydown", this.key]]) this.handle.addEventListener(name, listener);
   }
   setPosition(value) { this.position = Math.max(0, Math.min(100, Number(value))); this.clip(); }
+  async showFrame(side, style) { this.setPosition(100); return this.show([side], style); }
   async show(sides, style) {
     this.stop(); const generation = this.generation; this.active = true; this.element.hidden = false;
     this.map.on("move zoom resize viewreset", this.clip);
@@ -139,5 +175,5 @@ class Swipe {
     for (const [name, listener] of [["pointerdown", this.down], ["pointermove", this.move], ["pointerup", this.up], ["pointercancel", this.up], ["keydown", this.key]]) this.handle.removeEventListener(name, listener);
   }
 }
-global.GVCompare = { geometryKey, modelName, validatePair, settingsNote, preview, Swipe };
+global.GVCompare = { geometryKey, modelName, creationTime, newestFirst, validDate, validateTimeline, timelineNote, validatePair, settingsNote, preview, Swipe };
 })(typeof window !== "undefined" ? window : globalThis);

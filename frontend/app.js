@@ -910,6 +910,7 @@ async function runBrowser(job) {
           if (spool) await window.GVStreaming?.discardArtifact(spool, durable ? DB : null);
           E.operations.check(signal);
         }
+        r.createdAt ??= Date.now();
         r.storeId = job.plan[i].clipId; r.order = i; r.persisted = false;
         job.results.push(r);
         Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
@@ -1016,15 +1017,21 @@ function viewRead(view, promise) {
 let compareRecords = [], compareChosen = [], catalogController = null, pairController = null;
 let pairTimer = null;
 let catalogGeneration = 0, compareGeneration = 0, compareView = null, compareSaved = null;
-function comparing() { return $("#resultView").value === "compare"; }
+let timelineFrames = [], timelineIndex = -1, timelinePlaying = false, timelineLoading = false;
+let timelineNeedsFit = false;
+let timelineTimer = null, timelineSeekTimer = null, timelineWork = Promise.resolve();
+function timelineMode() { return $("#resultView").value === "timeline"; }
+function comparing() { return ["compare", "timeline"].includes($("#resultView").value); }
 function outputBase(job, path) { return api("/outputs/" + encodeURIComponent(job) + "/" + path.split("/").map(encodeURIComponent).join("/") + "/"); }
 function resultMetadata(result) { const { fc, draftFC, blobs, ...metadata } = result; return metadata; }
-function compareRecord(r, params, job, index, browser) {
-  return { ...resultMetadata(r), params, job, browser, key: `${browser ? "browser" : "server"}:${job}:${index}`,
+function compareRecord(r, params, job, index, browser, metadata) {
+  return { ...resultMetadata(r), params, job, browser, sourceIndex: index, createdAt: GVCompare.creationTime(r, metadata), key: `${browser ? "browser" : "server"}:${job}:${index}`,
     model: GVCompare.modelName(params), modelKey: params.detect === false ? "imagery" : params.model_key || params.model || null,
     geometry: GVCompare.geometryKey(r.aoiFeature), source: r };
 }
 function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
+  pauseTimeline(); $("#compareSettings").textContent = "";
+  timelineFrames = []; timelineIndex = -1; timelineLoading = false; timelineNeedsFit = false; updateTimelineControls();
   ++compareGeneration; pairController?.abort(); pairController = null; clearTimeout(pairTimer); pairTimer = null; compareView?.stop();
   if (compareSaved) {
     const previous = compareSaved; compareSaved = null;
@@ -1044,6 +1051,7 @@ function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
 function exitComparison() {
   ++catalogGeneration; catalogController?.abort(); catalogController = null;
   $("#resultView").value = "review"; $("#compareControls").hidden = true; $("#resultJobControls").hidden = false;
+  $("#timelineControls").hidden = true;
   stopComparison(); compareChosen = []; compareRecords = [];
   $("#showImg").disabled = false; $("#resultHint").textContent = "Select a row to review its clipped imagery and detections.";
   renderResults();
@@ -1052,7 +1060,7 @@ async function refreshCompareCatalog() {
   catalogController?.abort(); const controller = catalogController = new AbortController(), generation = ++catalogGeneration;
   stopComparison(); $("#compareHint").textContent = "Loading available runs…"; $("#compareRefresh").disabled = true;
   const records = [], failures = [];
-  for (const job of Object.values(BJOBS)) job.results.forEach((r, index) => records.push(compareRecord(r, job.params, job.id, index, true)));
+  for (const job of Object.values(BJOBS)) job.results.forEach((r, index) => records.push(compareRecord(r, job.params, job.id, index, true, job)));
   try {
     if (S.online) {
       const jobs = await E.requestJSON(api("/api/jobs"), { signal: controller.signal });
@@ -1069,7 +1077,7 @@ async function refreshCompareCatalog() {
             for (const [index, r] of (job.results || []).entries()) {
               if (controller.signal.aborted) break;
               if (!r.path || paths.get(r.path) > 1) { failures.push(id + ": ambiguous clip path"); continue; }
-              const record = compareRecord(r, params || {}, id, index, false);
+              const record = compareRecord(r, params || {}, id, index, false, job);
               const key = JSON.stringify([r.aoi_id, r.bounds]);
               if (!geometries.has(key)) geometries.set(key, await E.requestJSON(outputBase(id, r.path) + "aoi.geojson", { signal: controller.signal }));
               record.aoiFeature = geometries.get(key); record.geometry = GVCompare.geometryKey(record.aoiFeature);
@@ -1080,16 +1088,18 @@ async function refreshCompareCatalog() {
       }));
     }
     if (controller.signal.aborted || generation !== catalogGeneration || !comparing()) return;
-    compareRecords = records; compareChosen = compareChosen.filter(key => records.some(r => r.key === key));
+    compareRecords = GVCompare.newestFirst(records); compareChosen = compareChosen.filter(key => records.some(r => r.key === key));
     renderResults();
     $("#compareHint").textContent = failures.length ? `${failures.length} run/clip lookup(s) unavailable. Refresh to retry. Select two available clips.`
       : records.length < 2 ? "At least two completed clips are needed. Run the same AOI on different dates or models first."
       : "Select two clips with the same AOI. Date comparison orders older left and newer right.";
-    if (compareChosen.length === 2) showComparison();
+    if (timelineMode()) $("#compareHint").textContent = failures.length ? `${failures.length} run/clip lookup(s) unavailable. Refresh to retry.` : "Select history from one AOI, then open the timeline.";
+    else if (compareChosen.length === 2) showComparison();
   } catch (error) { if (!controller.signal.aborted && generation === catalogGeneration) $("#compareHint").textContent = "Could not load comparison runs: " + error.message; }
   finally { if (generation === catalogGeneration) $("#compareRefresh").disabled = false; }
 }
 async function comparisonAsset(record, signal) {
+  if (signal.aborted) throw viewAbort();
   let fc, blob;
   if (record.browser) { const result = await readClip(record.source, { draft: false, images: true }); fc = result.fc; blob = result.blobs.display || result.blobs.png; }
   else {
@@ -1101,8 +1111,18 @@ async function comparisonAsset(record, signal) {
   }
   if (signal.aborted) throw viewAbort();
   if (!fc || fc.type !== "FeatureCollection" || !Array.isArray(fc.features) || !blob) throw new Error("This clip has no usable imagery/detections.");
-  return { fc, preview: await GVCompare.preview(blob, record.size, signal), bounds: clipBounds(record) };
+  const preview = await GVCompare.preview(blob, record.size, signal);
+  if (signal.aborted) throw viewAbort();
+  return { fc, preview, bounds: clipBounds(record) };
 }
+function prepareComparisonMap() {
+  compareSaved ||= { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent, view: clipView,
+    image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: clipView?.resumeEditing || S.editing, legend: $("#legend").style.visibility };
+  finishEdit(); releaseClipImage(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
+  compareView ||= new GVCompare.Swipe(map, $("#compareMap"));
+  $("#compareMap").classList.toggle("timeline-map", timelineMode());
+}
+function comparisonStyle(feature) { return { color: color(feature.properties.class), weight: 2, fillOpacity: 0.08 }; }
 async function showComparison() {
   stopComparison(); $("#compareSettings").textContent = "";
   const selected = compareChosen.map(key => compareRecords.find(r => r.key === key)).filter(Boolean);
@@ -1113,15 +1133,14 @@ async function showComparison() {
   $("#compareHint").textContent = "Preparing comparison…";
   try {
     // Sequential preparation bounds retained decoded images; originals stay in exports.
+    await timelineWork.catch(() => {});
+    if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
     const left = await comparisonAsset(validation.pair[0], controller.signal);
     if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
     const right = await comparisonAsset(validation.pair[1], controller.signal);
     if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
-    compareSaved = { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent, view: clipView,
-      image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: clipView?.resumeEditing || S.editing, legend: $("#legend").style.visibility };
-    finishEdit(); releaseClipImage(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
-    compareView ||= new GVCompare.Swipe(map, $("#compareMap"));
-    await compareView.show([left, right], feature => ({ color: color(feature.properties.class), weight: 2, fillOpacity: 0.08 }));
+    prepareComparisonMap(); compareView.setPosition?.(50);
+    await compareView.show([left, right], comparisonStyle);
     if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
     const [a, b] = validation.pair;
     $("#compareLeftLabel").textContent = `${validation.roles[0]} · ${a.date} · ${a.model} · ${left.fc.features.length} objects`;
@@ -1134,17 +1153,119 @@ async function showComparison() {
     if (generation === compareGeneration) { stopComparison(); $("#compareHint").textContent = controller.signal.aborted ? "Comparison timed out. Refresh or select the pair again." : error.message; }
   } finally { clearTimeout(timer); if (pairTimer === timer) pairTimer = null; }
 }
+function chosenHistory() { return compareChosen.map(key => compareRecords.find(record => record.key === key)).filter(Boolean); }
+function updateTimelineControls() {
+  const selected = chosenHistory(), validation = GVCompare.validateTimeline(selected), count = timelineFrames.length;
+  $("#timelineSelectAOI").disabled = !selected.length;
+  $("#timelineOpen").disabled = Boolean(validation.error);
+  $("#timelineSelection").textContent = `${selected.length} selected. ` + (validation.error || `${validation.frames[0].date} → ${validation.frames.at(-1).date}`);
+  $("#timelineSlider").disabled = !count; $("#timelineSlider").max = Math.max(0, count - 1);
+  $("#timelineSlider").value = Math.max(0, timelineIndex);
+  $("#timelinePrev").disabled = !count || timelineIndex <= 0;
+  $("#timelineNext").disabled = !count || timelineIndex >= count - 1;
+  $("#timelinePlay").disabled = !count || timelineIndex < 0;
+  $("#timelinePlay").textContent = timelinePlaying ? "Pause" : timelineIndex === count - 1 && count ? "Replay" : "Play";
+  $("#timelinePlay").setAttribute("aria-pressed", String(timelinePlaying));
+  $("#timelineStart").textContent = count ? timelineFrames[0].date : "Older";
+  $("#timelineEnd").textContent = count ? timelineFrames.at(-1).date : "Newer";
+  if (!count) {
+    $("#timelineSlider").setAttribute("aria-valuetext", "No timeline selected");
+    $("#timelineCurrent").textContent = "Open a timeline to view the selected history on the map.";
+  }
+}
+function pauseTimeline() {
+  timelinePlaying = false; clearTimeout(timelineTimer); timelineTimer = null;
+  clearTimeout(timelineSeekTimer); timelineSeekTimer = null;
+  updateTimelineControls();
+}
+function scheduleTimeline() {
+  clearTimeout(timelineTimer); timelineTimer = null;
+  if (!timelinePlaying || timelineLoading) return;
+  if (timelineIndex >= timelineFrames.length - 1) return pauseTimeline();
+  const delay = [1000, 2000, 4000].includes(Number($("#timelineSpeed").value)) ? Number($("#timelineSpeed").value) : 2000;
+  timelineTimer = setTimeout(() => { timelineTimer = null; renderTimelineFrame(timelineIndex + 1); }, delay);
+}
+function renderTimelineFrame(index) {
+  if (!timelineMode() || !pageActive || !timelineFrames[index]) return Promise.resolve();
+  const frame = timelineFrames[index], generation = ++compareGeneration;
+  pairController?.abort(); clearTimeout(pairTimer); pairTimer = null;
+  if (compareView?.pending?.size) compareView.stop();
+  const controller = pairController = new AbortController();
+  timelineLoading = true; $("#compareHint").textContent = `Loading history ${index + 1}/${timelineFrames.length} · ${frame.date}…`;
+  // IndexedDB reads and native bitmap decodes cannot always be interrupted.
+  // Drain the previous frame before starting another; stale seeks never decode.
+  const work = timelineWork.catch(() => {}).then(async () => {
+    const current = () => generation === compareGeneration && !controller.signal.aborted && pageActive && timelineMode();
+    if (!current()) return;
+    const timer = pairTimer = setTimeout(() => controller.abort(), 45000);
+    const cancelImage = () => { if (generation === compareGeneration && compareView?.pending?.size) compareView.stop(); };
+    controller.signal.addEventListener("abort", cancelImage, { once: true });
+    try {
+      const asset = await comparisonAsset(frame, controller.signal);
+      if (!current()) return;
+      prepareComparisonMap();
+      await compareView.showFrame(asset, comparisonStyle);
+      if (controller.signal.aborted) throw viewAbort();
+      if (!current()) return;
+      timelineIndex = index;
+      const label = `${index + 1}/${timelineFrames.length} · ${frame.aoi} · ${frame.date} · ${frame.model} · ${asset.fc.features.length} objects`;
+      $("#compareLeftLabel").textContent = label; $("#hudRel").textContent = frame.date;
+      $("#timelineCurrent").textContent = label; $("#timelineSlider").setAttribute("aria-valuetext", label);
+      $("#compareHint").textContent = "Drag the timeline or use Play to explore this AOI. Predictions are read-only.";
+      if (timelineNeedsFit) { map.fitBounds(asset.bounds); timelineNeedsFit = false; }
+    } catch (error) {
+      if (generation === compareGeneration) {
+        pauseTimeline(); $("#compareHint").textContent = (controller.signal.aborted ? "History frame timed out." : error.message) + " Select a frame or reopen the timeline to retry.";
+      }
+    } finally {
+      clearTimeout(timer); controller.signal.removeEventListener("abort", cancelImage);
+      if (pairTimer === timer) pairTimer = null;
+      if (generation === compareGeneration) { pairController = null; timelineLoading = false; updateTimelineControls(); scheduleTimeline(); }
+    }
+  });
+  timelineWork = work; return work;
+}
+$("#timelineOpen").onclick = () => {
+  const validation = GVCompare.validateTimeline(chosenHistory());
+  if (validation.error) { $("#compareHint").textContent = validation.error; return; }
+  stopComparison(); timelineFrames = validation.frames; timelineNeedsFit = true;
+  $("#compareSettings").textContent = GVCompare.timelineNote(timelineFrames) + " Full-resolution images remain in exports.";
+  updateTimelineControls(); return renderTimelineFrame(0);
+};
+$("#timelineSelectAOI").onclick = () => {
+  const first = chosenHistory()[0]; if (!first) return;
+  stopComparison(); compareChosen = compareRecords.filter(record => record.geometry === first.geometry).map(record => record.key); renderResults();
+  $("#compareHint").textContent = "Open the selected AOI history to begin.";
+};
+$("#timelineSlider").oninput = () => {
+  const index = Number($("#timelineSlider").value); pauseTimeline();
+  clearTimeout(timelineSeekTimer);
+  timelineSeekTimer = setTimeout(() => { timelineSeekTimer = null; renderTimelineFrame(index); }, 80);
+};
+$("#timelinePrev").onclick = () => { pauseTimeline(); return renderTimelineFrame(Math.max(0, timelineIndex - 1)); };
+$("#timelineNext").onclick = () => { pauseTimeline(); return renderTimelineFrame(Math.min(timelineFrames.length - 1, timelineIndex + 1)); };
+$("#timelinePlay").onclick = () => {
+  if (timelinePlaying) return pauseTimeline();
+  timelinePlaying = true; updateTimelineControls();
+  if (timelineIndex < 0 || timelineIndex === timelineFrames.length - 1) return renderTimelineFrame(0);
+  scheduleTimeline();
+};
+$("#timelineSpeed").onchange = scheduleTimeline;
+document.addEventListener("visibilitychange", () => { if (document.hidden) pauseTimeline(); });
 $("#resultView").onchange = () => {
   if (!comparing()) return exitComparison();
   cancelAnnotationDraw(); ++editRequest;
   if (clipView && !clipView.ready) disposeClipView();
-  else if (clipView) { clipView.resumeEditing = S.editing; finishEdit(); saveDraft(); }
+  else if (clipView) { clipView.resumeEditing ||= S.editing; finishEdit(); saveDraft(); }
+  stopComparison(); compareChosen = [];
   $("#resultJobControls").hidden = true; $("#compareControls").hidden = false; $("#showImg").disabled = true;
-  $("#resultHint").textContent = "Select two checkboxes to compare available runs. Model names are shown for each clip.";
+  $("#timelineControls").hidden = !timelineMode(); $("#compareKindRow").hidden = timelineMode();
+  $("#compareClear").textContent = timelineMode() ? "Clear selection" : "Clear pair";
+  $("#resultHint").textContent = timelineMode() ? "Select several results from one AOI to view its imagery history on the map." : "Select two checkboxes to compare available runs. Model names are shown for each clip.";
   renderResults(); refreshCompareCatalog();
 };
 $("#compareRefresh").onclick = refreshCompareCatalog;
-$("#compareClear").onclick = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = "Select two clips in the table."; };
+$("#compareClear").onclick = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = timelineMode() ? "Select history from one AOI." : "Select two clips in the table."; };
 $("#compareKind").onchange = () => { compareChosen = []; stopComparison(); renderResults(); $("#compareHint").textContent = "Select two clips in the table."; };
 $("#compareExit").onclick = exitComparison;
 async function loadJobs() {
@@ -1186,16 +1307,21 @@ function renderResults() {
   $("#jobOutcomes").hidden = compare || !issues.length;
   $("#jobOutcomes").innerHTML = issues.length ? `<p class="hint">${job.results.length} usable clip(s) · ${esc(job.status)}. Unavailable and failed dates have no detection count. Incomplete clips cover available tiles only.</p><div class="tablewrap"><table><thead><tr><th>AOI / date</th><th>Outcome</th></tr></thead><tbody>${issues.map(outcome => `<tr><td>${esc(outcome.aoi)}<br><span class="mono">${esc(outcome.date)}</span></td><td>${esc(outcome.status.replace(/_/g, " "))}${outcome.zoom != null ? ` · z${outcome.zoom}` : ""}<br><span class="hint">${esc(outcome.message || (outcome.status === "partial" ? "Missing imagery tiles; counts are incomplete." : ""))}</span></td></tr>`).join("")}</tbody></table></div>` : "";
   $("#compareColumn").hidden = !compare;
-  tb.innerHTML = rows.map((r, i) => `<tr class="${compare ? "" : "click"}" data-i="${i}">${compare ? `<td><input type="checkbox" data-compare-row="${i}" aria-label="Compare ${esc(r.aoi)} ${r.date} ${esc(r.model)}" ${compareChosen.includes(r.key) ? "checked" : ""} ${compareChosen.length === 2 && !compareChosen.includes(r.key) ? "disabled" : ""}></td>` : ""}<td>${esc(r.aoi)}</td><td class="mono">${r.date}</td><td class="model" title="${esc(r.model || GVCompare.modelName(r.params))}">${esc(r.model || GVCompare.modelName(r.params))}</td><td>${
+  $("#compareCreatedColumn").hidden = !compare;
+  const historyAOI = timelineMode() ? chosenHistory()[0]?.geometry : null;
+  tb.innerHTML = rows.map((r, i) => `<tr class="${compare ? "" : "click"}" data-i="${i}">${compare ? `<td><input type="checkbox" data-compare-row="${i}" aria-label="Compare ${esc(r.aoi)} ${esc(r.date)} ${esc(r.model)}" ${compareChosen.includes(r.key) ? "checked" : ""} ${!compareChosen.includes(r.key) && (timelineMode() ? historyAOI && r.geometry !== historyAOI : compareChosen.length === 2) ? "disabled" : ""}></td>` : ""}<td>${esc(r.aoi)}</td><td class="mono">${esc(r.date)}</td>${compare ? `<td class="mono">${r.createdAt == null ? "Unknown" : new Date(r.createdAt).toISOString().replace("T", " ").slice(0, 19)}</td>` : ""}<td class="model" title="${esc(r.model || GVCompare.modelName(r.params))}">${esc(r.model || GVCompare.modelName(r.params))}</td><td>${
     (Object.entries(r.counts).map(([k, v]) => `<span class="mono" style="color:${color(k)}">${v}</span> ${esc(k.replace(/_/g, " "))}`).join("<br>") || '<span class="muted">0</span>') + (r.missing ? '<br><span class="hint">Incomplete imagery</span>' : "")}</td></tr>`).join("")
-    || `<tr><td colspan="${compare ? 5 : 4}" class="muted">No clips yet.</td></tr>`;
+    || `<tr><td colspan="${compare ? 6 : 4}" class="muted">No clips yet.</td></tr>`;
   if (compare) tb.querySelectorAll("[data-compare-row]").forEach(checkbox => { checkbox.onchange = () => {
+    if (checkbox.disabled) return;
     const key = compareRecords[+checkbox.dataset.compareRow].key;
-    compareChosen = checkbox.checked ? [...compareChosen.filter(value => value !== key), key].slice(-2) : compareChosen.filter(value => value !== key);
-    renderResults(); showComparison();
+    const next = checkbox.checked ? [...compareChosen.filter(value => value !== key), key] : compareChosen.filter(value => value !== key);
+    if (timelineMode()) { stopComparison(); compareChosen = next; renderResults(); $("#compareHint").textContent = "Select history from one AOI, then open the timeline."; }
+    else { compareChosen = next.slice(-2); renderResults(); showComparison(); }
   }; });
   else tb.querySelectorAll("tr[data-i]").forEach(tr => { const index = +tr.dataset.i, record = rows[index]; tr.onclick = () => { if (RES[index] === record) return openClip(index); }; });
   if (compare) $("#trendSec").hidden = true; else drawTrend();
+  updateTimelineControls();
 }
 function drawTrend() {
   const byAoi = new Map(), trend = $("#trend");
@@ -1815,7 +1941,7 @@ window.addEventListener("pagehide", () => {
   closePlaceSearch({ removeMarker: true });
   for (const record of [...downloadURLs.values()]) record.release();
   datasetOperation?.controller.abort(); exportOperation?.controller.abort();
-  const auxiliary = Promise.allSettled([datasetOperation?.finished, exportOperation?.finished, clearExportParts(), stopPoll(serverPoll), stopPoll(trainingPoll)]);
+  const auxiliary = Promise.allSettled([datasetOperation?.finished, exportOperation?.finished, timelineWork, clearExportParts(), stopPoll(serverPoll), stopPoll(trainingPoll)]);
   serverPoll = trainingPoll = null; setServerRunning(false); $("#trainBtn").disabled = false;
   const previous = clipView?.ready ? { clip: S.clip, scope: clipView.scope } : null;
   if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
@@ -1864,6 +1990,8 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   drafts: { retained: draftCache.size, dirty: [...draftCache.values()].filter(entry => entry.dirty).length },
   rowPayloads: RES.filter(row => row.blobs || row.fc || row.draftFC).length,
   comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
+  timeline: { frames: timelineFrames.length, index: timelineIndex, playing: timelinePlaying, loading: timelineLoading,
+    timer: timelineTimer != null, seek: timelineSeekTimer != null },
   auxiliary: { dataset: Boolean(datasetOperation), export: Boolean(exportOperation), parts: exportParts?.parts.length || 0,
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },

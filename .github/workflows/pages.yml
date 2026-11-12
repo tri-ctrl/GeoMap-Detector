@@ -32,6 +32,8 @@ jobs:
         run: node tests/browser/allocation.cjs --search
       - name: Test drawn AOIs and selection preserve the map viewport
         run: node tests/browser/allocation.cjs --viewport
+      - name: Test saved history timelines, result ordering and cleanup in Chromium
+        run: node tests/browser/allocation.cjs --timeline
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Test model asset checks (no ML dependencies)

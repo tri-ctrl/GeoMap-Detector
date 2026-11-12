@@ -53,7 +53,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
           value: (match[0].match(/value="([^"]*)"/) || [null, ""])[1], checked: /\bchecked\b/.test(match[0]),
         })) : attribute ? [...html.matchAll(new RegExp(`<[^>]+\\bdata-${attribute[1]}="([^"]*)"[^>]*>`, "g"))].map(match => {
           const dataKey = attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-          const child = new Element({ dataset: { [dataKey]: match[1] }, checked: /\bchecked\b/.test(match[0]) });
+          const child = new Element({ dataset: { [dataKey]: match[1] }, checked: /\bchecked\b/.test(match[0]), disabled: /\bdisabled\b/.test(match[0]) });
           const classes = (match[0].match(/class="([^"]*)"/) || [null, ""])[1];
           classes.split(/\s+/).forEach(name => child.classes.add(name));
           return child;

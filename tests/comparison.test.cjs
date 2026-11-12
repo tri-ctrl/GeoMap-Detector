@@ -60,7 +60,9 @@ test('same-date model runs compare across jobs; source predictions stay unchange
   await app.element('#bEdit').onclick();const previousPosition=app.map.position,previousZoom=app.map.zoom;
   // A second round trip also checks getCenter after setView received a LatLng.
   for(let cycle=0;cycle<2;cycle++){
-    await enter(app,'models');await pick(app,0);await pick(app,2);
+    await enter(app,'models');
+    const indexFor=model=>[...app.element('#resTable tbody').innerHTML.matchAll(/data-compare-row="(\d+)" aria-label="([^"]*)"/g)].find(match=>match[2].includes(model)&&match[2].includes('2026-10-29'))[1];
+    await pick(app,+indexFor('YOLO nano'));await pick(app,+indexFor('YOLO small'));
     assert.equal(views[0].sides[1].fc.features[0].properties.status,'predicted');
     assert.match(app.element('#compareLeftLabel').textContent,/Model A.*YOLO nano/);
     assert.match(app.element('#compareRightLabel').textContent,/Model B.*YOLO small/);
@@ -141,4 +143,13 @@ test('rapid replacement cancels old image loads without disposing the newer pair
   assert.equal(f.layers.size,0);assert.equal(f.handlers.size,0);assert.equal(f.handleEvents.size,0);
   assert.ok(currentLayers.every(layer=>f.removed.includes(layer)));
   assert.deepEqual(f.revoked,f.urls);
+});
+test('timeline frames use the full map and release each previous frame, URL, timer and listener',async()=>{
+  const f=swipeFixture();
+  for(let i=0;i<20;i++){
+    await f.swipe.showFrame(f.sides[0],()=>({}));
+    assert.equal(f.swipe.layers.length,3);assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.pending.size,0);
+    assert.equal(f.panes.get('gmd-compare-left').style.clip,'rect(-50px, 900px, 550px, -100px)');
+  }
+  f.swipe.destroy();assert.deepEqual(f.revoked,f.urls);assert.equal(f.layers.size,0);assert.equal(f.handlers.size,0);assert.equal(f.handleEvents.size,0);
 });

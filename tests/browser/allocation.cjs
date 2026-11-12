@@ -66,6 +66,9 @@ const server = http.createServer((request, response) => {
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (process.argv.includes('--timeline')) {
+        await require('./timeline-cases.cjs')({ page, evaluate, until, errors, result }); return;
+      }
       if (process.argv.includes('--viewport')) {
         await require('./viewport-cases.cjs')({ page, evaluate, until, errors, result }); return;
       }

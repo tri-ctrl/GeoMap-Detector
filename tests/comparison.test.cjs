@@ -98,21 +98,25 @@ test('server results expose recorded models and fetch only selected images/detec
   app.element('#compareExit').onclick();
 });
 
-function swipeFixture({loads=true}={}){
+function swipeFixture({loads=true,timeline=false,animated=false,reduced=false}={}){
   const urls=[],revoked=[],removed=[],layers=new Set(),panes=new Map(),handlers=new Map(),handleEvents=new Map();
   const handle={addEventListener:(name,fn)=>handleEvents.set(name,fn),removeEventListener:name=>handleEvents.delete(name),setAttribute(name,value){this[name]=value},setPointerCapture(){},hasPointerCapture:()=>false};
   const element={hidden:true,style:{setProperty(name,value){this[name]=value}},querySelector:()=>handle};
-  const map={getPane:name=>panes.get(name),createPane:name=>{const pane={style:{}};panes.set(name,pane);return pane},
+  const animations=[];
+  const map={getPane:name=>panes.get(name),createPane:name=>{const pane={style:{}};if(animated)pane.animate=(frames,timing)=>{
+    let resolve,reject;const finished=new Promise((ok,no)=>{resolve=ok;reject=no});
+    const animation={frames,timing,finished,cancelled:0,cancel(){this.cancelled++;reject(new DOMException('Cancelled','AbortError'))},finish:resolve};animations.push(animation);return animation;
+  };panes.set(name,pane);return pane},
     getSize:()=>({x:1000,y:600}),containerPointToLayerPoint:([x,y])=>({x:x-100,y:y-50}),
     on:(names,fn)=>handlers.set(names,fn),off:names=>handlers.delete(names),getContainer:()=>({getBoundingClientRect:()=>({left:0,width:1000})}),
     removeLayer:layer=>{removed.push(layer);return layers.delete(layer)}};
   const images=[];
   const layer=()=>({events:new Map(),on(name,fn){this.events.set(name,fn);return this},off(name){this.events.delete(name);return this},addTo(){layers.add(this);if(this.image&&loads)queueMicrotask(()=>this.events.get('load')?.());return this}});
   const L={imageOverlay:()=>{const image=layer();image.image=true;images.push(image);return image},svg:layer,geoJSON:layer};
-  const context=vm.createContext({DOMException,setTimeout,clearTimeout,URL:{createObjectURL:()=>{const url='blob:'+urls.length;urls.push(url);return url},revokeObjectURL:url=>revoked.push(url)}});
-  vm.runInContext(source,context);const swipe=new context.GVCompare.Swipe(map,element,L);
+  const context=vm.createContext({DOMException,setTimeout,clearTimeout,matchMedia:()=>({matches:reduced}),URL:{createObjectURL:()=>{const url='blob:'+urls.length;urls.push(url);return url},revokeObjectURL:url=>revoked.push(url)}});
+  vm.runInContext(source,context);const swipe=new context.GVCompare[timeline?'Timeline':'Swipe'](map,element,L);
   const sides=[0,1].map(()=>({preview:{blob:{}},bounds:[],fc:{}}));
-  return{swipe,sides,panes,images,handle,handleEvents,layers,handlers,urls,revoked,removed,element};
+  return{swipe,sides,panes,images,handle,handleEvents,layers,handlers,urls,revoked,removed,element,animations};
 }
 test('swipe clips imagery and vectors in map coordinates, supports keys and releases all per-pair resources',async()=>{
   const f=swipeFixture();await f.swipe.show(f.sides,()=>({}));
@@ -145,11 +149,59 @@ test('rapid replacement cancels old image loads without disposing the newer pair
   assert.deepEqual(f.revoked,f.urls);
 });
 test('timeline frames use the full map and release each previous frame, URL, timer and listener',async()=>{
-  const f=swipeFixture();
+  const f=swipeFixture({timeline:true});
   for(let i=0;i<20;i++){
-    await f.swipe.showFrame(f.sides[0],()=>({}));
+    await f.swipe.showFrame(f.sides[0],()=>({}),{effect:'none'});
     assert.equal(f.swipe.layers.length,3);assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.pending.size,0);
-    assert.equal(f.panes.get('gmd-compare-left').style.clip,'rect(-50px, 900px, 550px, -100px)');
+    assert.equal(f.swipe.panes[f.swipe.current.index].pane.style.clip,'rect(-50px, 900px, 550px, -100px)');
   }
   f.swipe.destroy();assert.deepEqual(f.revoked,f.urls);assert.equal(f.layers.size,0);assert.equal(f.handlers.size,0);assert.equal(f.handleEvents.size,0);
+});
+test('fade transitions keep two georeferenced frames only until animation completion, then release the outgoing resources',async()=>{
+  const f=swipeFixture({timeline:true,animated:true});await f.swipe.showFrame(f.sides[0],()=>({}));
+  const pending=f.swipe.showFrame(f.sides[1],()=>({}),{effect:'fade',duration:900});await turn();
+  assert.equal(f.swipe.urls.length,2);assert.equal(f.swipe.layers.length,6);assert.equal(f.animations.length,2);
+  assert.equal(f.animations[0].timing.duration,900);assert.equal(f.animations[0].frames[0].opacity,0);
+  assert.equal(f.animations[1].frames[1].opacity,0);
+  f.animations.forEach(animation=>animation.finish());await pending;
+  assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.layers.length,3);assert.equal(f.swipe.transition,null);
+  assert.deepEqual(f.revoked,f.urls.slice(0,1));assert.ok(f.animations.every(animation=>animation.cancelled===1));
+  f.swipe.destroy();assert.deepEqual(f.revoked,f.urls);assert.equal(f.handlers.size,0);
+});
+test('wipe clips complementary panes in map coordinates; viewport movement finishes animation without changing layer geometry',async()=>{
+  const f=swipeFixture({timeline:true,animated:true});await f.swipe.showFrame(f.sides[0],()=>({}));
+  const pending=f.swipe.showFrame(f.sides[1],()=>({}),{effect:'wipe'});await turn();
+  assert.equal(f.animations[0].frames[0].clip,'rect(-50px, -100px, 550px, -100px)');
+  assert.equal(f.animations[0].frames[1].clip,'rect(-50px, 900px, 550px, -100px)');
+  assert.equal(f.animations[1].frames[1].clip,'rect(-50px, 900px, 550px, 900px)');
+  f.handlers.get('movestart zoomstart move zoom resize viewreset')();await pending;
+  assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.transition,null);f.swipe.destroy();
+});
+test('replacement during animation cancels the obsolete frame without disposing the newest image',async()=>{
+  const f=swipeFixture({timeline:true,animated:true});await f.swipe.showFrame(f.sides[0],()=>({}));
+  const old=f.swipe.showFrame(f.sides[1],()=>({}));const rejected=assert.rejects(old,{name:'AbortError'});await turn();
+  const current=f.swipe.showFrame(f.sides[0],()=>({}),{effect:'none'});await current;await rejected;
+  assert.equal(f.swipe.frames.length,1);assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.pending.size,0);
+  assert.equal(f.urls.length,3);assert.deepEqual(f.revoked,f.urls.slice(0,2));f.swipe.destroy();assert.deepEqual(f.revoked,f.urls);
+});
+test('stopping an in-progress transition clears animations, timers, requests, layers and all URLs',async()=>{
+  const f=swipeFixture({timeline:true,animated:true});await f.swipe.showFrame(f.sides[0],()=>({}));
+  const pending=f.swipe.showFrame(f.sides[1],()=>({})),rejected=assert.rejects(pending,{name:'AbortError'});await turn();
+  f.swipe.stop();await rejected;assert.equal(f.swipe.transition,null);assert.equal(f.swipe.pending.size,0);
+  assert.equal(f.layers.size,0);assert.equal(f.handlers.size,0);assert.equal(f.swipe.frames.length,0);assert.deepEqual(f.revoked,f.urls);
+  assert.ok(f.animations.every(animation=>animation.cancelled===1));
+});
+test('a failed incoming history image preserves the displayed frame and removes only its own resources',async()=>{
+  const f=swipeFixture({timeline:true,loads:false}),first=f.swipe.showFrame(f.sides[0],()=>({}));
+  f.images[0].events.get('load')();await first;const previous=f.swipe.current;
+  const pending=f.swipe.showFrame(f.sides[1],()=>({})),rejected=assert.rejects(pending,/Could not display/);
+  f.images[1].events.get('error')();await rejected;
+  assert.equal(f.swipe.current,previous);assert.equal(f.swipe.active,true);assert.equal(f.swipe.urls.length,1);
+  assert.deepEqual(f.revoked,[f.urls[1]]);assert.equal(f.swipe.pending.size,0);f.swipe.destroy();assert.equal(f.revoked.length,2);
+});
+test('reduced-motion preferences and missing animation support use an instant frame replacement',async()=>{
+  for(const options of [{animated:true,reduced:true},{animated:false}]){
+    const f=swipeFixture({timeline:true,...options});await f.swipe.showFrame(f.sides[0],()=>({}));await f.swipe.showFrame(f.sides[1],()=>({}));
+    assert.equal(f.animations.length,0);assert.equal(f.swipe.urls.length,1);assert.equal(f.swipe.transition,null);f.swipe.destroy();
+  }
 });

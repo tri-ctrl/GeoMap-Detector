@@ -1,0 +1,215 @@
+{
+  "checkedAt": "2026-11-12T07:45:42.246Z",
+  "mode": "Local source; native IndexedDB, Leaflet, PNG decodes and timeline UI; synthetic images/predictions",
+  "sources": {
+    "index.html": "2996cd2af5f5d89bef06f8cfcadaf908a7197bc97f7f0c3bb52a5beb6816fcdf",
+    "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+    "comparison.js": "09a17552df32bbc8d6b88ea26264c2367489dcb9636f99b94c586b8e53431c21",
+    "storage.js": "f45f7c00db924a66f47682bfe629c652bc17eb66a3453c3bbee144edf86b47bc",
+    "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+    "app.js": "0bbfe604fb9e43a180314262ff76cd1013be7636afbb7f65b8176d2379dcaad8"
+  },
+  "limitations": [
+    "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+    "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check.",
+    "Loading/transitions temporarily retain two bounded frame images/vector groups, then one; this is intentional retention, not a confirmed leak.",
+    "Inference, model sessions, native export/georeferencing and stored entities are unchanged; no new detection-quality or inference-speed claim.",
+    "CI/deployed parity and Safari/Firefox/physical-phone checks remain pending."
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "seed": {
+    "jobs": 2,
+    "clips": 6,
+    "earliest": "2016-04-20",
+    "latest": "2026-10-29"
+  },
+  "catalog": {
+    "artifactReads": 0
+  },
+  "order": [
+    {
+      "date": "2025-03-27",
+      "created": "2026-11-11 00:00:03",
+      "model": "Small"
+    },
+    {
+      "date": "2016-04-20",
+      "created": "2026-11-11 00:00:02",
+      "model": "Small"
+    },
+    {
+      "date": "2026-10-29",
+      "created": "2026-11-11 00:00:01",
+      "model": "Small"
+    },
+    {
+      "date": "2025-03-27",
+      "created": "2026-11-10 00:00:03",
+      "model": "Nano"
+    },
+    {
+      "date": "2016-04-20",
+      "created": "2026-11-10 00:00:02",
+      "model": "Nano"
+    },
+    {
+      "date": "2026-10-29",
+      "created": "2026-11-10 00:00:01",
+      "model": "Nano"
+    }
+  ],
+  "open": {
+    "label": "1/6 \u00b7 Allocation \u00b7 2016-04-20 \u00b7 Nano \u00b7 1 objects",
+    "settings": "Selected runs differ in models. Counts are model predictions, not verified changes. Same-date runs are shown separately. Full-resolution images remain in exports.",
+    "frames": 6,
+    "divider": "none",
+    "layers": 3,
+    "images": 1,
+    "fits": 1
+  },
+  "viewport": {
+    "center": [
+      25.252906694415564,
+      55.35989284515381
+    ],
+    "zoom": 18,
+    "fits": 1
+  },
+  "player": {
+    "centerOffset": 0,
+    "bottomGap": 28,
+    "width": 620,
+    "mapWidth": 996,
+    "inside": true,
+    "sidebarPlayer": false
+  },
+  "newest": {
+    "label": "6/6 \u00b7 Allocation \u00b7 2026-10-29 \u00b7 Small \u00b7 1 objects",
+    "frame": "2026-10-29",
+    "pixel": [
+      208,
+      32,
+      32,
+      255
+    ],
+    "previewCalls": 2,
+    "liveURLs": 1
+  },
+  "playback": {
+    "frames": 6,
+    "index": 5,
+    "playing": false,
+    "loading": false,
+    "timer": false,
+    "seek": false,
+    "previewCalls": 8
+  },
+  "sample": {
+    "index": 1,
+    "animations": 2,
+    "keyframes": [
+      "rect(0px, 0px, 72px, 0px)",
+      "rect(0px, 310px, 72px, 0px)"
+    ]
+  },
+  "wipe": {
+    "frames": 2,
+    "urls": 2,
+    "animations": 2,
+    "keyframes": [
+      "rect(0px, 0px, 913px, 0px)",
+      "rect(0px, 996px, 913px, 0px)"
+    ]
+  },
+  "mobile": {
+    "viewport": 390,
+    "width": 390,
+    "slider": 336,
+    "player": 366,
+    "map": 390,
+    "centerOffset": 0,
+    "inside": true,
+    "trend": "none"
+  },
+  "mobileSettings": {
+    "top": 9,
+    "mapTop": 0,
+    "bottom": 201.390625,
+    "mapBottom": 397.328125,
+    "centerOffset": 0,
+    "scrollable": true
+  },
+  "instant": {
+    "starts": 38,
+    "disabled": true,
+    "frames": 1
+  },
+  "reducedMotion": {
+    "disabled": true,
+    "note": "Reduced motion is enabled. Layer changes are instant."
+  },
+  "compact": {
+    "mapHeight": 157.5625,
+    "playerHeight": 86,
+    "playerInside": true,
+    "settingsInside": true,
+    "zoom": 17
+  },
+  "cleanup": {
+    "created": 24,
+    "revoked": 24,
+    "live": 0,
+    "peakURLs": 2,
+    "peakPreviews": 1,
+    "layers": 0,
+    "pending": 0,
+    "timeline": {
+      "frames": 0,
+      "index": -1,
+      "playing": false,
+      "loading": false,
+      "timer": false,
+      "seek": false
+    },
+    "effects": {
+      "effect": "wipe",
+      "duration": 900,
+      "interval": 1000,
+      "transitioning": false,
+      "sampleAnimations": 0,
+      "sampleTimer": false
+    },
+    "transitionStarts": 40,
+    "allocations": {
+      "rejected": 0,
+      "canvasesCreated": 24,
+      "canvasesReleased": 24,
+      "liveCanvasBytes": 0,
+      "peakCanvasBytes": 16384,
+      "peakReservedBytes": 131072,
+      "reservedBytes": 0,
+      "activeOperations": [],
+      "waiting": 0,
+      "limits": {
+        "maxPixels": 32000000,
+        "maxDimension": 8192,
+        "maxEstimatedBytes": 536870912
+      },
+      "maxConcurrentProcessing": 1,
+      "maxConcurrentDownloads": 4
+    },
+    "rowPayloads": 0
+  },
+  "automatedChecks": {
+    "javascript": {
+      "command": "npm test",
+      "passed": 239,
+      "failed": 0
+    },
+    "pythonAssets": {
+      "command": "python3 -m unittest discover -s tests -p test_model_assets.py -v",
+      "passed": 12,
+      "failed": 0
+    }
+  }
+}

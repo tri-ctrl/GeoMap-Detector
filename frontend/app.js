@@ -1020,6 +1020,10 @@ let catalogGeneration = 0, compareGeneration = 0, compareView = null, compareSav
 let timelineFrames = [], timelineIndex = -1, timelinePlaying = false, timelineLoading = false;
 let timelineNeedsFit = false;
 let timelineTimer = null, timelineSeekTimer = null, timelineWork = Promise.resolve();
+let timelineSampleAnimations = [], timelineSampleTimer = null;
+const timelineMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const savedPlayback = GVCompare.playbackSettings(store.get("timelinePlayback", {}));
+$("#timelineSpeed").value = String(savedPlayback.interval); $("#timelineEffect").value = savedPlayback.effect; $("#timelineDuration").value = String(savedPlayback.duration);
 function timelineMode() { return $("#resultView").value === "timeline"; }
 function comparing() { return ["compare", "timeline"].includes($("#resultView").value); }
 function outputBase(job, path) { return api("/outputs/" + encodeURIComponent(job) + "/" + path.split("/").map(encodeURIComponent).join("/") + "/"); }
@@ -1030,6 +1034,7 @@ function compareRecord(r, params, job, index, browser, metadata) {
     geometry: GVCompare.geometryKey(r.aoiFeature), source: r };
 }
 function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
+  closeTimelineSettings();
   pauseTimeline(); $("#compareSettings").textContent = "";
   timelineFrames = []; timelineIndex = -1; timelineLoading = false; timelineNeedsFit = false; updateTimelineControls();
   ++compareGeneration; pairController?.abort(); pairController = null; clearTimeout(pairTimer); pairTimer = null; compareView?.stop();
@@ -1052,6 +1057,7 @@ function exitComparison() {
   ++catalogGeneration; catalogController?.abort(); catalogController = null;
   $("#resultView").value = "review"; $("#compareControls").hidden = true; $("#resultJobControls").hidden = false;
   $("#timelineControls").hidden = true;
+  $("#timelinePlayer").hidden = true; $(".mapwrap").classList.remove("timeline-open");
   stopComparison(); compareChosen = []; compareRecords = [];
   $("#showImg").disabled = false; $("#resultHint").textContent = "Select a row to review its clipped imagery and detections.";
   renderResults();
@@ -1119,7 +1125,9 @@ function prepareComparisonMap() {
   compareSaved ||= { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent, view: clipView,
     image: map.hasLayer(clipLayer), detections: map.hasLayer(detLayer), editing: clipView?.resumeEditing || S.editing, legend: $("#legend").style.visibility };
   finishEdit(); releaseClipImage(); map.removeLayer(clipLayer); map.removeLayer(detLayer); $("#legend").style.visibility = "hidden";
-  compareView ||= new GVCompare.Swipe(map, $("#compareMap"));
+  const Display = timelineMode() ? GVCompare.Timeline : GVCompare.Swipe;
+  if (compareView && !(compareView instanceof Display)) { compareView.destroy(); compareView = null; }
+  compareView ||= new Display(map, $("#compareMap"));
   $("#compareMap").classList.toggle("timeline-map", timelineMode());
 }
 function comparisonStyle(feature) { return { color: color(feature.properties.class), weight: 2, fillOpacity: 0.08 }; }
@@ -1168,15 +1176,19 @@ function updateTimelineControls() {
   $("#timelinePlay").setAttribute("aria-pressed", String(timelinePlaying));
   $("#timelineStart").textContent = count ? timelineFrames[0].date : "Older";
   $("#timelineEnd").textContent = count ? timelineFrames.at(-1).date : "Newer";
+  $("#timelinePlayer").setAttribute("aria-busy", String(timelineLoading));
   if (!count) {
     $("#timelineSlider").setAttribute("aria-valuetext", "No timeline selected");
     $("#timelineCurrent").textContent = "Open a timeline to view the selected history on the map.";
+    $("#timelineStatus").textContent = "Select results in the sidebar, then open the timeline.";
   }
 }
 function pauseTimeline() {
   timelinePlaying = false; clearTimeout(timelineTimer); timelineTimer = null;
   clearTimeout(timelineSeekTimer); timelineSeekTimer = null;
+  compareView?.finishTransition?.();
   updateTimelineControls();
+  if (timelineFrames.length && timelineIndex >= 0 && !timelineLoading) $("#timelineStatus").textContent = timelineIndex === timelineFrames.length - 1 ? "Latest selected frame · Replay to start again" : "Paused · drag the slider or press Play";
 }
 function scheduleTimeline() {
   clearTimeout(timelineTimer); timelineTimer = null;
@@ -1190,21 +1202,23 @@ function renderTimelineFrame(index) {
   const frame = timelineFrames[index], generation = ++compareGeneration;
   pairController?.abort(); clearTimeout(pairTimer); pairTimer = null;
   if (compareView?.pending?.size) compareView.stop();
+  else compareView?.finishTransition?.();
   const controller = pairController = new AbortController();
   timelineLoading = true; $("#compareHint").textContent = `Loading history ${index + 1}/${timelineFrames.length} · ${frame.date}…`;
+  $("#timelineStatus").textContent = $("#compareHint").textContent; $("#timelinePlayer").setAttribute("aria-busy", "true");
   // IndexedDB reads and native bitmap decodes cannot always be interrupted.
   // Drain the previous frame before starting another; stale seeks never decode.
   const work = timelineWork.catch(() => {}).then(async () => {
     const current = () => generation === compareGeneration && !controller.signal.aborted && pageActive && timelineMode();
     if (!current()) return;
     const timer = pairTimer = setTimeout(() => controller.abort(), 45000);
-    const cancelImage = () => { if (generation === compareGeneration && compareView?.pending?.size) compareView.stop(); };
+    const cancelImage = () => { if (generation === compareGeneration) { if (compareView?.pending?.size) compareView.stop(); else compareView?.finishTransition?.(); } };
     controller.signal.addEventListener("abort", cancelImage, { once: true });
     try {
       const asset = await comparisonAsset(frame, controller.signal);
       if (!current()) return;
       prepareComparisonMap();
-      await compareView.showFrame(asset, comparisonStyle);
+      await compareView.showFrame(asset, comparisonStyle, timelinePlayback());
       if (controller.signal.aborted) throw viewAbort();
       if (!current()) return;
       timelineIndex = index;
@@ -1212,10 +1226,16 @@ function renderTimelineFrame(index) {
       $("#compareLeftLabel").textContent = label; $("#hudRel").textContent = frame.date;
       $("#timelineCurrent").textContent = label; $("#timelineSlider").setAttribute("aria-valuetext", label);
       $("#compareHint").textContent = "Drag the timeline or use Play to explore this AOI. Predictions are read-only.";
-      if (timelineNeedsFit) { map.fitBounds(asset.bounds); timelineNeedsFit = false; }
+      $("#timelineStatus").textContent = timelinePlaying ? "Playing oldest to newest" : "Drag the slider or press Play";
+      if (timelineNeedsFit) {
+        const playerHeight = $("#timelinePlayer").getBoundingClientRect?.().height || 0;
+        const room = Math.max(0, (map.getSize?.().y || Infinity) - 80), top = Math.min(110, room * 0.35);
+        map.fitBounds(asset.bounds, { paddingTopLeft: [12, top], paddingBottomRight: [12, Math.min(playerHeight + 42, room - top)] }); timelineNeedsFit = false;
+      }
     } catch (error) {
       if (generation === compareGeneration) {
         pauseTimeline(); $("#compareHint").textContent = (controller.signal.aborted ? "History frame timed out." : error.message) + " Select a frame or reopen the timeline to retry.";
+        $("#timelineStatus").textContent = $("#compareHint").textContent;
       }
     } finally {
       clearTimeout(timer); controller.signal.removeEventListener("abort", cancelImage);
@@ -1246,12 +1266,72 @@ $("#timelinePrev").onclick = () => { pauseTimeline(); return renderTimelineFrame
 $("#timelineNext").onclick = () => { pauseTimeline(); return renderTimelineFrame(Math.min(timelineFrames.length - 1, timelineIndex + 1)); };
 $("#timelinePlay").onclick = () => {
   if (timelinePlaying) return pauseTimeline();
+  if (!timelineFrames.length) return;
+  closeTimelineSettings();
   timelinePlaying = true; updateTimelineControls();
+  $("#timelineStatus").textContent = "Playing oldest to newest";
   if (timelineIndex < 0 || timelineIndex === timelineFrames.length - 1) return renderTimelineFrame(0);
   scheduleTimeline();
 };
-$("#timelineSpeed").onchange = scheduleTimeline;
-document.addEventListener("visibilitychange", () => { if (document.hidden) pauseTimeline(); });
+function timelinePlayback() { return GVCompare.playbackSettings({ effect: $("#timelineEffect").value, duration: $("#timelineDuration").value, interval: $("#timelineSpeed").value }); }
+function stopTimelineSample() {
+  clearTimeout(timelineSampleTimer); timelineSampleTimer = null;
+  for (const animation of timelineSampleAnimations) animation.cancel(); timelineSampleAnimations = [];
+  $("#timelineSampleBefore").style.opacity = "1"; $("#timelineSampleAfter").style.opacity = "0";
+}
+function closeTimelineSettings() { stopTimelineSample(); $("#timelineSettings").hidden = true; $("#timelineSettingsToggle").setAttribute("aria-expanded", "false"); }
+function fitTimelineSettings() {
+  if ($("#timelineSettings").hidden) return;
+  const player = $("#timelinePlayer").getBoundingClientRect?.(), bounds = $(".mapwrap").getBoundingClientRect?.();
+  if (player && bounds) {
+    const available = player.top - bounds.top - 16, compact = available < 80;
+    $("#timelineSettings").style.bottom = compact ? "0px" : "calc(100% + 8px)";
+    $("#timelineSettings").style.maxHeight = Math.max(40, Math.min(390, compact ? bounds.height - 44 : available)) + "px";
+  }
+}
+function updateTimelineMotion() {
+  const settings = timelinePlayback(), reduced = Boolean(timelineMotion?.matches);
+  $("#timelineDuration").disabled = settings.effect === "none" || reduced;
+  $("#timelinePreview").disabled = settings.effect === "none" || reduced;
+  $("#timelineMotionNote").textContent = reduced ? "Reduced motion is enabled. Layer changes are instant." : "Transition imagery and detection layers together. Map position stays fixed.";
+}
+function previewTimelineTransition() {
+  stopTimelineSample(); updateTimelineMotion();
+  const settings = timelinePlayback(), before = $("#timelineSampleBefore"), after = $("#timelineSampleAfter");
+  if (timelineMotion?.matches || settings.effect === "none" || !after.animate) return;
+  const bounds = $("#timelineTransitionPreview").getBoundingClientRect?.() || { width: 300, height: 72 };
+  const keyframes = GVCompare.transitionKeyframes(settings.effect, { top: 0, right: bounds.width, bottom: bounds.height, left: 0 });
+  try {
+    after.style.opacity = "1";
+    const timing = { duration: settings.duration, easing: "ease-in-out", fill: "both" };
+    timelineSampleAnimations.push(after.animate(keyframes.incoming, timing));
+    timelineSampleAnimations.push(before.animate(keyframes.outgoing, timing));
+    const owned = timelineSampleAnimations;
+    Promise.allSettled(owned.map(animation => animation.finished)).then(() => {
+      if (timelineSampleAnimations !== owned) return;
+      for (const animation of owned) animation.cancel(); timelineSampleAnimations = [];
+      clearTimeout(timelineSampleTimer); timelineSampleTimer = null;
+      before.style.opacity = "0"; after.style.opacity = "1";
+    });
+    timelineSampleTimer = setTimeout(stopTimelineSample, settings.duration + 200);
+  } catch { Promise.allSettled(timelineSampleAnimations.map(animation => animation.finished)); stopTimelineSample(); }
+}
+$("#timelineSettingsToggle").onclick = () => {
+  if (!$("#timelineSettings").hidden) return closeTimelineSettings();
+  pauseTimeline(); updateTimelineMotion(); $("#timelineSettings").hidden = false; $("#timelineSettings").scrollTop = 0; $("#timelineSettingsToggle").setAttribute("aria-expanded", "true"); fitTimelineSettings();
+};
+$("#timelineSettingsClose").onclick = () => { closeTimelineSettings(); $("#timelineSettingsToggle").focus(); };
+$("#timelinePreview").onclick = previewTimelineTransition;
+$("#timelineSpeed").onchange = () => { store.set("timelinePlayback", timelinePlayback()); scheduleTimeline(); };
+for (const id of ["#timelineEffect", "#timelineDuration"]) $(id).onchange = () => { store.set("timelinePlayback", timelinePlayback()); previewTimelineTransition(); };
+timelineMotion?.addEventListener?.("change", () => { stopTimelineSample(); compareView?.finishTransition?.(); updateTimelineMotion(); });
+window.addEventListener("resize", fitTimelineSettings);
+for (const event of ["pointerdown", "mousedown", "touchstart", "dblclick", "wheel"]) $("#timelinePlayer").addEventListener(event, e => e.stopPropagation());
+$("#timelinePlayer").addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("#timelineSettings").hidden) { closeTimelineSettings(); $("#timelineSettingsToggle").focus(); event.stopPropagation(); }
+  else if (event.key !== "Escape") event.stopPropagation();
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden) { pauseTimeline(); stopTimelineSample(); } });
 $("#resultView").onchange = () => {
   if (!comparing()) return exitComparison();
   cancelAnnotationDraw(); ++editRequest;
@@ -1260,6 +1340,7 @@ $("#resultView").onchange = () => {
   stopComparison(); compareChosen = [];
   $("#resultJobControls").hidden = true; $("#compareControls").hidden = false; $("#showImg").disabled = true;
   $("#timelineControls").hidden = !timelineMode(); $("#compareKindRow").hidden = timelineMode();
+  $("#timelinePlayer").hidden = !timelineMode(); $(".mapwrap").classList.toggle("timeline-open", timelineMode()); updateTimelineMotion();
   $("#compareClear").textContent = timelineMode() ? "Clear selection" : "Clear pair";
   $("#resultHint").textContent = timelineMode() ? "Select several results from one AOI to view its imagery history on the map." : "Select two checkboxes to compare available runs. Model names are shown for each clip.";
   renderResults(); refreshCompareCatalog();
@@ -1992,6 +2073,7 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
   timeline: { frames: timelineFrames.length, index: timelineIndex, playing: timelinePlaying, loading: timelineLoading,
     timer: timelineTimer != null, seek: timelineSeekTimer != null },
+  timelineEffects: { ...timelinePlayback(), transitioning: Boolean(compareView?.transition), sampleAnimations: timelineSampleAnimations.length, sampleTimer: timelineSampleTimer != null },
   auxiliary: { dataset: Boolean(datasetOperation), export: Boolean(exportOperation), parts: exportParts?.parts.length || 0,
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },

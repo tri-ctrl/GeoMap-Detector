@@ -24,6 +24,10 @@ test('timeline validates AOI geometry and real dates; orders imagery chronologic
   for (const invalid of [[], [rows[0]], [rows[0], row('2025-03-27', 1, { geometry: 'other' })], [rows[0], row('2026-02-30', 1)], [rows[0], row('2026-10-29', 1)]]) assert.ok(C.validateTimeline(invalid).error);
   assert.match(C.timelineNote([rows[0], { ...rows[1], model: 'Small', missing: 1, params: { conf: 0.8 } }]), /models.*confidence.*missing imagery tiles.*not verified changes/);
 });
+test('playback preferences validate effects and bounded durations without accepting corrupt saved values', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(C.playbackSettings({effect:'wipe',duration:'900',interval:'4000'}))),{effect:'wipe',duration:900,interval:4000});
+  for(const value of [null,{}, {effect:'move objects',duration:100000,interval:-1}]) assert.deepEqual(JSON.parse(JSON.stringify(C.playbackSettings(value))),{effect:'fade',duration:450,interval:2000});
+});
 const releases = [{ release: 101, date: '2026-10-29' }, { release: 100, date: '2025-03-27' }, { release: 99, date: '2016-04-20' }];
 async function fixture({ preview, aois = [aoi], indexedDB, savedMap } = {}) {
   const views = [], processed = [], reads = [];
@@ -35,7 +39,7 @@ async function fixture({ preview, aois = [aoi], indexedDB, savedMap } = {}) {
     const process = ctx.GVEngine.processClip;
     ctx.GVEngine.processClip = async (...args) => { const result = await process(...args); processed.push(result); return result; };
     ctx.GVCompare.preview = preview || (async () => ({ blob: new Blob(['preview']), size: [100, 100] }));
-    ctx.GVCompare.Swipe = class {
+    ctx.GVCompare.Timeline = ctx.GVCompare.Swipe = class {
       constructor() { views.push(this); this.frames = []; }
       async showFrame(asset) { this.frames.push(asset); this.active = true; }
       async show(sides) { this.sides = sides; this.active = true; }
@@ -56,6 +60,7 @@ test('many results open oldest first, keep viewport during steps, use immutable 
   const selected = app.groups[2].getLayers()[0]; selected.fire('click'); app.element('#bAcc').onclick(); await app.element('#bEdit').onclick();
   const position = [...app.map.position], zoom = app.map.zoom;
   await enter(app); assert.equal(app.element('#timelineControls').hidden, false); assert.equal(app.element('#compareKindRow').hidden, true);
+  assert.equal(app.element('#timelinePlayer').hidden,false);assert.equal(app.element('.mapwrap').classList.contains('timeline-open'),true);
   pick(app, 0); app.element('#timelineSelectAOI').onclick();
   assert.equal(boxes(app).filter(box => box.checked).length, 3); assert.equal(app.element('#timelineOpen').disabled, false);
   await app.element('#timelineOpen').onclick(); assert.equal(app.context.GVApp.diagnostics().timeline.index, 0);
@@ -68,7 +73,20 @@ test('many results open oldest first, keep viewport during steps, use immutable 
   assert.equal(f.processed[0].draftFC.features[0].properties.status, 'verified');
   assert.equal(app.context.GVApp.diagnostics().comparisonRowPayloads, 0);
   app.element('#compareExit').onclick(); assert.equal(selected.editing.active, true);
+  assert.equal(app.element('#timelinePlayer').hidden,true);assert.equal(app.element('.mapwrap').classList.contains('timeline-open'),false);
   assert.deepEqual(app.map.position, position); assert.equal(app.map.zoom, zoom); assert.equal(f.views[0].active, false);
+});
+test('map playback settings persist valid preferences and close cleanly without changing the selected history', async () => {
+  const f=await fixture(),{app}=f;await start(f);
+  app.element('#timelinePlay').onclick();app.element('#timelineSettingsToggle').onclick();
+  assert.equal(app.element('#timelineSettings').hidden,false);assert.equal(app.context.GVApp.diagnostics().timeline.playing,false);
+  app.element('#timelineEffect').value='wipe';app.element('#timelineEffect').onchange();
+  app.element('#timelineDuration').value='900';app.element('#timelineDuration').onchange();
+  app.element('#timelineSpeed').value='4000';app.element('#timelineSpeed').onchange();
+  assert.deepEqual(JSON.parse(app.saved.get('gv_timelinePlayback')),{effect:'wipe',duration:900,interval:4000});
+  app.element('#timelineSettingsClose').onclick();assert.equal(app.element('#timelineSettings').hidden,true);
+  assert.equal(app.context.GVApp.diagnostics().timeline.frames,3);assert.equal(app.context.GVApp.diagnostics().timeline.index,0);
+  app.element('#compareExit').onclick();assert.equal(app.context.GVApp.diagnostics().timelineEffects.sampleAnimations,0);
 });
 test('a timeline selection is restricted to one geometry; clear releases the selection', async () => {
   const other = structuredClone(aoi); other.properties.name = 'Other'; other.geometry.coordinates[0].forEach(point => { point[0] += 0.001; });

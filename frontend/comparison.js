@@ -96,6 +96,134 @@ async function preview(blob, size, signal) {
   } finally { bitmap?.close(); budget.releaseCanvas(canvas); lease.release(); }
 }
 
+function playbackSettings(value = {}) {
+  return { effect: ["fade", "wipe", "none"].includes(value?.effect) ? value.effect : "fade",
+    duration: [200, 450, 900].includes(Number(value?.duration)) ? Number(value.duration) : 450,
+    interval: [1000, 2000, 4000].includes(Number(value?.interval)) ? Number(value.interval) : 2000 };
+}
+function transitionKeyframes(effect, { top, right, bottom, left }) {
+  const full = `rect(${top}px, ${right}px, ${bottom}px, ${left}px)`;
+  return effect === "wipe" ? { incoming: [{ clip: `rect(${top}px, ${left}px, ${bottom}px, ${left}px)` }, { clip: full }],
+    outgoing: [{ clip: full }, { clip: `rect(${top}px, ${right}px, ${bottom}px, ${right}px)` }] }
+    : { incoming: [{ opacity: 0 }, { opacity: 1 }], outgoing: [{ opacity: 1 }, { opacity: 0 }] };
+}
+// Timeline display owns at most the current and incoming frame. Two empty
+// map-owned panes are reused; only a transition retains the outgoing frame.
+class Timeline {
+  constructor(map, element, leaflet = global.L) {
+    this.map = map; this.element = element; this.L = leaflet;
+    this.frames = []; this.pending = new Set(); this.generation = 0; this.active = false;
+    this.current = null; this.transition = null;
+    this.panes = ["gmd-timeline-a", "gmd-timeline-b"].map((name, index) => {
+      const pane = map.getPane(name) || map.createPane(name);
+      pane.style.zIndex = String(450 + index); pane.style.pointerEvents = "none";
+      return { name, pane };
+    });
+    this.clip = () => {
+      if (!this.active) return;
+      // Finish a visual transition when the viewport changes. Leaflet continues
+      // moving the actual georeferenced layers; no screen-space drift is added.
+      this.finishTransition();
+      const { top, right, bottom, left } = this.viewport();
+      for (const { pane } of this.panes) pane.style.clip = `rect(${top}px, ${right}px, ${bottom}px, ${left}px)`;
+    };
+  }
+  get layers() { return this.frames.flatMap(frame => frame.layers); }
+  get urls() { return this.frames.flatMap(frame => frame.url ? [frame.url] : []); }
+  viewport() {
+    const size = this.map.getSize(), nw = this.map.containerPointToLayerPoint([0, 0]), se = this.map.containerPointToLayerPoint([size.x, size.y]);
+    return { top: nw.y, right: se.x, bottom: se.y, left: nw.x };
+  }
+  releaseFrame(frame) {
+    if (!frame || frame.released) return;
+    frame.released = true; frame.cancel?.();
+    for (const layer of [...frame.layers].reverse()) this.map.removeLayer(layer);
+    frame.layers = []; if (frame.url) URL.revokeObjectURL(frame.url); frame.url = null;
+    this.frames = this.frames.filter(value => value !== frame);
+  }
+  finishTransition(commit = true) {
+    const owner = this.transition; if (!owner) return;
+    this.transition = null; clearTimeout(owner.timer);
+    for (const animation of owner.animations) animation.cancel();
+    if (commit) {
+      this.current = owner.incoming; this.releaseFrame(owner.outgoing);
+      this.panes[owner.incoming.index].pane.style.opacity = "1";
+      const { top, right, bottom, left } = this.viewport();
+      this.panes[owner.incoming.index].pane.style.clip = `rect(${top}px, ${right}px, ${bottom}px, ${left}px)`;
+    }
+    owner.resolve();
+  }
+  async showFrame(side, style, options = {}) {
+    const generation = ++this.generation;
+    this.finishTransition();
+    for (const cancel of [...this.pending]) cancel();
+    for (const frame of [...this.frames]) if (frame !== this.current) this.releaseFrame(frame);
+    const previous = this.current, index = previous ? 1 - previous.index : 0;
+    if (previous) this.panes[previous.index].pane.style.zIndex = "450";
+    const frame = { index, layers: [], url: null }, target = this.panes[index]; this.frames.push(frame);
+    this.active = true; this.element.hidden = false;
+    this.map.off("movestart zoomstart move zoom resize viewreset", this.clip);
+    this.map.on("movestart zoomstart move zoom resize viewreset", this.clip); this.clip();
+    target.pane.style.opacity = "0"; target.pane.style.zIndex = "452";
+    try {
+      frame.url = URL.createObjectURL(side.preview.blob);
+      const image = this.L.imageOverlay(frame.url, side.bounds, { pane: target.name, interactive: false });
+      const ready = new Promise((resolve, reject) => {
+        let timer, settled = false;
+        const finish = error => {
+          if (settled) return; settled = true;
+          clearTimeout(timer); image.off("load", loaded); image.off("error", failed); this.pending.delete(cancel); frame.cancel = null;
+          error ? reject(error) : resolve();
+        };
+        const loaded = () => finish(), failed = () => finish(new Error("Could not display a history image")), cancel = () => finish(abortError());
+        frame.cancel = cancel; this.pending.add(cancel); image.on("load", loaded); image.on("error", failed);
+        timer = setTimeout(() => finish(new Error("History image timed out")), 15000);
+      });
+      // Attach a rejection observer before constructors/addTo can throw.
+      ready.catch(() => {});
+      frame.layers.push(image); image.addTo(this.map);
+      const renderer = this.L.svg({ pane: target.name }); frame.layers.push(renderer);
+      const vectors = this.L.geoJSON(side.fc, { pane: target.name, renderer, interactive: false, style });
+      frame.layers.push(vectors); vectors.addTo(this.map);
+      await ready;
+      if (generation !== this.generation) throw abortError();
+      target.pane.style.opacity = "1";
+      const settings = playbackSettings(options), reduced = global.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (previous && settings.effect !== "none" && !reduced && target.pane.animate) {
+        const keyframes = transitionKeyframes(settings.effect, this.viewport());
+        await new Promise(resolve => {
+          const owner = this.transition = { incoming: frame, outgoing: previous, animations: [], resolve, timer: null };
+          try {
+            const timing = { duration: settings.duration, easing: "ease-in-out", fill: "both" };
+            owner.animations.push(target.pane.animate(keyframes.incoming, timing));
+            owner.animations.push(this.panes[previous.index].pane.animate(keyframes.outgoing, timing));
+            Promise.allSettled(owner.animations.map(animation => animation.finished)).then(() => { if (this.transition === owner) this.finishTransition(); });
+            owner.timer = setTimeout(() => { if (this.transition === owner) this.finishTransition(); }, settings.duration + 100);
+          } catch { Promise.allSettled(owner.animations.map(animation => animation.finished)); this.finishTransition(); }
+        });
+      } else { this.current = frame; this.releaseFrame(previous); }
+      if (generation !== this.generation) throw abortError();
+    } catch (error) {
+      if (generation === this.generation) {
+        this.finishTransition(false); this.releaseFrame(frame); this.current = previous;
+        if (previous) { this.panes[previous.index].pane.style.opacity = "1"; this.clip(); }
+        else this.stop();
+      }
+      throw error;
+    }
+  }
+  stop() {
+    ++this.generation; this.active = false; this.map.off("movestart zoomstart move zoom resize viewreset", this.clip);
+    this.finishTransition(false);
+    for (const cancel of [...this.pending]) cancel();
+    for (const frame of [...this.frames]) this.releaseFrame(frame);
+    this.current = null;
+    for (const { pane } of this.panes) { pane.style.clip = ""; pane.style.opacity = ""; }
+    this.element.hidden = true;
+  }
+  destroy() { this.stop(); }
+}
+
 class Swipe {
   constructor(map, element, leaflet = global.L) {
     this.map = map; this.element = element; this.L = leaflet; this.position = 50;
@@ -175,5 +303,5 @@ class Swipe {
     for (const [name, listener] of [["pointerdown", this.down], ["pointermove", this.move], ["pointerup", this.up], ["pointercancel", this.up], ["keydown", this.key]]) this.handle.removeEventListener(name, listener);
   }
 }
-global.GVCompare = { geometryKey, modelName, creationTime, newestFirst, validDate, validateTimeline, timelineNote, validatePair, settingsNote, preview, Swipe };
+global.GVCompare = { geometryKey, modelName, creationTime, newestFirst, validDate, validateTimeline, timelineNote, validatePair, settingsNote, preview, playbackSettings, transitionKeyframes, Timeline, Swipe };
 })(typeof window !== "undefined" ? window : globalThis);

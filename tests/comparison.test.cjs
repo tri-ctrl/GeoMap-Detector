@@ -7,6 +7,12 @@ const {setup,aoi,turn} = require('./helpers/app.cjs');
 const source=fs.readFileSync(path.join(__dirname,'../frontend/comparison.js'),'utf8');
 const context=vm.createContext({DOMException});vm.runInContext(source,context);
 const C=context.GVCompare;
+test('released image elements clear every Leaflet DOM handler and their decoded-image source',()=>{
+  const element={onload(){},onerror(){},onselectstart(){},onmousemove(){},removeAttribute(name){this.removed=name}};
+  C.releaseImageElement({getElement:()=>element});
+  for(const name of ['onload','onerror','onselectstart','onmousemove'])assert.equal(element[name],null);
+  assert.equal(element.removed,'srcset');assert.match(element.src,/^data:image\/gif;base64,/);
+});
 const record=(values={})=>({geometry:'polygon',date:'2026-10-29',release:101,model:'Nano',modelKey:'nano',zoom:18,params:{conf:0.3,classes:['ship']},...values});
 const deferred=()=>{let resolve;const promise=new Promise(ok=>{resolve=ok});return{promise,resolve}};
 test('date pairs are chronological regardless of checkbox order; mismatched AOIs/models/dates are actionable',()=>{

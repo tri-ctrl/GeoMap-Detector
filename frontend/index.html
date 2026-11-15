@@ -350,6 +350,13 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <span class="label">Job</span>
         <div class="row"><select id="jobSel" style="flex:1"></select><button class="btn" id="jobRefresh">Refresh</button><button class="btn ghost danger" id="deleteJob">Delete job</button></div>
       </div>
+      <details class="sec"><summary>Result memory and display</summary>
+        <label class="row"><span style="flex:1">Result memory (MiB)</span><input id="resultMemoryLimit" type="number" min="1" max="2048" step="16" value="128" style="width:100px"></label>
+        <label class="row"><span style="flex:1">Display image longest side</span><select id="resultDisplaySide" style="width:120px"><option value="512">512 px</option><option value="1024">1024 px</option><option value="2048" selected>2048 px</option></select></label>
+        <p class="hint" id="resultMemoryStatus" role="status" aria-live="polite"></p>
+        <button class="btn ghost" id="clearResultCache">Release unused cached results</button>
+        <p class="hint">Cache and protected results use this budget; processing buffers, model sessions and browser rendering use additional memory. Active views, unsaved clips and edits are kept. Display size applies to newly opened views; native exports keep their original pixels.</p>
+      </details>
       <div class="sec" id="compareControls" hidden>
         <div class="sec" id="compareKindRow"><label class="label" for="compareKind">Compare by</label>
         <select id="compareKind"><option value="dates">Dates · same AOI and model</option><option value="models">Models · same AOI and date</option></select></div>

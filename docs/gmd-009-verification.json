@@ -1,0 +1,569 @@
+{
+  "checkedAt": "2026-11-15T19:06:49.070Z",
+  "mode": "Local Chromium, native IndexedDB/PNG/TIFF/ZIP, retained-result budget and 20 open/delete cycles; fixed fixture inference",
+  "sources": {
+    "index.html": "0e4589fc526b2a54a2cf92378c9d6240f465c5c8d87ed3428d4c7c20f2f76c07",
+    "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+    "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+    "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+    "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+    "app.js": "7b6650b0a10ec88d404041d7ec360c68535f623105c7899768910375462c5f35"
+  },
+  "limitations": [
+    "Retained GeoJSON/catalog/surface byte estimates and exact encoded Blob sizes are separate from measured JS heap and process RSS.",
+    "The retained cap is soft for protected data. Temporary writes/decodes, browser rendering and model/runtime pools use additional memory.",
+    "This finite deterministic workload is not a production throughput, detection-quality, physical-phone or sustained GPU-memory benchmark.",
+    "Normal CI/deployed-source parity and broader GMD-010/020/021 checks remain pending."
+  ],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "seed": {
+    "jobs": 8,
+    "size": [
+      4096,
+      1025
+    ],
+    "pngBytes": 83331,
+    "tiffBytes": 17192,
+    "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162515.947618158\n2906890.332474577\n",
+    "objects": 5
+  },
+  "startup": {
+    "reads": {
+      "meta": 1,
+      "aois": 1,
+      "jobs": 1,
+      "results": 1,
+      "queue": 1,
+      "models": 1,
+      "drafts": 1
+    },
+    "memory": {
+      "limitBytes": 1048576,
+      "totalBytes": 29928,
+      "cacheBytes": 0,
+      "pinnedBytes": 29928,
+      "inactiveBytes": 0,
+      "protectedBytes": 29928,
+      "encodedCacheBytes": 0,
+      "vectorEstimateBytes": 0,
+      "decodedDisplayEstimateBytes": 0,
+      "overBudgetBytes": 0,
+      "peakBytes": 29928,
+      "entries": 0,
+      "pins": 0,
+      "hits": 0,
+      "misses": 0,
+      "evictions": 0,
+      "protected": {
+        "catalog": 29928
+      },
+      "storedArtifactBytes": 1035528,
+      "unknownStoredClips": 0
+    }
+  },
+  "display": {
+    "size": [
+      512,
+      128
+    ],
+    "status": "1/5 reviewed",
+    "memory": {
+      "limitBytes": 1048576,
+      "totalBytes": 669024,
+      "cacheBytes": 189440,
+      "pinnedBytes": 669024,
+      "inactiveBytes": 0,
+      "protectedBytes": 479584,
+      "encodedCacheBytes": 1892,
+      "vectorEstimateBytes": 187424,
+      "decodedDisplayEstimateBytes": 262144,
+      "overBudgetBytes": 0,
+      "peakBytes": 669024,
+      "entries": 1,
+      "pins": 1,
+      "hits": 0,
+      "misses": 1,
+      "evictions": 0,
+      "protected": {
+        "catalog": 30018,
+        "drafts": 187422,
+        "display:1": 262144
+      },
+      "storedArtifactBytes": 1035528,
+      "unknownStoredClips": 0
+    },
+    "rawStatus": "predicted"
+  },
+  "eviction": {
+    "limitBytes": 1048576,
+    "totalBytes": 1047904,
+    "cacheBytes": 568320,
+    "pinnedBytes": 669024,
+    "inactiveBytes": 378880,
+    "protectedBytes": 479584,
+    "encodedCacheBytes": 5676,
+    "vectorEstimateBytes": 562272,
+    "decodedDisplayEstimateBytes": 262144,
+    "overBudgetBytes": 0,
+    "peakBytes": 1047906,
+    "entries": 3,
+    "pins": 1,
+    "hits": 1,
+    "misses": 9,
+    "evictions": 6,
+    "protected": {
+      "catalog": 30018,
+      "drafts": 187422,
+      "display:10": 262144
+    },
+    "storedArtifactBytes": 1035528,
+    "unknownStoredClips": 0
+  },
+  "export": {
+    "size": [
+      4096,
+      1025
+    ],
+    "samePNG": true,
+    "sameTIFF": true,
+    "world": "0.5971642834779395\n0.0\n0.0\n-0.5971642834779395\n6162515.947618158\n2906890.332474577\n",
+    "reviews": 1
+  },
+  "samples": [
+    {
+      "label": "after 5 warmup cycles",
+      "heapBytes": 3162024,
+      "documents": 1,
+      "nodes": 1770,
+      "jsEventListeners": 301,
+      "processRSSBytes": 1010794496,
+      "processes": [
+        46796,
+        46802,
+        46810,
+        46812,
+        46813,
+        46817,
+        46818,
+        46819,
+        46834
+      ]
+    },
+    {
+      "label": "after 5 measured cycles",
+      "heapBytes": 3212004,
+      "documents": 1,
+      "nodes": 1770,
+      "jsEventListeners": 301,
+      "processRSSBytes": 933773312,
+      "processes": [
+        46796,
+        46802,
+        46810,
+        46812,
+        46813,
+        46817,
+        46818,
+        46819,
+        46834
+      ]
+    },
+    {
+      "label": "after 10 measured cycles",
+      "heapBytes": 3234620,
+      "documents": 1,
+      "nodes": 1770,
+      "jsEventListeners": 301,
+      "processRSSBytes": 930217984,
+      "processes": [
+        46796,
+        46802,
+        46810,
+        46812,
+        46813,
+        46817,
+        46818,
+        46819,
+        46834
+      ]
+    },
+    {
+      "label": "after 15 measured cycles",
+      "heapBytes": 3243644,
+      "documents": 1,
+      "nodes": 1770,
+      "jsEventListeners": 301,
+      "processRSSBytes": 880394240,
+      "processes": [
+        46796,
+        46802,
+        46810,
+        46812,
+        46813,
+        46817,
+        46818,
+        46819,
+        46834
+      ]
+    },
+    {
+      "label": "after 20 measured cycles",
+      "heapBytes": 3256688,
+      "documents": 1,
+      "nodes": 1770,
+      "jsEventListeners": 301,
+      "processRSSBytes": 849494016,
+      "processes": [
+        46796,
+        46802,
+        46810,
+        46812,
+        46813,
+        46817,
+        46818,
+        46819,
+        46834
+      ]
+    }
+  ],
+  "final": {
+    "memory": {
+      "limitBytes": 1048576,
+      "totalBytes": 29928,
+      "cacheBytes": 0,
+      "pinnedBytes": 29928,
+      "inactiveBytes": 0,
+      "protectedBytes": 29928,
+      "encodedCacheBytes": 0,
+      "vectorEstimateBytes": 0,
+      "decodedDisplayEstimateBytes": 0,
+      "overBudgetBytes": 0,
+      "peakBytes": 1142335,
+      "entries": 0,
+      "pins": 0,
+      "hits": 1,
+      "misses": 34,
+      "evictions": 34,
+      "protected": {
+        "catalog": 29928
+      },
+      "storedArtifactBytes": 1035528,
+      "unknownStoredClips": 0
+    },
+    "views": {
+      "created": 35,
+      "disposed": 35,
+      "imageURLsCreated": 35,
+      "imageURLsRevoked": 35,
+      "staleReads": 0,
+      "active": 0,
+      "loading": false,
+      "imageLeases": 0,
+      "imageLayers": 0,
+      "selected": false,
+      "editing": false,
+      "scope": null
+    },
+    "allocations": {
+      "rejected": 0,
+      "canvasesCreated": 34,
+      "canvasesReleased": 34,
+      "liveCanvasBytes": 0,
+      "peakCanvasBytes": 262144,
+      "peakReservedBytes": 17645568,
+      "reservedBytes": 0,
+      "activeOperations": [],
+      "waiting": 0,
+      "limits": {
+        "maxPixels": 32000000,
+        "maxDimension": 8192,
+        "maxEstimatedBytes": 536870912
+      },
+      "maxConcurrentProcessing": 1,
+      "maxConcurrentDownloads": 4
+    },
+    "urls": {
+      "created": 35,
+      "revoked": 35,
+      "live": 0
+    },
+    "jobs": 8,
+    "reviews": 1
+  },
+  "heapGrowthBytes": 94664,
+  "heapGrowthGateBytes": 5242880,
+  "listenerGrowth": 0,
+  "nodeGrowth": 0,
+  "detachedDOM": [],
+  "measurementLimits": "JS heap is sampled after explicit GC. Summed browser/renderer/GPU RSS, where available, includes retained runtime/native/browser pools; it is distinct from logical Blob/cache bytes and decoded RGBA estimates. This is not a sustained production/GPU leak or throughput benchmark.",
+  "automatedChecks": {
+    "javascript": {
+      "command": "npm test",
+      "passed": 249,
+      "failed": 0
+    },
+    "pythonAssets": {
+      "command": "python3 -m unittest discover -s tests -p test_model_assets.py -v",
+      "passed": 12,
+      "failed": 0,
+      "scope": "Mocked fresh export packaging and cached-file validation; the exporter/cache key/validation flow is unchanged."
+    }
+  },
+  "prePlaceholderCleanupEvidence": {
+    "checkedAt": "2026-11-15T18:53:22.550Z",
+    "sources": {
+      "index.html": "0e4589fc526b2a54a2cf92378c9d6240f465c5c8d87ed3428d4c7c20f2f76c07",
+      "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+      "comparison.js": "a293cc7d5313f2d181c9d8b687d446e467a570c38e6ce966f0ef7218f30fef94",
+      "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "a65c35b011511aa8c2fbb04952700f065f04f75018f8fbf0fded004b29de21ac"
+    },
+    "samples": [
+      {
+        "label": "after 5 warmup cycles",
+        "heapBytes": 3156384,
+        "documents": 1,
+        "nodes": 1860,
+        "jsEventListeners": 301,
+        "processRSSBytes": 928940032,
+        "processes": [
+          42823,
+          42832,
+          42839,
+          42840,
+          42841,
+          42846,
+          42847,
+          42848,
+          42858
+        ]
+      },
+      {
+        "label": "after 5 measured cycles",
+        "heapBytes": 3213532,
+        "documents": 1,
+        "nodes": 1890,
+        "jsEventListeners": 301,
+        "processRSSBytes": 936099840,
+        "processes": [
+          42823,
+          42832,
+          42839,
+          42840,
+          42841,
+          42846,
+          42847,
+          42848,
+          42858
+        ]
+      },
+      {
+        "label": "after 10 measured cycles",
+        "heapBytes": 3236616,
+        "documents": 1,
+        "nodes": 1920,
+        "jsEventListeners": 301,
+        "processRSSBytes": 938917888,
+        "processes": [
+          42823,
+          42832,
+          42839,
+          42840,
+          42841,
+          42846,
+          42847,
+          42848,
+          42858
+        ]
+      },
+      {
+        "label": "after 15 measured cycles",
+        "heapBytes": 3246072,
+        "documents": 1,
+        "nodes": 1950,
+        "jsEventListeners": 301,
+        "processRSSBytes": 913211392,
+        "processes": [
+          42823,
+          42832,
+          42839,
+          42840,
+          42841,
+          42846,
+          42847,
+          42848,
+          42858
+        ]
+      },
+      {
+        "label": "after 20 measured cycles",
+        "heapBytes": 3259704,
+        "documents": 1,
+        "nodes": 1980,
+        "jsEventListeners": 301,
+        "processRSSBytes": 870711296,
+        "processes": [
+          42823,
+          42832,
+          42839,
+          42840,
+          42841,
+          42846,
+          42847,
+          42848,
+          42858
+        ]
+      }
+    ],
+    "detachedImages": 35,
+    "nodeGrowth": 120,
+    "listenerGrowth": 0,
+    "retainingPath": [
+      "HTMLDocument / C++ persistent roots",
+      "MediaQueryMatcher",
+      "HTMLImageElement::ViewportChangeListener",
+      "detached IMG with no src"
+    ],
+    "method": "Native heap snapshot and detached DOM inspection in the same synthetic fixture, after clearing all four Leaflet DOM handlers but before replacing absent src with a valid tiny source."
+  },
+  "timelineRegression": {
+    "checkedAt": "2026-11-15T18:58:26.114Z",
+    "sources": {
+      "index.html": "0e4589fc526b2a54a2cf92378c9d6240f465c5c8d87ed3428d4c7c20f2f76c07",
+      "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+      "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+      "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "a65c35b011511aa8c2fbb04952700f065f04f75018f8fbf0fded004b29de21ac"
+    },
+    "sourceDifferencesFromFinalMemoryRun": [
+      "app.js"
+    ],
+    "scope": "Native transition/cache/image cleanup pass before the final memory-status-only UI refresh.",
+    "cleanup": {
+      "created": 24,
+      "revoked": 24,
+      "live": 0,
+      "peakURLs": 2,
+      "peakPreviews": 1,
+      "layers": 0,
+      "pending": 0,
+      "timeline": {
+        "frames": 0,
+        "index": -1,
+        "playing": false,
+        "loading": false,
+        "timer": false,
+        "seek": false
+      },
+      "effects": {
+        "effect": "wipe",
+        "duration": 900,
+        "interval": 1000,
+        "transitioning": false,
+        "sampleAnimations": 0,
+        "sampleTimer": false
+      },
+      "transitionStarts": 40,
+      "allocations": {
+        "rejected": 0,
+        "canvasesCreated": 6,
+        "canvasesReleased": 6,
+        "liveCanvasBytes": 0,
+        "peakCanvasBytes": 16384,
+        "peakReservedBytes": 131072,
+        "reservedBytes": 0,
+        "activeOperations": [],
+        "waiting": 0,
+        "limits": {
+          "maxPixels": 32000000,
+          "maxDimension": 8192,
+          "maxEstimatedBytes": 536870912
+        },
+        "maxConcurrentProcessing": 1,
+        "maxConcurrentDownloads": 4
+      },
+      "rowPayloads": 0
+    },
+    "mobile": {
+      "viewport": 390,
+      "width": 390,
+      "slider": 336,
+      "player": 366,
+      "map": 390,
+      "centerOffset": 0,
+      "inside": true,
+      "trend": "none"
+    },
+    "reducedMotion": {
+      "disabled": true,
+      "note": "Reduced motion is enabled. Layer changes are instant."
+    }
+  },
+  "persistenceRegression": {
+    "checkedAt": "2026-11-15T19:02:27.722Z",
+    "sources": {
+      "index.html": "0e4589fc526b2a54a2cf92378c9d6240f465c5c8d87ed3428d4c7c20f2f76c07",
+      "engine.js": "0ef8688dfbaee5dd2584109834e14ca4ccaa3aaf1ccc5aee6335630d3896fac5",
+      "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+      "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "app.js": "7b6650b0a10ec88d404041d7ec360c68535f623105c7899768910375462c5f35"
+    },
+    "sourceDifferencesFromFinalMemoryRun": [],
+    "scope": "Native final-source IndexedDB/editing/recovery pass.",
+    "switches": 20,
+    "editedDraft": {
+      "draftMatches": true,
+      "rawUnchanged": true
+    },
+    "dragSwitch": {
+      "disabled": true,
+      "detached": true,
+      "events": [],
+      "markers": 0,
+      "selected": false,
+      "activeDrag": false
+    },
+    "viewsAfterDeletion": {
+      "created": 25,
+      "disposed": 25,
+      "imageURLsCreated": 44,
+      "imageURLsRevoked": 44,
+      "staleReads": 1,
+      "active": 0,
+      "loading": false,
+      "imageLeases": 0,
+      "imageLayers": 0,
+      "selected": false,
+      "editing": false,
+      "scope": null
+    },
+    "queueRecovery": {
+      "calls": 3,
+      "maxActive": 1,
+      "jobs": [
+        {
+          "id": "browser_20261115_190238_b70b9181",
+          "status": "done"
+        },
+        {
+          "id": "recover-1",
+          "status": "done"
+        },
+        {
+          "id": "recover-2",
+          "status": "done"
+        },
+        {
+          "id": "recover-3",
+          "status": "done"
+        }
+      ],
+      "queued": 0,
+      "reviews": 2
+    },
+    "exceptions": []
+  }
+}

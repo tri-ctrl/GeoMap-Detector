@@ -85,7 +85,8 @@ test("server result toggles do not fetch annotations or detections again", async
   const initial = app.snapshot();
   assert.equal(initial.annotations, 1);
   assert.equal(app.requests.filter(request => request.url.endsWith("/detections.geojson")).length, 1);
-  assert.equal(app.groups[1].getLayers()[0].url, "/server/outputs/server_job/Review/2026-10-29/image.png");
+  assert.equal(app.requests.filter(r=>r.url==="/server/outputs/server_job/Review/2026-10-29/image.png").length,1);
+  assert.ok(app.urlEvents.some(e=>e.type==='create'&&e.url===app.groups[1].getLayers()[0].url));
   for (let i = 0; i < 5; i++) app.toggle(i % 2 !== 0);
   await turn(); assert.deepEqual(app.snapshot(), initial);
   app.toggle(true);
@@ -213,7 +214,8 @@ test("server chart navigation fetches the selected clip once and opens its annot
   const app = await runTrend({ server: true, fetchHook: url => url.endsWith("/api/jobs/server_job")
     ? { ok: true, json: async () => ({ status: "done", progress: 1, log: [], results, params: { model: "nano.pt" } }) } : null });
   const initial = app.snapshot(); await trendBars(app)[0].onclick();
-  assert.equal(app.groups[1].getLayers()[0].url, "/server/outputs/server_job/Review/100/image.png");
+  assert.equal(app.requests.filter(r=>r.url==="/server/outputs/server_job/Review/100/image.png").length,1);
+  assert.ok(app.urlEvents.some(e=>e.type==='create'&&e.url===app.groups[1].getLayers()[0].url));
   assert.equal(app.requests.filter(request => request.url.endsWith("/Review/100/detections.geojson")).length, 1);
   assert.equal(app.snapshot().annotations, initial.annotations + 1); assert.equal(app.snapshot().fits, initial.fits + 1);
 });

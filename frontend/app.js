@@ -27,6 +27,11 @@ const S = {
   models: [], customModels: [], jobId: null, clip: null, annFC: null, sel: null, editing: null,
 };
 const BJOBS = {};                       // lightweight catalog; durable payloads load per clip
+const resultMemory = GVStorage.createMemory(); let memoryReady = false, memoryPressure = null, displaySequence = 0;
+const savedMemory = store.get("resultMemory", {});
+try { resultMemory.configure(Number(savedMemory?.limitMiB ?? 128) * 1048576); } catch {}
+$("#resultMemoryLimit").value = String(resultMemory.state().limitBytes / 1048576);
+$("#resultDisplaySide").value = String([512, 1024, 2048].includes(Number(savedMemory?.displaySide)) ? Number(savedMemory.displaySide) : 2048);
 const runAoiSelection = new Set(S.aois);
 const browserQueue = [], MAX_WAITING_JOBS = 10;
 let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false, queueDraining = false, datasetExportRunning = false;
@@ -59,6 +64,7 @@ function renderStorage() {
   renderQueueState();
   for (const id of ["fileIn", "loadSample", "clearAoi", "drawRect", "drawPoly", "onnxIn", "customNames", "annRect", "annPoly", "acceptAll", "saveAnn"])
     if ($("#" + id)) $("#" + id).disabled = !persistenceReady || readOnly;
+  renderResultMemory();
 }
 async function flushWrites() {
   if (writing) return writingDone;
@@ -79,10 +85,10 @@ async function flushWrites() {
     if (browserQueue.length) drainBrowserQueue();
   }
 }
-function persistWrite(action, owner = null) {
+function persistWrite(action, owner = null, memoryValues = []) {
   if (!durable) return Promise.resolve();
   if (readOnly) return Promise.reject(new Error("This workspace is read only"));
-  const promise = new Promise((resolve, reject) => { pendingWrites.push({ action, owner, resolve, reject }); });
+  const promise = new Promise((resolve, reject) => { pendingWrites.push({ action, owner, resolve, reject, memoryValues }); });
   renderStorage(); flushWrites();
   // Later writes remain queued after a failure; their callers can stop without
   // holding an inference slot or waiting forever for a user-driven retry.
@@ -91,7 +97,7 @@ function persistWrite(action, owner = null) {
 }
 const checkpointJob = job => {
   const record = window.GVStorage?.jobRecord(job);
-  return persistWrite(() => DB.saveJob(record), job.id);
+  return persistWrite(() => DB.saveJob(record), job.id, [record]);
 };
 function saveDraft() {
   if (!dirty || !S.annFC || readOnly || restoring || BJOBS[S.clip?.job]?.deleting) return;
@@ -110,7 +116,7 @@ function saveDraft() {
         if (volatileLiveDraft === original) volatileLiveDraft = null;
       } else dirty = false;
     }
-  }, jobId || "live").catch(() => {});
+  }, jobId || "live", [fc]).catch(() => {});
 }
 async function readClip(source, options) {
   const images = options?.images !== false;
@@ -120,7 +126,9 @@ async function readClip(source, options) {
   return payload;
 }
 $("#storageRetry").onclick = async () => { storageError = null; await flushWrites(); renderStorage(); };
-$("#resumeQueue").onclick = () => { if (!pageActive || !persistenceReady || storageError || readOnly) return; queuePaused = false; renderStorage(); drainBrowserQueue(); };
+$("#resumeQueue").onclick = () => { if (!pageActive || !persistenceReady || storageError || readOnly) return;
+  try { admitResultMemory("Queued work"); } catch (error) { memoryPressure = error; renderStorage(); return toast(error.message, 6500); }
+  queuePaused = false; renderStorage(); drainBrowserQueue(); };
 const isServer = () => S.engine === "server" && S.online;
 const api = p => (S.api || "") + p;
 const toast = (m, ms = 2600) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), ms); };
@@ -698,6 +706,7 @@ function browserQueueState() {
     else if (storageError) { state = "storage-error"; label = "Saving blocked"; hint = "The queue is paused because saving failed. Retry saving, then choose Resume queue."; }
     else if (serverRunning) { state = "server"; label = "Server job running"; hint = "Browser jobs will continue after the server job finishes."; }
     else if (datasetExportRunning) { state = "dataset"; label = "Building dataset"; hint = "Browser jobs will continue after the dataset export finishes."; }
+    else if (memoryPressure) { state = "memory"; label = "Result memory full"; hint = memoryPressure.message; }
     else if (queuePaused) { state = "paused"; label = "Paused"; hint = "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue."; }
     else if (browserQueue[0].durableReady === false) { state = "saving"; label = "Saving queued job"; hint = "Waiting for the first queued job to finish saving before it can start."; }
     else { state = "ready"; label = "Ready"; hint = "Waiting jobs are ready. Choose Start queue if processing has not started."; }
@@ -781,8 +790,8 @@ async function drainBrowserQueue() {
       let runtimeFinished;
       job.runtimeFinished = new Promise(resolve => { runtimeFinished = resolve; });
       job.status = "running"; job.suspending = false; job.controller = new AbortController(); renderBrowserQueue();
-      try { await checkpointJob(job); await runBrowser(job); }
-      catch (error) { job.status = storageError ? "interrupted" : "error"; jlog(job, "ERROR: " + error.message); }
+      try { admitResultMemory("Queued work"); await checkpointJob(job); await runBrowser(job); }
+      catch (error) { if (error.code === "RESULT_MEMORY_LIMIT") memoryPressure = error; job.status = storageError || memoryPressure ? "interrupted" : "error"; jlog(job, "ERROR: " + error.message); }
       finally {
         job.controller = null;
         if (job.status === "interrupted") {
@@ -818,6 +827,7 @@ $("#runBtn").onclick = async () => {
 $("#cancelBtn").onclick = () => cancelBrowserJob(selectedBrowserJobId);
 
 async function enqueueBrowser(mode, aois) {
+  try { admitResultMemory("A new browser job"); } catch (error) { memoryPressure = error; renderStorage(); return toast(error.message, 6500); }
   const detectOn = $("#detectOn").checked, m = curModel();
   if (detectOn && !m) return toast("No model available. Load an .onnx file or untick Run detection.");
   if (detectOn && m.custom && !(m.names && m.names.length)) return toast("Enter the class names of your model");
@@ -890,6 +900,7 @@ async function runBrowser(job) {
     }
     for (let i = 0; i < plan.length; i++) {
       const [aoi, rel] = plan[i], base = i / plan.length, step = 1 / plan.length;
+      admitResultMemory("The next detection clip");
       if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
       const outcome = job.outcomes[i];
       if (job.results.some(result => result.storeId === job.plan[i].clipId) || ["completed", "partial", "failed", "unavailable"].includes(outcome.committedStatus)) { outcome.status = outcome.committedStatus || "completed"; continue; }
@@ -920,15 +931,23 @@ async function runBrowser(job) {
         // transaction. Only a completed transaction permits releasing payloads.
         const snapshot = window.GVStorage?.jobRecord(job);
         await persistWrite(async () => {
-          await DB.saveClip(snapshot, r);
+          const saved = await DB.saveClip(snapshot, r);
           r.persisted = true;
-          if (S.clip?.source !== r) { delete r.fc; delete r.blobs; delete r.draftFC; }
-        }, job.id);
+          if (saved) { r.artifactBytes = saved.artifactBytes; r.predictionBytes = saved.predictionBytes; }
+          // The view owns its normalized display/raw-cache lease independently.
+          // Even an open partial clip must release native artifacts after commit.
+          delete r.fc; delete r.blobs;
+          if (S.clip?.source !== r) delete r.draftFC;
+        }, job.id, [snapshot]);
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
+        if (syncResultMemory().overBudgetBytes) {
+          try { resultMemory.ensure(1, "Further detection"); } catch (error) { memoryPressure = error; queuePaused = true; if (i + 1 < plan.length) throw error; }
+        }
       } catch (error) {
         if (error.name === "QuotaExceededError") { storageError = error; queuePaused = true; }
         if (storageError) throw error;
+        if (error.code === "RESULT_MEMORY_LIMIT") throw error;
         if (error.name === "AbortError" || signal.aborted) throw error;
         Object.assign(outcome, { status: error.code === "NO_IMAGERY" ? "unavailable" : "failed", code: error.code || "CLIP_ERROR",
           message: error.message, zoom: error.zoom ?? outcome.zoom ?? params.zoom, coverage: error.coverage || outcome.coverage,
@@ -947,7 +966,8 @@ async function runBrowser(job) {
     jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. ${durable ? "Saved on this device. Export a zip for a separate backup." : "Export the zip before closing this tab."}`);
     if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with clip issues. See Results.`);
   } catch (e) {
-    job.status = job.suspending || storageError ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
+    if (e.code === "RESULT_MEMORY_LIMIT") { memoryPressure = e; queuePaused = true; }
+    job.status = job.suspending || storageError || e.code === "RESULT_MEMORY_LIMIT" ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
     jlog(job, job.status === "interrupted" ? "Paused. Saved clips are kept; resume the unfinished clips when ready." : job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
   }
@@ -990,11 +1010,87 @@ function pollJob(id, base, owner = E.operations.open("Server job", { timeoutMs: 
 let RES = [], clipGeneration = 0, clipView = null, editRequest = 0;
 let jobsGeneration = 0, resultsGeneration = 0, jobsController = null, resultsController = null;
 const draftCache = new Map();
+const resultPayloadSizes = new WeakMap();
+const catalogSkip = ["fc", "draftFC", "blobs", "source", "buffer", "controller", "finished", "runtimeFinished", "resolveFinished", "modelSpec", "ready"];
+function syncResultMemory() {
+  if (!memoryReady) return resultMemory.state();
+  let sessionBytes = 0, storedBytes = 0, unknownStored = 0;
+  for (const job of Object.values(BJOBS)) for (const r of job.results) {
+    if (r.persisted) { resultPayloadSizes.delete(r); if (Number.isFinite(r.artifactBytes)) storedBytes += r.artifactBytes; else unknownStored++; continue; }
+    const previous = resultPayloadSizes.get(r);
+    if (!previous || previous.fc !== r.fc || previous.blobs !== r.blobs) resultPayloadSizes.set(r, { fc: r.fc, blobs: r.blobs, bytes: GVStorage.estimateBytes({ fc: r.fc, blobs: r.blobs }) });
+    sessionBytes += resultPayloadSizes.get(r).bytes;
+  }
+  const seen = new Set(); let drafts = 0;
+  for (const entry of draftCache.values()) if (!seen.has(entry.fc)) { seen.add(entry.fc); drafts += entry.bytes; }
+  if (S.annFC && !seen.has(S.annFC)) drafts += GVStorage.estimateBytes(S.annFC);
+  const state = resultMemory.protectAll({ catalog: GVStorage.estimateBytes([BJOBS, RES, compareRecords], { skip: catalogSkip }),
+    drafts, unsavedResults: sessionBytes, writeSnapshots: pendingWrites.length ? GVStorage.estimateBytes(pendingWrites.flatMap(item => item.memoryValues)) : 0,
+    sessionChunks: window.GVStreaming?.diagnostics().memoryBytes || 0 });
+  return { ...state, storedArtifactBytes: storedBytes, unknownStoredClips: unknownStored };
+}
+function renderResultMemory() {
+  const state = syncResultMemory(), mb = value => (value / 1048576).toFixed(1);
+  if (!state.overBudgetBytes) memoryPressure = null;
+  $("#resultMemoryStatus").textContent = `Estimated retained ${mb(state.totalBytes)} / ${mb(state.limitBytes)} MiB · protected ${mb(state.pinnedBytes)} · unused cache ${mb(state.inactiveBytes)}. `
+    + (state.storedArtifactBytes != null ? `Saved artifact bytes ${mb(state.storedArtifactBytes)} MiB${state.unknownStoredClips ? `; ${state.unknownStoredClips} older clip(s) unmeasured` : ""}. ` : "")
+    + (state.overBudgetBytes ? "Protected data exceeds this limit and is kept. New browser processing is paused; increase the limit or delete an exported session job." : "");
+  $("#clearResultCache").disabled = !state.inactiveBytes;
+  return state;
+}
+function admitResultMemory(label) { syncResultMemory(); resultMemory.ensure(1, label); memoryPressure = null; }
+function displaySide() { const n = Number($("#resultDisplaySide").value); return [512, 1024, 2048].includes(n) ? n : 2048; }
+function saveMemoryPreference() { store.set("resultMemory", { limitMiB: resultMemory.state().limitBytes / 1048576, displaySide: displaySide() }); }
+$("#resultMemoryLimit").onchange = () => {
+  try { resultMemory.configure(Number($("#resultMemoryLimit").value) * 1048576); saveMemoryPreference(); }
+  catch (error) { $("#resultMemoryLimit").value = String(resultMemory.state().limitBytes / 1048576); toast(error.message); }
+  if (renderResultMemory().overBudgetBytes) { try { resultMemory.ensure(1); } catch (error) { memoryPressure = error; queuePaused = true; } }
+  else memoryPressure = null;
+  renderStorage(); updateRunSelection();
+};
+$("#resultDisplaySide").onchange = () => { saveMemoryPreference(); resultMemory.clear(); renderResultMemory(); };
+$("#clearResultCache").onclick = () => { resultMemory.clear(); renderResultMemory(); };
+async function displayPayload(record, signal) {
+  const source = record.browser ? record.source : null, job = record.job, sourceJob = BJOBS[job], side = displaySide();
+  const base = record.browser ? "" : outputBase(job, record.path);
+  const key = `${record.browser ? "browser" : "server:" + base}:${record.storeId || source?.storeId || job + ":" + record.path}:display:${side}`;
+  const check = () => { if (signal?.aborted || !pageActive || sourceJob?.deleting || (record.browser && BJOBS[job] !== sourceJob)) throw viewAbort(); };
+  check(); syncResultMemory(); let lease = resultMemory.acquire(key);
+  if (!lease) {
+    resultMemory.ensure(1, "Opening this clip");
+    let raw, blob;
+    if (source) { const payload = await readClip(source, { images: "display", draft: false }); check(); raw = payload.fc; blob = payload.blobs.display || payload.blobs.png; }
+    else {
+      raw = await E.requestJSON(base + "detections.geojson", { signal }); check();
+      const response = await fetch(base + "image.png", { signal });
+      if (!response.ok) throw new Error(`Clip image unavailable (HTTP ${response.status})`); blob = await response.blob(); check();
+    }
+    validateFeatures(raw); if (!blob || blob.gmdArtifact) throw new Error("Display image unavailable. The original export artifacts are kept.");
+    const preview = await GVCompare.preview(blob, record.displaySize || record.size, signal, { maxSide: side }); check();
+    // Count this cache's raw representation even when an unsaved source also
+    // owns it. This conservative overlap ends when persistence releases source.
+    const vectorBytes = GVStorage.estimateBytes(raw);
+    lease = resultMemory.insert(key, { fc: raw, preview }, { job, bytes: GVStorage.estimateBytes(preview) + vectorBytes, vectorBytes, encodedBytes: preview.blob.size });
+  }
+  let releaseSurface = null, released = false;
+  try {
+    check(); const value = lease.value;
+    return { fc: value.fc, blobs: { display: value.preview.blob }, displaySize: value.preview.size,
+      reserveImage() {
+        check(); if (released) throw viewAbort();
+        if (!releaseSurface) { syncResultMemory(); releaseSurface = resultMemory.reserve("display:" + ++displaySequence, value.preview.size[0] * value.preview.size[1] * 4); }
+      },
+      releaseImage() { releaseSurface?.(); releaseSurface = null; },
+      release() { if (released) return; released = true; releaseSurface?.(); releaseSurface = null; lease.release(); },
+    };
+  } catch (error) { lease.release(); throw error; }
+}
 const viewMetrics = { created: 0, disposed: 0, imageURLsCreated: 0, imageURLsRevoked: 0, staleReads: 0 };
 const draftScope = clip => clip ? clip.storeId || "server:" + clip.job + ":" + clip.path : "live";
 function retainDraft(scope, fc, clip, changed = false) {
   let entry = draftCache.get(scope);
   if (!entry || entry.fc !== fc) { entry = { fc, job: clip?.job || null, source: clip?.source, dirty: false, revision: 0 }; draftCache.set(scope, entry); }
+  if (entry.bytes == null || changed) entry.bytes = GVStorage.estimateBytes(fc);
   if (changed) entry.dirty = true;
   return entry;
 }
@@ -1010,13 +1106,14 @@ function viewRead(view, promise) {
     // reject ownership before exposing data; it must never mutate a draft/view.
     Promise.resolve(promise).then(value => {
       signal.removeEventListener("abort", cancelled);
-      if (!currentView(view)) { viewMetrics.staleReads++; reject(viewAbort()); } else resolve(value);
-    }, error => { signal.removeEventListener("abort", cancelled); reject(error); });
+      if (!currentView(view)) { value?.release?.(); viewMetrics.staleReads++; reject(viewAbort()); } else resolve(value);
+    }, error => { signal.removeEventListener("abort", cancelled); if (!currentView(view)) viewMetrics.staleReads++; reject(error); });
   });
 }
 let compareRecords = [], compareChosen = [], catalogController = null, pairController = null;
 let pairTimer = null;
 let catalogGeneration = 0, compareGeneration = 0, compareView = null, compareSaved = null;
+const comparisonOwners = new Set();
 let timelineFrames = [], timelineIndex = -1, timelinePlaying = false, timelineLoading = false;
 let timelineNeedsFit = false;
 let timelineTimer = null, timelineSeekTimer = null, timelineWork = Promise.resolve();
@@ -1038,6 +1135,7 @@ function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
   pauseTimeline(); $("#compareSettings").textContent = "";
   timelineFrames = []; timelineIndex = -1; timelineLoading = false; timelineNeedsFit = false; updateTimelineControls();
   ++compareGeneration; pairController?.abort(); pairController = null; clearTimeout(pairTimer); pairTimer = null; compareView?.stop();
+  for (const release of [...comparisonOwners]) release();
   if (compareSaved) {
     const previous = compareSaved; compareSaved = null;
     if (previous.image) clipLayer.addTo(map); if (previous.detections) detLayer.addTo(map);
@@ -1052,6 +1150,7 @@ function stopComparison({ resumeEdit = true, restoreView = true } = {}) {
     const editing = clipView.resumeEditing; clipView.resumeEditing = null;
     if (resumeEdit && canAnnotate() && editing && S.sel === editing && detLayer.getLayers().includes(editing)) activateEditor(editing);
   }
+  renderResultMemory();
 }
 function exitComparison() {
   ++catalogGeneration; catalogController?.abort(); catalogController = null;
@@ -1105,21 +1204,13 @@ async function refreshCompareCatalog() {
   finally { if (generation === catalogGeneration) $("#compareRefresh").disabled = false; }
 }
 async function comparisonAsset(record, signal) {
-  if (signal.aborted) throw viewAbort();
-  let fc, blob;
-  if (record.browser) { const result = await readClip(record.source, { draft: false, images: true }); fc = result.fc; blob = result.blobs.display || result.blobs.png; }
-  else {
-    const base = outputBase(record.job, record.path);
-    fc = await E.requestJSON(base + "detections.geojson", { signal });
-    const response = await fetch(base + "image.png", { signal });
-    if (!response.ok) throw new Error(`Comparison image unavailable (HTTP ${response.status})`);
-    blob = await response.blob();
-  }
-  if (signal.aborted) throw viewAbort();
-  if (!fc || fc.type !== "FeatureCollection" || !Array.isArray(fc.features) || !blob) throw new Error("This clip has no usable imagery/detections.");
-  const preview = await GVCompare.preview(blob, record.size, signal);
-  if (signal.aborted) throw viewAbort();
-  return { fc, preview, bounds: clipBounds(record) };
+  const payload = await displayPayload(record, signal);
+  try {
+    payload.reserveImage(); let released = false;
+    const release = () => { if (released) return; released = true; payload.release(); comparisonOwners.delete(release); };
+    comparisonOwners.add(release);
+    return { fc: payload.fc, preview: { blob: payload.blobs.display, size: payload.displaySize }, bounds: clipBounds(record), release };
+  } catch (error) { payload.release(); throw error; }
 }
 function prepareComparisonMap() {
   compareSaved ||= { centre: map.getCenter(), zoom: map.getZoom(), hud: $("#hudRel").textContent, view: clipView,
@@ -1139,15 +1230,19 @@ async function showComparison() {
   const generation = ++compareGeneration, controller = pairController = new AbortController();
   const timer = pairTimer = setTimeout(() => controller.abort(), 45000);
   $("#compareHint").textContent = "Preparing comparison…";
+  const assets = []; let handed = false;
   try {
     // Sequential preparation bounds retained decoded images; originals stay in exports.
     await timelineWork.catch(() => {});
     if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
     const left = await comparisonAsset(validation.pair[0], controller.signal);
+    assets.push(left);
     if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
     const right = await comparisonAsset(validation.pair[1], controller.signal);
+    assets.push(right);
     if (generation !== compareGeneration || controller.signal.aborted || !comparing()) return;
     prepareComparisonMap(); compareView.setPosition?.(50);
+    handed = true;
     await compareView.show([left, right], comparisonStyle);
     if (generation !== compareGeneration || controller.signal.aborted || !pageActive || !comparing()) return;
     const [a, b] = validation.pair;
@@ -1159,7 +1254,7 @@ async function showComparison() {
     map.fitBounds(left.bounds);
   } catch (error) {
     if (generation === compareGeneration) { stopComparison(); $("#compareHint").textContent = controller.signal.aborted ? "Comparison timed out. Refresh or select the pair again." : error.message; }
-  } finally { clearTimeout(timer); if (pairTimer === timer) pairTimer = null; }
+  } finally { if (!handed) assets.forEach(asset => asset.release()); clearTimeout(timer); if (pairTimer === timer) pairTimer = null; renderResultMemory(); }
 }
 function chosenHistory() { return compareChosen.map(key => compareRecords.find(record => record.key === key)).filter(Boolean); }
 function updateTimelineControls() {
@@ -1214,10 +1309,12 @@ function renderTimelineFrame(index) {
     const timer = pairTimer = setTimeout(() => controller.abort(), 45000);
     const cancelImage = () => { if (generation === compareGeneration) { if (compareView?.pending?.size) compareView.stop(); else compareView?.finishTransition?.(); } };
     controller.signal.addEventListener("abort", cancelImage, { once: true });
+    let asset, handed = false;
     try {
-      const asset = await comparisonAsset(frame, controller.signal);
+      asset = await comparisonAsset(frame, controller.signal);
       if (!current()) return;
       prepareComparisonMap();
+      handed = true;
       await compareView.showFrame(asset, comparisonStyle, timelinePlayback());
       if (controller.signal.aborted) throw viewAbort();
       if (!current()) return;
@@ -1238,9 +1335,11 @@ function renderTimelineFrame(index) {
         $("#timelineStatus").textContent = $("#compareHint").textContent;
       }
     } finally {
+      if (!handed) asset?.release();
       clearTimeout(timer); controller.signal.removeEventListener("abort", cancelImage);
       if (pairTimer === timer) pairTimer = null;
       if (generation === compareGeneration) { pairController = null; timelineLoading = false; updateTimelineControls(); scheduleTimeline(); }
+      renderResultMemory();
     }
   });
   timelineWork = work; return work;
@@ -1403,6 +1502,7 @@ function renderResults() {
   else tb.querySelectorAll("tr[data-i]").forEach(tr => { const index = +tr.dataset.i, record = rows[index]; tr.onclick = () => { if (RES[index] === record) return openClip(index); }; });
   if (compare) $("#trendSec").hidden = true; else drawTrend();
   updateTimelineControls();
+  renderResultMemory();
 }
 function drawTrend() {
   const byAoi = new Map(), trend = $("#trend");
@@ -1441,12 +1541,12 @@ function releaseClipImage(view = clipView) {
     // Leaflet's remove event detaches getEvents() listeners from the map.
     // Clearing all listeners before removal would suppress that cleanup.
     clipLayer.removeLayer(view.image); view.image.off();
-    const element = view.image.getElement?.();
-    if (element) { element.onload = element.onerror = null; element.removeAttribute("src"); }
+    GVCompare.releaseImageElement(view.image);
     view.image = null;
   }
   // Remove the layer before revoking its lease. Revoked URLs are never cached.
   if (view.url) { URL.revokeObjectURL(view.url); viewMetrics.imageURLsRevoked++; view.url = null; }
+  view.payloadLease?.releaseImage();
 }
 function clearSelection() {
   S.sel = null; S.editing = null;
@@ -1465,6 +1565,7 @@ function disposeClipView({ preserveDraft = true } = {}) {
   if (view && !view.disposed) {
     view.disposed = true; view.controller.abort(); clearTimeout(view.timer); view.timer = null;
     releaseClipImage(view); view.resumeEditing = null;
+    view.payloadLease?.release(); view.payloadLease = null;
     const entry = draftCache.get(view.scope), source = view.clip?.source;
     if (!preserveDraft || (durable && !entry?.dirty)) {
       draftCache.delete(view.scope);
@@ -1476,6 +1577,7 @@ function disposeClipView({ preserveDraft = true } = {}) {
     view.fc = null; view.clip = null; viewMetrics.disposed++;
   }
   clearDetectionLayers(); clipView = null; S.clip = S.annFC = null;
+  renderResultMemory();
   $("#annCtx").innerHTML = '<span class="hint">Open a clip from Results, or annotate on the live Wayback layer.</span>';
   updStats();
 }
@@ -1484,13 +1586,14 @@ function renderClipImage() {
   if (!view?.ready || !r || !currentView(view) || !$("#showImg").checked) { releaseClipImage(view); return; }
   if (view.image) return;
   const imageBlob = r.blobs?.display || r.blobs?.png;
-  if (r.browser && (!imageBlob || imageBlob.gmdArtifact)) return;
-  if (r.browser) { view.url = URL.createObjectURL(imageBlob); viewMetrics.imageURLsCreated++; }
+  if (!imageBlob || imageBlob.gmdArtifact) return;
+  try { view.payloadLease?.reserveImage(); view.url = URL.createObjectURL(imageBlob); viewMetrics.imageURLsCreated++; }
+  catch (error) { view.payloadLease?.releaseImage(); toast(error.message, 6000); renderResultMemory(); return; }
   const src = view.url || view.serverBase + `/outputs/${r.job}/${r.path}/image.png`;
   const image = view.image = L.imageOverlay(src, clipBounds(r));
   image.on("error", () => {
     if (!currentView(view) || view.image !== image) return;
-    releaseClipImage(view); toast("Clip imagery could not be displayed. Detections are still available; toggle the image to retry.", 5000);
+    releaseClipImage(view); renderResultMemory(); toast("Clip imagery could not be displayed. Detections are still available; toggle the image to retry.", 5000);
   });
   image.addTo(clipLayer);
 }
@@ -1503,11 +1606,12 @@ function commitClipView(view, fc, payload) {
   requireView(view);
   const r = view.clip;
   view.ready = true; view.loading = false; view.fc = fc; clearTimeout(view.timer); view.timer = null;
-  if (payload) r.blobs = payload.blobs;
+  if (payload) { r.blobs = payload.blobs; view.payloadLease = payload; r.displaySize = payload.displaySize; }
   const entry = retainDraft(view.scope, fc, r);
   if (r?.browser) r.source.draftFC = fc;
   S.annFC = fc; dirty = entry.dirty;
   renderClipImage(); renderDetections(); renderAnnCtx();
+  renderResultMemory();
 }
 async function openClip(i, { record = RES[i], fitView = true, selectDate = true } = {}) {
   const r = record; if (!r || !persistenceReady || !pageActive || comparing() || BJOBS[r.job]?.deleting) return;
@@ -1522,17 +1626,19 @@ async function openClip(i, { record = RES[i], fitView = true, selectDate = true 
   if (fitView) map.fitBounds(clipBounds(r));
   const rel = S.releases.find(x => x.release === r.release); if (selectDate && rel) setWayback(rel);
   view.timer = setTimeout(() => { view.timedOut = true; view.controller.abort(); }, 30000);
+  let payload;
   try {
     const source = r.browser ? r.source : null, signal = view.controller.signal;
-    const payload = source ? await viewRead(view, readClip(source, { images: true })) : null;
+    payload = await viewRead(view, displayPayload(r, signal));
     requireView(view);
     // Work on a private candidate until every read is current. In particular a
     // late review read must not mutate a job-owned draft after this view exits.
-    const saved = draftCache.get(view.scope)?.fc || payload?.draftFC
-      || (!source && durable ? await viewRead(view, DB.draft(view.scope)) : null);
+    const saved = draftCache.get(view.scope)?.fc || source?.draftFC
+      || (durable ? await viewRead(view, DB.draft(view.scope)) : null);
     requireView(view);
-    const raw = saved || (source ? payload.fc : await viewRead(view, E.requestJSON(view.serverBase + `/outputs/${r.job}/${r.path}/detections.geojson`, { signal })));
+    const raw = saved || payload.fc;
     requireView(view); validateFeatures(raw);
+    if (!draftCache.has(view.scope)) { syncResultMemory(); resultMemory.ensure(GVStorage.estimateBytes(raw), "This editable clip"); }
     const fc = JSON.parse(JSON.stringify(raw));
     if (!saved) {
       const ann = await viewRead(view, durable ? DB.reviews(view.scope) : getAnnotations({ signal, base: view.serverBase, server: view.annotationServer }));
@@ -1546,6 +1652,7 @@ async function openClip(i, { record = RES[i], fitView = true, selectDate = true 
     // Reuse the live draft object only at commit, after checking ownership.
     const entry = draftCache.get(view.scope);
     commitClipView(view, entry?.fc || fc, payload);
+    payload = null;
     toast(`${S.annFC.features.length} objects · ${r.aoi} · ${r.date}`);
   } catch (error) {
     if (clipView !== view || view.disposed || !pageActive || comparing()) return;
@@ -1555,9 +1662,9 @@ async function openClip(i, { record = RES[i], fitView = true, selectDate = true 
       const message = view.timedOut ? "Clip loading timed out. Select the row to retry." : error.message;
       $("#annCtx").textContent = message; toast(message, 5000);
     }
-  } finally { clearTimeout(view.timer); view.timer = null; }
+  } finally { payload?.release(); clearTimeout(view.timer); view.timer = null; renderResultMemory(); }
 }
-$("#showImg").onchange = renderClipImage;
+$("#showImg").onchange = () => { renderClipImage(); renderResultMemory(); };
 $("#openLiveDraft").onclick = async () => {
   if (!pageActive) return;
   if (comparing()) exitComparison();
@@ -1940,6 +2047,7 @@ $("#expCsv").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- boot
+memoryReady = true;
 renderAois(); renderClasses(); updModeHint();
 showTab(store.get("tab", "aoi"));
 E.markStartup("appReady");
@@ -2011,6 +2119,8 @@ $("#deleteJob").onclick = async () => {
     if (clipView?.clip?.job === id) { disposeClipView({ preserveDraft: false }); dirty = false; }
     for (const [key, entry] of draftCache) if (entry.job === id) draftCache.delete(key);
     if (comparing()) exitComparison();
+    resultMemory.clear(id);
+    for (const r of job.results) { resultPayloadSizes.delete(r); delete r.fc; delete r.blobs; delete r.draftFC; }
     ++jobsGeneration; ++resultsGeneration; jobsController?.abort(); resultsController?.abort();
     delete BJOBS[id]; S.jobId = null; if (selectedBrowserJobId === id) selectedBrowserJobId = null;
     renderBrowserQueue(); await loadJobs(); toast("Job deleted. Saved training reviews are kept.");
@@ -2027,6 +2137,7 @@ window.addEventListener("pagehide", () => {
   const previous = clipView?.ready ? { clip: S.clip, scope: clipView.scope } : null;
   if (comparing()) exitComparison(); compareView?.destroy(); compareView = null;
   disposeClipView(); suspendedClip = previous;
+  resultMemory.clear();
   ++jobsGeneration; ++resultsGeneration; jobsController?.abort(); resultsController?.abort();
   if (durable) {
     queuePaused = true;
@@ -2069,6 +2180,7 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
   loading: Boolean(clipView?.loading), imageLeases: clipView?.url ? 1 : 0, imageLayers: clipView?.image ? 1 : 0,
   selected: Boolean(S.sel), editing: Boolean(S.editing), scope: clipView?.scope || null },
   drafts: { retained: draftCache.size, dirty: [...draftCache.values()].filter(entry => entry.dirty).length },
+  memory: syncResultMemory(),
   rowPayloads: RES.filter(row => row.blobs || row.fc || row.draftFC).length,
   comparisonRowPayloads: compareRecords.filter(row => row.blobs || row.fc || row.draftFC).length,
   timeline: { frames: timelineFrames.length, index: timelineIndex, playing: timelinePlaying, loading: timelineLoading,

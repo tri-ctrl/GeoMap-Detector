@@ -183,6 +183,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
     else if (url.endsWith("/api/jobs")) value = [{ id: "server_job", status: "done" }];
     else if (url.endsWith("/api/jobs/server_job")) value = { status: "done", progress: 1, log: [], results: [result(releases[0])] };
     else if (url.endsWith("/detections.geojson")) value = featureCollection(101);
+    else if (url.endsWith("/image.png")) return { ok: true, blob: async () => new Blob(["test image"]) };
     else if (url.endsWith("/api/annotations")) value = { type: "FeatureCollection", features: [] };
     else throw new Error("Unexpected request: " + url);
     return { ok: true, json: async () => value };
@@ -204,6 +205,13 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   context.GVEngine.getReleases = getReleases || (async () => releases);
   if (localChanges) context.GVEngine.localChanges = localChanges;
   context.GVEngine.processClip = async (feature, release) => ({...result(release),aoiFeature:feature});
+  // Image decoding is covered by the native probe; this DOM fixture uses text
+  // blobs and supplies only deterministic display dimensions.
+  context.GVCompare.preview = async (blob, size = [100, 100], signal, { maxSide = 2048 } = {}) => {
+    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    const scale = Math.min(1, maxSide / Math.max(...size));
+    return { blob, size: size.map(side => Math.max(1, Math.round(side * scale))) };
+  };
   beforeBoot?.(context);
   vm.runInContext(appSource, context);
   await turn();

@@ -149,6 +149,7 @@ const server = http.createServer((request, response) => {
         results.editedDraft = await evaluate(`__repo.restore().then(async s=>{const clip=s.jobs[0].results[1],stored=await __repo.clip(clip.storeId);return {draftMatches:JSON.stringify(stored.draftFC.features[0].geometry)===__editedGeometry,rawUnchanged:JSON.stringify(stored.fc.features[0].geometry)===__beforeDrag}})`);
         assert.equal(results.editedDraft.draftMatches, true); assert.equal(results.editedDraft.rawUnchanged, true);
         await evaluate(`(() => {
+          document.querySelector('#clearResultCache').click();
           const read=window.__readClipOriginal=__repo.clip.bind(__repo);window.__releaseRead=null;window.__waitingRead=false;
           __repo.clip=async(id,...args)=>{const value=await read(id,...args);if(id==='${firstId}:clip:0'){__waitingRead=true;await new Promise(resolve=>__releaseRead=resolve)}return value};
           document.querySelector('#resTable tbody tr[data-i]').click();

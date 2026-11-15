@@ -50,7 +50,10 @@ test('reordered server detections abort the previous view and only the newest re
   });
   const first = app.openClip(0); await until(() => signal); await app.openClip(1); await first;
   assert.equal(signal.aborted, true); const before = app.snapshot(); old.resolve(fc(101, 'rejected')); await turn();
-  assert.equal(app.groups[2].getLayers()[0].feature.properties.release, 100); assert.match(app.groups[1].getLayers()[0].url, /2026-10-22/);
+  assert.equal(app.groups[2].getLayers()[0].feature.properties.release, 100);
+  assert.equal(app.requests.filter(r=>r.url.endsWith('/2026-10-22/image.png')).length,1);
+  assert.equal(app.requests.filter(r=>r.url.endsWith('/2026-10-29/image.png')).length,0);
+  assert.ok(app.urlEvents.some(e=>e.type==='create'&&e.url===app.groups[1].getLayers()[0].url));
   assert.match(app.element('#annCtx').innerHTML, /2026-10-22/); assert.deepEqual(app.snapshot(), before);
 });
 test('a late non-cancellable IndexedDB review read cannot mutate an old job draft or overwrite the current clip', async t => {

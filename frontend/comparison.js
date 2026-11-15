@@ -68,7 +68,7 @@ function settingsNote(a, b) {
   if (a.missing || b.missing) differences.push("missing imagery tiles");
   return differences.length ? "Runs differ in " + differences.join(", ") + ". Counts alone do not establish model accuracy or real-world change." : "Model predictions · matching recorded settings. Counts are not verified changes.";
 }
-async function preview(blob, size, signal) {
+async function preview(blob, size, signal, { maxSide = 2048 } = {}) {
   check(signal);
   const budget = global.GVEngine?.allocations;
   if (!budget) throw new Error("Comparison allocation policy is unavailable. Reload the page.");
@@ -77,7 +77,8 @@ async function preview(blob, size, signal) {
   check(signal);
   const sourceBytes = budget.dimensions(size[0], size[1], limits, "Comparison source");
   // Cap the decoded comparison image explicitly; native exports stay intact.
-  const scale = Math.min(1, 2048 / Math.max(...size)), targetWidth = Math.max(1, Math.round(size[0] * scale)), targetHeight = Math.max(1, Math.round(size[1] * scale));
+  if (![512, 1024, 2048].includes(maxSide)) throw new Error("Invalid display pixel limit");
+  const scale = Math.min(1, maxSide / Math.max(...size)), targetWidth = Math.max(1, Math.round(size[0] * scale)), targetHeight = Math.max(1, Math.round(size[1] * scale));
   // Resized decoding may use native-size scratch space inside the browser.
   const rgba = budget.dimensions(targetWidth, targetHeight, limits, "Comparison preview"), lease = budget.reserve("Comparison preview", sourceBytes + rgba * 3 + 65536, limits);
   let bitmap, canvas;
@@ -85,7 +86,7 @@ async function preview(blob, size, signal) {
     bitmap = await createImageBitmap(blob, { resizeWidth: targetWidth, resizeHeight: targetHeight, resizeQuality: "high" });
     check(signal);
     if (bitmap.width !== targetWidth || bitmap.height !== targetHeight) throw new Error("Browser did not honor the bounded comparison decode size.");
-    const ratio = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+    const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * ratio)), height = Math.max(1, Math.round(bitmap.height * ratio));
     canvas = budget.makeCanvas(width, height, lease);
     const context = canvas.getContext("2d"); if (!context) throw new Error("Could not create comparison canvas");
@@ -106,6 +107,16 @@ function transitionKeyframes(effect, { top, right, bottom, left }) {
   return effect === "wipe" ? { incoming: [{ clip: `rect(${top}px, ${left}px, ${bottom}px, ${left}px)` }, { clip: full }],
     outgoing: [{ clip: full }, { clip: `rect(${top}px, ${right}px, ${bottom}px, ${right}px)` }] }
     : { incoming: [{ opacity: 0 }, { opacity: 1 }], outgoing: [{ opacity: 1 }, { opacity: 0 }] };
+}
+function releaseImageElement(layer) {
+  const element = layer?.getElement?.(); if (!element) return;
+  // Leaflet assigns four native DOM handlers. Its layer removal leaves these
+  // on the detached IMG, which can keep images/listeners alive in Chromium.
+  for (const name of ["onload", "onerror", "onselectstart", "onmousemove"]) element[name] = null;
+  global.L?.DomEvent?.off?.(element); element.removeAttribute("srcset");
+  // An absent src creates Chromium's broken-image shadow tree; its viewport
+  // listener can retain a detached IMG. A valid tiny source avoids that path.
+  element.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 }
 // Timeline display owns at most the current and incoming frame. Two empty
 // map-owned panes are reused; only a transition retains the outgoing frame.
@@ -138,7 +149,9 @@ class Timeline {
     if (!frame || frame.released) return;
     frame.released = true; frame.cancel?.();
     for (const layer of [...frame.layers].reverse()) this.map.removeLayer(layer);
+    releaseImageElement(frame.layers[0]);
     frame.layers = []; if (frame.url) URL.revokeObjectURL(frame.url); frame.url = null;
+    frame.release?.(); frame.release = null;
     this.frames = this.frames.filter(value => value !== frame);
   }
   finishTransition(commit = true) {
@@ -160,7 +173,7 @@ class Timeline {
     for (const frame of [...this.frames]) if (frame !== this.current) this.releaseFrame(frame);
     const previous = this.current, index = previous ? 1 - previous.index : 0;
     if (previous) this.panes[previous.index].pane.style.zIndex = "450";
-    const frame = { index, layers: [], url: null }, target = this.panes[index]; this.frames.push(frame);
+    const frame = { index, layers: [], url: null, release: side.release }, target = this.panes[index]; this.frames.push(frame);
     this.active = true; this.element.hidden = false;
     this.map.off("movestart zoomstart move zoom resize viewreset", this.clip);
     this.map.on("movestart zoomstart move zoom resize viewreset", this.clip); this.clip();
@@ -228,6 +241,7 @@ class Swipe {
   constructor(map, element, leaflet = global.L) {
     this.map = map; this.element = element; this.L = leaflet; this.position = 50;
     this.layers = []; this.urls = []; this.pending = new Set(); this.active = false; this.generation = 0;
+    this.releases = [];
     // Two empty panes are map-owned and reused. Every pair owns its renderers,
     // image/vector layers, load timers and object URLs, all released by stop().
     this.panes = ["gmd-compare-left", "gmd-compare-right"].map((name, index) => {
@@ -263,6 +277,7 @@ class Swipe {
   async showFrame(side, style) { this.setPosition(100); return this.show([side], style); }
   async show(sides, style) {
     this.stop(); const generation = this.generation; this.active = true; this.element.hidden = false;
+    this.releases = sides.map(side => side.release).filter(Boolean);
     this.map.on("move zoom resize viewreset", this.clip);
     try {
       const loads = sides.map((side, index) => {
@@ -292,8 +307,9 @@ class Swipe {
     ++this.generation;
     this.active = false; this.map.off("move zoom resize viewreset", this.clip);
     for (const cancel of [...this.pending]) cancel();
-    for (const layer of this.layers.reverse()) this.map.removeLayer(layer);
+    for (const layer of this.layers.reverse()) { this.map.removeLayer(layer); if (layer.getElement?.()?.tagName === "IMG") releaseImageElement(layer); }
     this.layers = []; for (const url of this.urls) URL.revokeObjectURL(url); this.urls = [];
+    for (const release of this.releases) release(); this.releases = [];
     for (const { pane } of this.panes) pane.style.clip = "";
     if (this.dragging != null) { if (this.handle.hasPointerCapture(this.dragging)) this.handle.releasePointerCapture(this.dragging); this.dragging = null; }
     this.element.hidden = true;
@@ -303,5 +319,5 @@ class Swipe {
     for (const [name, listener] of [["pointerdown", this.down], ["pointermove", this.move], ["pointerup", this.up], ["pointercancel", this.up], ["keydown", this.key]]) this.handle.removeEventListener(name, listener);
   }
 }
-global.GVCompare = { geometryKey, modelName, creationTime, newestFirst, validDate, validateTimeline, timelineNote, validatePair, settingsNote, preview, playbackSettings, transitionKeyframes, Timeline, Swipe };
+global.GVCompare = { geometryKey, modelName, creationTime, newestFirst, validDate, validateTimeline, timelineNote, validatePair, settingsNote, preview, playbackSettings, transitionKeyframes, releaseImageElement, Timeline, Swipe };
 })(typeof window !== "undefined" ? window : globalThis);

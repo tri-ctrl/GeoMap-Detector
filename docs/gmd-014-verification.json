@@ -1,0 +1,1339 @@
+{
+  "task": "GMD-014",
+  "status": "Ready for CI",
+  "checkedAt": "2026-11-16T17:06:22.544Z",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M1 Max",
+    "logicalCPUs": 10,
+    "memoryBytes": 34359738368,
+    "node": "v24.15.0"
+  },
+  "reproduction": "Four new tests failed against the original sources; the native check exposed missing revalidation of a retained network catalogue. Six new regression cases now pass, including avoiding a duplicate metadata transfer after server-fallback recovery.",
+  "checks": {
+    "javascript": {
+      "command": "npm test",
+      "passed": 283,
+      "failed": 0
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p test_*.py -v",
+      "passed": 12,
+      "failed": 0,
+      "scope": "Includes fresh-export packaging with an ML fixture and dependency-free cached-asset CLI checks; actual weight export was not rerun."
+    },
+    "syntax": [
+      "frontend/app.js",
+      "frontend/engine.js",
+      "tests/browser/startup-offline.cjs"
+    ],
+    "workflow": "Parsed with Ruby YAML; only the native startup test step was added; exporter/cache/export/check steps are unchanged.",
+    "nativeStartup": "node tests/browser/startup-offline.cjs --output report.json",
+    "nativePersistence": "node tests/browser/persistence.cjs --lifecycle --queue-recovery --output report.json"
+  },
+  "startup": {
+    "checkedAt": "2026-11-16T17:05:15.473Z",
+    "mode": "Local unmodified source under Pages project path; not deployed parity",
+    "sources": {
+      "index.html": "b4afb8468a7307fc640d38f969d832cde7499ab5fbd8aa122f5d5adcdc471d13",
+      "engine.js": "b293e2e330e722369f0633a23925dba6ed301e4b0d4192e400d9fe647ce99f30",
+      "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+      "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+      "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+      "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+      "app.js": "154855406d1e95294741de179ab0ab27d5024f13535244c8e3f3395080f25e2d",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "processing-worker.js": "d23d50f4aa77a5ca2ed8b1866a3458605cdea5ccda4ca95ce3511a033d533ef0"
+    },
+    "method": {
+      "samplesPerCondition": 5,
+      "httpCacheDisabled": true,
+      "network": "Offline deterministic fixtures; configuration held until app/cache readiness assertions finish",
+      "firstTile": "First loaded synthetic tile, not full map completion or live imagery latency",
+      "lifecycle": "Synthetic persisted pagehide/pageshow events; native fetch cancellation, Leaflet and IndexedDB",
+      "claims": "Regression checks and controlled timings only; no live-network speedup, memory-leak or detection-quality claim"
+    },
+    "samples": [
+      {
+        "pair": 1,
+        "cache": "cold",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 94.59999990463257,
+            "metadataReady": 243,
+            "mapFirstTile": 249.29999995231628
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848717437,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:17 PM",
+        "tiles": 1,
+        "fcpMs": 116
+      },
+      {
+        "pair": 1,
+        "cache": "warm",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 27.40000009536743,
+            "metadataReady": 29.59999990463257,
+            "mapFirstTile": 33.5
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848717884,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:17 PM",
+        "tiles": 1,
+        "fcpMs": 20
+      },
+      {
+        "pair": 2,
+        "cache": "cold",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 23.700000047683716,
+            "metadataReady": 216.20000004768372,
+            "mapFirstTile": 219.39999985694885
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848718125,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:18 PM",
+        "tiles": 1,
+        "fcpMs": 32
+      },
+      {
+        "pair": 2,
+        "cache": "warm",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 28.200000047683716,
+            "metadataReady": 30.299999952316284,
+            "mapFirstTile": 34.09999990463257
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848718575,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:18 PM",
+        "tiles": 1,
+        "fcpMs": 36
+      },
+      {
+        "pair": 3,
+        "cache": "cold",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 24.700000047683716,
+            "metadataReady": 213.5,
+            "mapFirstTile": 216.20000004768372
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848718809,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:18 PM",
+        "tiles": 1,
+        "fcpMs": 32
+      },
+      {
+        "pair": 3,
+        "cache": "warm",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 25.399999856948853,
+            "metadataReady": 27.299999952316284,
+            "mapFirstTile": 30.799999952316284
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848719246,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:19 PM",
+        "tiles": 1,
+        "fcpMs": 24
+      },
+      {
+        "pair": 4,
+        "cache": "cold",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 32.5,
+            "metadataReady": 217.10000014305115,
+            "mapFirstTile": 220.29999995231628
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848719504,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:19 PM",
+        "tiles": 1,
+        "fcpMs": 48
+      },
+      {
+        "pair": 4,
+        "cache": "warm",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 42.39999985694885,
+            "metadataReady": 44.39999985694885,
+            "mapFirstTile": 50.09999990463257
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848719961,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:19 PM",
+        "tiles": 1,
+        "fcpMs": 28
+      },
+      {
+        "pair": 5,
+        "cache": "cold",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 25,
+            "metadataReady": 217.60000014305115,
+            "mapFirstTile": 221.10000014305115
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848720199,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:20 PM",
+        "tiles": 1,
+        "fcpMs": 20
+      },
+      {
+        "pair": 5,
+        "cache": "warm",
+        "scripts": [
+          "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+          "/GeoMap-Detector/engine.js",
+          "/GeoMap-Detector/map-view.js",
+          "/GeoMap-Detector/processing.js",
+          "/GeoMap-Detector/comparison.js",
+          "/GeoMap-Detector/storage.js",
+          "/GeoMap-Detector/app.js"
+        ],
+        "diagnostics": {
+          "startup": {
+            "appReady": 32.40000009536743,
+            "metadataReady": 34.5,
+            "mapFirstTile": 39.5
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794848720648,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-29",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Updated release list · 11/16/2026, 9:05:20 PM",
+        "tiles": 1,
+        "fcpMs": 24
+      }
+    ],
+    "failedRefresh": {
+      "diagnostics": {
+        "startup": {
+          "appReady": 32.40000009536743,
+          "metadataReady": 34.5,
+          "mapFirstTile": 39.5
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1794848720648,
+          "refreshing": false,
+          "error": "Request failed (HTTP 503): https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 0,
+          "canvasesReleased": 0,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 0,
+          "peakReservedBytes": 0,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "operations": {
+          "created": 0,
+          "closed": 0,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "streaming": null
+      },
+      "viewed": "2026-10-22",
+      "checked": [
+        100
+      ],
+      "rows": 2,
+      "status": "Showing saved release list. Refresh failed. Try Refresh dates.",
+      "tiles": 1,
+      "fcpMs": 24
+    },
+    "recovered": {
+      "diagnostics": {
+        "startup": {
+          "appReady": 32.40000009536743,
+          "metadataReady": 34.5,
+          "mapFirstTile": 39.5
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": "network",
+          "fetchedAt": 1794848720882,
+          "refreshing": false,
+          "error": null
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 0,
+          "canvasesReleased": 0,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 0,
+          "peakReservedBytes": 0,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "operations": {
+          "created": 0,
+          "closed": 0,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "streaming": null
+      },
+      "viewed": "2026-10-22",
+      "checked": [
+        100
+      ],
+      "rows": 3,
+      "status": "Updated release list · 11/16/2026, 9:05:20 PM",
+      "tiles": 1,
+      "fcpMs": 24
+    },
+    "liveBeforeMetadata": {
+      "diagnostics": {
+        "startup": {
+          "appReady": 29.59999990463257,
+          "mapFirstTile": 33.200000047683716
+        },
+        "dependencies": {},
+        "metadata": {
+          "source": null,
+          "fetchedAt": null,
+          "refreshing": true,
+          "error": null
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 0,
+          "canvasesReleased": 0,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 0,
+          "peakReservedBytes": 0,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "operations": {
+          "created": 0,
+          "closed": 0,
+          "timedOut": 0,
+          "pendingReads": 1,
+          "requests": 1,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "streaming": null
+      },
+      "viewed": "Esri satellite · latest",
+      "checked": [],
+      "rows": 0,
+      "status": "Refreshing…",
+      "tiles": 1,
+      "fcpMs": 24
+    },
+    "finalOperations": {
+      "created": 0,
+      "closed": 0,
+      "timedOut": 0,
+      "pendingReads": 0,
+      "requests": 0,
+      "tileAttempts": 0,
+      "cacheWrites": 0,
+      "inference": 0,
+      "bitmaps": 0,
+      "tensors": 0,
+      "active": []
+    },
+    "runtimeErrors": [],
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "summary": {
+      "cold": {
+        "medianAppReadyMs": 25,
+        "medianMetadataReadyMs": 217.10000014305115,
+        "medianFirstSyntheticTileMs": 220.29999995231628,
+        "scripts": 7
+      },
+      "warm": {
+        "medianAppReadyMs": 28.200000047683716,
+        "medianMetadataReadyMs": 30.299999952316284,
+        "medianFirstSyntheticTileMs": 34.09999990463257,
+        "scripts": 7
+      }
+    }
+  },
+  "persistence": {
+    "checkedAt": "2026-11-16T17:05:51.984Z",
+    "mode": "Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim",
+    "sources": {
+      "index.html": "b4afb8468a7307fc640d38f969d832cde7499ab5fbd8aa122f5d5adcdc471d13",
+      "engine.js": "b293e2e330e722369f0633a23925dba6ed301e4b0d4192e400d9fe647ce99f30",
+      "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+      "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+      "storage.js": "e90bea3d6b190c20ff662444d4bf07202578a89b3c597d1a5990fdd52241b07a",
+      "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+      "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+      "processing-worker.js": "d23d50f4aa77a5ca2ed8b1866a3458605cdea5ccda4ca95ce3511a033d533ef0",
+      "app.js": "154855406d1e95294741de179ab0ab27d5024f13535244c8e3f3395080f25e2d"
+    },
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "startup": {
+      "ms": 336.7999999523163,
+      "reads": {
+        "meta": 3,
+        "aois": 2,
+        "reviews": 1,
+        "jobs": 1,
+        "results": 1,
+        "queue": 1,
+        "models": 1,
+        "drafts": 1
+      }
+    },
+    "beforeReload": {
+      "jobs": [
+        {
+          "id": "browser_20261116_170553_812d95ad",
+          "status": "running",
+          "clips": 1
+        },
+        {
+          "id": "browser_20261116_170553_ff4e1b25",
+          "status": "queued",
+          "clips": 0
+        }
+      ],
+      "queue": [
+        "browser_20261116_170553_812d95ad",
+        "browser_20261116_170553_ff4e1b25"
+      ]
+    },
+    "recovery": {
+      "jobs": [
+        {
+          "status": "interrupted",
+          "clips": 1
+        },
+        {
+          "status": "queued",
+          "clips": 0
+        }
+      ],
+      "calls": [],
+      "reads": {
+        "meta": 1,
+        "aois": 2,
+        "jobs": 2,
+        "results": 2,
+        "queue": 2,
+        "models": 2,
+        "drafts": 1
+      },
+      "status": "Paused · 2/10 queued"
+    },
+    "resumed": [
+      {
+        "release": 100,
+        "model": "url:alpha.onnx"
+      },
+      {
+        "release": 101,
+        "model": "url:beta.onnx"
+      }
+    ],
+    "reviews": {
+      "raw": "predicted",
+      "draft": "verified",
+      "legacy": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"legacy-review\",\"properties\":{\"class\":\"ship\",\"status\":\"verified\",\"release\":101},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]}}]}",
+      "saved": 2,
+      "clipId": "browser_20261116_170553_812d95ad:clip:0",
+      "commit": 0.5
+    },
+    "afterDraftReload": {
+      "stats": "1/1 reviewed",
+      "urls": {
+        "created": 1,
+        "revoked": 0
+      },
+      "reads": {
+        "meta": 1,
+        "aois": 1,
+        "jobs": 1,
+        "results": 2,
+        "queue": 1,
+        "models": 1,
+        "drafts": 2,
+        "predictions": 1,
+        "artifacts": 1
+      }
+    },
+    "imageOwnership": {
+      "created": 2,
+      "revoked": 1
+    },
+    "lazyDrawing": {
+      "loadedBeforeEdit": false,
+      "existingPolygons": 1
+    },
+    "dragSwitch": {
+      "disabled": true,
+      "detached": true,
+      "events": [],
+      "markers": 0,
+      "selected": false,
+      "activeDrag": false
+    },
+    "switches": {
+      "count": 20,
+      "medianMs": 209,
+      "maxMs": 214,
+      "last": {
+        "ms": 210,
+        "created": 23,
+        "disposed": 22,
+        "imageURLsCreated": 43,
+        "imageURLsRevoked": 42,
+        "staleReads": 0,
+        "active": 1,
+        "loading": false,
+        "imageLeases": 1,
+        "imageLayers": 1,
+        "selected": false,
+        "editing": false,
+        "scope": "browser_20261116_170553_812d95ad:clip:1",
+        "rowPayloads": 1,
+        "markers": 0,
+        "obsoleteMapListeners": 0
+      },
+      "measurement": "UI/poll end-to-end on tiny local fixtures; not production latency or a memory/leak benchmark"
+    },
+    "editedDraft": {
+      "draftMatches": true,
+      "rawUnchanged": true
+    },
+    "reorderedRead": {
+      "created": 25,
+      "disposed": 24,
+      "imageURLsCreated": 44,
+      "imageURLsRevoked": 43,
+      "staleReads": 1,
+      "active": 1,
+      "loading": false,
+      "imageLeases": 1,
+      "imageLayers": 1,
+      "selected": false,
+      "editing": false,
+      "scope": "browser_20261116_170553_812d95ad:clip:1"
+    },
+    "export": {
+      "files": [
+        "browser_20261116_170553_812d95ad/",
+        "browser_20261116_170553_812d95ad/Persistence/",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/image.tif",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/image.png",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/image.pgw",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/image.prj",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/preview_detections.jpg",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/detections.geojson",
+        "browser_20261116_170553_812d95ad/Persistence/2026-10-29/aoi.geojson",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/image.tif",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/image.png",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/image.pgw",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/image.prj",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/preview_detections.jpg",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/detections.geojson",
+        "browser_20261116_170553_812d95ad/Persistence/2025-03-27/aoi.geojson",
+        "browser_20261116_170553_812d95ad/all_detections.geojson",
+        "browser_20261116_170553_812d95ad/aois.geojson",
+        "browser_20261116_170553_812d95ad/summary.json"
+      ],
+      "dimensions": [
+        32,
+        16
+      ],
+      "pgw": "1\n0\n0\n-1\n10\n20",
+      "tiff": "native-tiff-fixture",
+      "status": "verified"
+    },
+    "collidingExport": {
+      "images": 2,
+      "paths": [
+        "Persistence/2026-10-29",
+        "Persistence/2026-10-29__clip_1"
+      ]
+    },
+    "secondTab": {
+      "writable": false,
+      "blocked": true
+    },
+    "quotaRollback": {
+      "error": "QuotaExceededError",
+      "before": 2,
+      "after": 2,
+      "missing": true
+    },
+    "deletion": {
+      "jobs": 1,
+      "before": 2,
+      "after": 2,
+      "missing": true
+    },
+    "deletedView": {
+      "views": {
+        "created": 25,
+        "disposed": 25,
+        "imageURLsCreated": 44,
+        "imageURLsRevoked": 44,
+        "staleReads": 1,
+        "active": 0,
+        "loading": false,
+        "imageLeases": 0,
+        "imageLayers": 0,
+        "selected": false,
+        "editing": false,
+        "scope": null
+      },
+      "drafts": {
+        "retained": 0,
+        "dirty": 0
+      },
+      "memory": {
+        "limitBytes": 134217728,
+        "totalBytes": 7366,
+        "cacheBytes": 0,
+        "pinnedBytes": 7366,
+        "inactiveBytes": 0,
+        "protectedBytes": 7366,
+        "encodedCacheBytes": 0,
+        "vectorEstimateBytes": 0,
+        "decodedDisplayEstimateBytes": 0,
+        "overBudgetBytes": 0,
+        "peakBytes": 26230,
+        "entries": 0,
+        "pins": 0,
+        "hits": 22,
+        "misses": 3,
+        "evictions": 2,
+        "protected": {
+          "catalog": 7366
+        },
+        "storedArtifactBytes": 285,
+        "unknownStoredClips": 0
+      },
+      "rowPayloads": 0,
+      "comparisonRowPayloads": 0,
+      "timeline": {
+        "frames": 0,
+        "index": -1,
+        "playing": false,
+        "loading": false,
+        "timer": false,
+        "seek": false
+      },
+      "timelineEffects": {
+        "effect": "fade",
+        "duration": 450,
+        "interval": 2000,
+        "transitioning": false,
+        "sampleAnimations": 0,
+        "sampleTimer": false
+      },
+      "auxiliary": {
+        "dataset": false,
+        "export": false,
+        "parts": 0,
+        "partReads": 0,
+        "partDownloads": 0,
+        "serverPoll": false,
+        "trainingPoll": false
+      },
+      "mapSearch": {
+        "open": false,
+        "request": false,
+        "scheduled": false,
+        "marker": false
+      },
+      "queue": {
+        "state": "idle",
+        "label": "Idle",
+        "hint": "One job runs at a time. Queued jobs start when the current job finishes.",
+        "waiting": 0,
+        "activeId": null,
+        "paused": false,
+        "draining": false,
+        "pendingWrites": 0,
+        "headReady": true
+      },
+      "mapDisplay": {
+        "mode": "2d",
+        "basemap": "wayback",
+        "coordinateCRS": "EPSG:4326",
+        "projection": "EPSG:3857",
+        "scene": {
+          "created": 0,
+          "destroyed": 0,
+          "urlsCreated": 0,
+          "urlsRevoked": 0,
+          "frames": 0,
+          "entities": 0,
+          "stale": 0,
+          "picks": 0,
+          "lastPick": null,
+          "active": false,
+          "loading": false,
+          "image": false,
+          "terrainLoading": false
+        }
+      },
+      "processing": {
+        "active": 0,
+        "created": 0,
+        "terminated": 0,
+        "crashes": 0,
+        "forcedStops": 0,
+        "fallbacks": 0,
+        "storageRequests": 0,
+        "transferredBytes": 0,
+        "pendingStorage": 0,
+        "last": null,
+        "jobId": null
+      },
+      "downloadLeases": 0
+    },
+    "queueRecovery": {
+      "calls": 0,
+      "state": {
+        "state": "paused",
+        "label": "Paused",
+        "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+        "waiting": 3,
+        "activeId": null,
+        "paused": true,
+        "draining": false,
+        "pendingWrites": 0,
+        "headReady": true
+      },
+      "status": "Paused · 3/10 queued",
+      "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+      "resumeVisible": true,
+      "after": {
+        "calls": 3,
+        "maxActive": 1,
+        "jobs": [
+          {
+            "id": "browser_20261116_170553_ff4e1b25",
+            "status": "done"
+          },
+          {
+            "id": "recover-1",
+            "status": "done"
+          },
+          {
+            "id": "recover-2",
+            "status": "done"
+          },
+          {
+            "id": "recover-3",
+            "status": "done"
+          }
+        ],
+        "queued": 0,
+        "reviews": 2
+      }
+    },
+    "otherDocument": {
+      "status": "Read only · close the other tab and reload to edit.",
+      "runDisabled": true
+    },
+    "disabledStorage": {
+      "status": "Session only · storage unavailable. Export before closing.",
+      "map": true,
+      "runEnabled": true
+    },
+    "upgradeRollback": {
+      "error": "AbortError",
+      "status": "Not saved · Storage ownership changed. Reload this tab to recover."
+    },
+    "afterUpgradeRollback": {
+      "jobs": 1,
+      "reviews": true
+    },
+    "newerSchema": {
+      "error": "VersionError",
+      "version": 3
+    },
+    "exceptions": []
+  },
+  "remainingGates": [
+    "Normal GitHub Pages CI, including the existing export/cache asset checks",
+    "Served/executed source parity at the published revision",
+    "Live provider latency measurements for this revision if making a new performance claim"
+  ],
+  "limitations": [
+    "Isolated temporary Chrome profiles and local fixture server; user data and published application were not modified.",
+    "Current map-only startup requests seven essential scripts; the original 7 to 3 reduction applies to the November 6 revision.",
+    "Fixture timings and balanced ownership counters do not establish a live-network speedup, detection accuracy change, or sustained native/GPU memory leak fix."
+  ]
+}

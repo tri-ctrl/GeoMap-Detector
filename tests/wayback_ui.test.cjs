@@ -71,6 +71,73 @@ test("a slow optional server health check cannot delay basemap initialization", 
   assert.equal(app.tiles.length, 1);
   health.resolve({ ok: true, json: async () => ({ detector: true }) }); await turn();
 });
+test("an obsolete startup failure cannot start a fallback after page-show has loaded newer dates", async () => {
+  const pending = deferred(); let calls = 0, fallbacks = 0;
+  const app = await setup({ getReleases: () => ++calls === 1 ? pending.promise : Promise.resolve(releases),
+    fetchHook: url => { if (url.endsWith("/api/releases")) { fallbacks++; return { ok: true, json: async () => [] }; } } });
+  app.events.get("pagehide")(); await app.events.get("pageshow")({ persisted: true }); await turn();
+  pending.reject(new Error("old request failed")); await turn();
+  assert.equal(fallbacks, 0);
+  assert.equal(app.releaseRows().length, 2); assert.equal(app.tiles.length, 1);
+});
+test("page-hide cancels a pending metadata fallback and its late success or failure cannot overwrite restored dates", async () => {
+  for (const failOld of [false, true]) {
+    const pending = deferred(); let calls = 0, signal;
+    const app = await setup({ getReleases: () => ++calls === 1 ? Promise.reject(new Error("offline")) : Promise.resolve(releases),
+      beforeBoot: context => {
+        const original = context.GVEngine.requestJSON;
+        context.GVEngine.requestJSON = (url, options) => {
+          if (!url.endsWith("/api/releases")) return original(url, options);
+          signal = options?.signal; return pending.promise; // Deliberately ignore cancellation.
+        };
+      } });
+    app.events.get("pagehide")(); assert.ok(signal?.aborted);
+    await app.events.get("pageshow")({ persisted: true }); await turn();
+    app.clickRelease(100);
+    const before = app.element("#relList").textContent;
+    if (failOld) pending.reject(new Error("obsolete fallback failed"));
+    else pending.resolve([{ release: 99, date: "2016-04-20" }]);
+    await turn();
+    assert.equal(app.releaseRows().length, 2); assert.equal(app.element("#relList").textContent, before);
+    assert.equal(app.element("#hudRel").textContent, releases[1].date);
+    assert.equal(app.tiles.length, 1); assert.equal(app.context.GVEngine.diagnostics().operations.pendingReads, 0);
+  }
+});
+test("Refresh dates supersedes a pending startup without letting its older catalogue replace the current rows", async () => {
+  const pending = deferred();
+  const app = await setup({ getReleases: options => options?.refresh ? Promise.resolve(releases) : pending.promise });
+  await app.element("#relRefresh").onclick(); app.clickRelease(100);
+  pending.resolve([{ release: 99, date: "2016-04-20" }]); await turn();
+  assert.equal(app.releaseRows().length, 2); assert.equal(app.element("#hudRel").textContent, releases[1].date);
+  assert.equal(app.context.GVEngine.diagnostics().operations.pendingReads, 0);
+});
+test("page-show revalidates an in-memory network catalogue while retaining the viewed and checked dates", async () => {
+  const pending = deferred(), calls = [];
+  const app = await setup({ selected: true, getReleases: options => {
+    calls.push(Boolean(options?.refresh)); return options?.refresh ? pending.promise : Promise.resolve(releases);
+  }, beforeBoot: context => { context.GVEngine.releaseCacheInfo = () => ({ source: "network" }); } });
+  app.clickRelease(100); app.events.get("pagehide")(); await app.events.get("pageshow")({ persisted: true }); await turn();
+  assert.deepEqual(calls, [false, false, true]);
+  assert.equal(app.element("#hudRel").textContent, releases[1].date);
+  pending.resolve([{ release: 102, date: "2026-11-05" }, ...releases]); await turn();
+  assert.equal(app.releaseRows().length, 3); assert.equal(app.tiles.length, 1);
+  assert.equal(app.element("#relList").querySelectorAll("[data-c]").filter(row => row.checked).length, 2);
+});
+test("recovering from a server fallback downloads primary metadata once without an immediate redundant refresh", async () => {
+  const calls = []; let source = null;
+  const app = await setup({ getReleases: options => {
+    calls.push(Boolean(options?.refresh));
+    if (calls.length === 1) return Promise.reject(new Error("configuration unavailable"));
+    source = "network"; return Promise.resolve(releases);
+  }, beforeBoot: context => {
+    context.GVEngine.releaseCacheInfo = () => ({ source });
+    const original = context.GVEngine.requestJSON;
+    context.GVEngine.requestJSON = (url, options) => url.endsWith("/api/releases") ? Promise.resolve(releases) : original(url, options);
+  } });
+  assert.equal(app.releaseRows().length, 2);
+  app.events.get("pagehide")(); await app.events.get("pageshow")({ persisted: true }); await turn();
+  assert.deepEqual(calls, [false, false]); assert.equal(app.releaseRows().length, 2);
+});
 test("editing a polygon created before lazy drawing loads attaches its editor and survives loader retry", async () => {
   const app = await setup({ drawLoaded: false }); await app.openClip();
   const selected = app.groups[2].getLayers()[0]; selected.fire("click"); delete selected.editing;

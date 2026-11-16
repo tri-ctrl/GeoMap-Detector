@@ -369,7 +369,7 @@ async function pngDimensions(blob) {
 
 // ------------------------------------------------------------------ Wayback
 const RELEASE_CACHE_KEY = "gv_wayback_releases_v1";
-let _releases = null, _releaseRequest = null, _releaseController = null;
+let _releases = null, _releaseLoad = null;
 let _releaseInfo = { source: null, fetchedAt: null, refreshing: false, error: null };
 function normalizeReleases(entries) {
   if (!Array.isArray(entries) || !entries.length || entries.length > 5000) throw new Error("Invalid Wayback release list");
@@ -394,14 +394,21 @@ function readReleaseCache() {
   } catch { /* Private/disabled/corrupt cache must not prevent a network load. */ }
 }
 function releaseCacheInfo() { return { ..._releaseInfo }; }
-function cancelReleaseRefresh() { _releaseController?.abort(); }
+function cancelReleaseRefresh() {
+  const load = _releaseLoad; _releaseLoad = null;
+  load?.controller.abort();
+  if (load) _releaseInfo = { ..._releaseInfo, refreshing: false, error: null };
+}
 async function getReleases({ refresh = false } = {}) {
   if (!_releases && !refresh) readReleaseCache();
   if (_releases && !refresh) return _releases;
-  if (_releaseRequest) return _releaseRequest;
-  const controller = _releaseController = new AbortController();
+  if (_releaseLoad) return _releaseLoad.promise;
+  // Detach a cancelled page's load immediately. Its eventual catch/finally
+  // must not reset a newer page-show request or write obsolete metadata.
+  const load = _releaseLoad = { controller: new AbortController(), promise: null };
+  const { controller } = load;
   _releaseInfo = { ..._releaseInfo, refreshing: true, error: null };
-  _releaseRequest = (async () => {
+  load.promise = (async () => {
     try {
       const cfg = await requestJSON(CONFIG_URL, { signal: controller.signal });
       if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error("Invalid Wayback configuration");
@@ -412,10 +419,12 @@ async function getReleases({ refresh = false } = {}) {
       try { global.localStorage?.setItem(RELEASE_CACHE_KEY, JSON.stringify({ version: 1, fetchedAt,
         releases: releases.map(({ release, date, title }) => ({ release, date, title })) })); } catch { /* Cache only; user data is untouched. */ }
       return releases;
-    } catch (error) { _releaseInfo = { ..._releaseInfo, refreshing: false, error: error.message }; throw error; }
-    finally { _releaseController = null; _releaseRequest = null; }
+    } catch (error) {
+      if (_releaseLoad === load) _releaseInfo = { ..._releaseInfo, refreshing: false, error: error.message };
+      throw error;
+    } finally { if (_releaseLoad === load) _releaseLoad = null; }
   })();
-  return _releaseRequest;
+  return load.promise;
 }
 async function localChanges(lon, lat, z = 17, { signal, releases } = {}) {
   const rels = releases || await getReleases(), idx = new Map(rels.map((r, i) => [r.release, i]));

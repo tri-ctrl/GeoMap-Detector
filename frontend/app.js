@@ -638,6 +638,10 @@ map.on("draw:created", e => {
 });
 
 // ---------------------------------------------------------------- Wayback releases
+let releaseLoad = null;
+function cancelReleaseLoad() {
+  releaseLoad?.controller.abort(); releaseLoad = null;
+}
 function applyReleases(releases) {
   if (!pageActive) return;
   S.releases = releases;
@@ -655,24 +659,38 @@ function renderReleaseStatus() {
     : updated ? `${info.source === "cache" ? "Saved" : "Updated"} release list · ${updated}` : "Wayback releases";
   $("#relRefresh").disabled = info.refreshing;
 }
-async function refreshReleases() {
-  const request = E.getReleases({ refresh: true }); renderReleaseStatus();
-  try { applyReleases(await request); }
-  catch (error) { if (pageActive && !S.releases.length) $("#relList").textContent = "Could not load imagery dates. Check your connection and try Refresh dates."; }
-  finally { if (pageActive) renderReleaseStatus(); }
-}
-async function loadReleases() {
+async function loadReleases({ refresh = false, revalidate = false } = {}) {
+  if (!pageActive) return;
+  cancelReleaseLoad();
+  const owner = releaseLoad = { controller: new AbortController() }, { signal } = owner.controller;
+  const current = () => pageActive && releaseLoad === owner && !signal.aborted;
+  const read = promise => E.operations.read(promise, signal);
+  const revalidateMemory = revalidate && E.releaseCacheInfo().source === "network";
+  const failed = () => { if (current() && !S.releases.length) $("#relList").textContent = "Could not load imagery dates. Check your connection and try Refresh dates."; };
   try {
-    applyReleases(await E.getReleases()); renderReleaseStatus();
-    if (pageActive && E.releaseCacheInfo().source === "cache") await refreshReleases();
+    const request = E.getReleases({ refresh }); renderReleaseStatus();
+    const releases = await read(request);
+    if (!current()) return;
+    applyReleases(releases); renderReleaseStatus();
+    if (!refresh && (revalidateMemory || E.releaseCacheInfo().source === "cache")) {
+      const update = E.getReleases({ refresh: true }); renderReleaseStatus();
+      const fresh = await read(update);
+      if (current()) applyReleases(fresh);
+    }
   } catch {
-    if (!pageActive) return;
-    try { applyReleases(await E.requestJSON(api("/api/releases"))); }
-    catch { $("#relList").textContent = "Could not load imagery dates. Check your connection and try Refresh dates."; }
-    renderReleaseStatus();
+    if (!current()) return;
+    if (!refresh && !S.releases.length) {
+      try {
+        const fallback = await read(E.requestJSON(api("/api/releases"), { signal }));
+        if (current()) applyReleases(fallback);
+      } catch { failed(); }
+    } else failed();
+  } finally {
+    if (current()) renderReleaseStatus();
+    if (releaseLoad === owner) releaseLoad = null;
   }
 }
-$("#relRefresh").onclick = refreshReleases;
+$("#relRefresh").onclick = () => loadReleases({ refresh: true });
 function lookupMatches(request) {
   const aoi = S.aois[S.activeAoi];
   return request && aoi === request.aoi && JSON.stringify(aoi.geometry) === request.geometry
@@ -2242,7 +2260,7 @@ $("#deleteJob").onclick = async () => {
 };
 window.addEventListener("pagehide", () => {
   setMapMode("2d", { restoreEdit: false, restoreCamera: false }); coordinateOwner?.abort(); closeMapOptions();
-  pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
+  pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); cancelReleaseLoad(); E.cancelReleaseRefresh();
   closePlaceSearch({ removeMarker: true });
   for (const record of [...downloadURLs.values()]) record.release();
   datasetOperation?.controller.abort(); exportOperation?.controller.abort();
@@ -2271,7 +2289,7 @@ window.addEventListener("pagehide", () => {
 });
 window.addEventListener("pageshow", async event => {
   if (!event.persisted) return;
-  pageActive = true; loadReleases();
+  pageActive = true; loadReleases({ revalidate: true });
   if (S.online && S.jobId && !BJOBS[S.jobId]) { setServerRunning(true); pollJob(S.jobId, S.api); }
   if (durable) {
     persistenceReady = false; renderStorage(); updateRunSelection();

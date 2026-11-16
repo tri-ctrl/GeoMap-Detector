@@ -74,6 +74,26 @@ test("page-owned metadata cancellation terminates its request and permits a retr
   assert.equal(engine.releaseCacheInfo().refreshing, false);
   assert.equal((await engine.getReleases())[0].release, 101); assert.equal(attempts, 2);
 });
+test("restored pages start a fresh metadata request before an aborted transport settles", async () => {
+  for (const failOld of [false, true]) {
+    const pending = [];
+    const { engine, calls, saved } = setup({ fetchImpl: () => new Promise((resolve, reject) => pending.push({ resolve, reject })) });
+    const old = engine.getReleases(), rejected = assert.rejects(old, { name: "AbortError" });
+    engine.cancelReleaseRefresh();
+    const current = engine.getReleases();
+    assert.equal(calls.length, 2, "page-show must not join the page-hide request");
+    if (failOld) pending[0].reject(new Error("late network failure"));
+    else pending[0].resolve(new Response(JSON.stringify({ 999: { itemTitle: "Wayback 2026-11-12" } })));
+    await rejected;
+    assert.equal(engine.releaseCacheInfo().refreshing, true, "obsolete finally must not clear the newer request");
+    assert.equal(engine.releaseCacheInfo().error, null);
+    const shared = engine.getReleases(); assert.equal(calls.length, 2);
+    pending[1].resolve(new Response(JSON.stringify(config)));
+    assert.equal((await current)[0].release, 101); assert.equal((await shared)[0].release, 101);
+    assert.equal(JSON.parse(saved.get(key)).releases[0].release, 101);
+    assert.equal(engine.diagnostics().operations.requests, 0);
+  }
+});
 test("local lookup cancellation stops further requests", async () => {
   const controller = new AbortController(); let tiles = 0;
   const { engine } = setup({ cached: { ...cache(), releases: entries.concat({ release: 100, date: "2026-10-22", title: "older" }) },

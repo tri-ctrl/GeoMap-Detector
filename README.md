@@ -68,6 +68,13 @@ uses a temporary local server/profile, real CDN/imagery requests and controlled
 failure fixtures after sampling. `GVEngine.diagnostics()` exposes startup marks,
 dependency timings and metadata refresh state; it does not measure detection accuracy.
 
+Run `node tests/browser/startup-offline.cjs` for the deterministic CI startup check.
+It serves the current sources under `/GeoMap-Detector/` in isolated Chrome, using
+local vendor and imagery fixtures. It checks five cold/warm pairs, cached dates
+before refresh, refresh failure/retry, page restoration, live Esri map startup and
+first-use drawing. `--output report.json` records source hashes and controlled
+timings; synthetic tiles do not measure live imagery performance.
+
 Historical releases may lack imagery at the selected processing zoom. Before a
 browser clip allocates its raster, the portal checks tile coverage across that
 footprint. Confirmed unavailable dates appear separately in Results; completed

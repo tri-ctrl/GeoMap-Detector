@@ -22,6 +22,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Test browser UI and model regressions
         run: node --test tests/*.test.cjs
+      - name: Test map-first startup, cached dates and request recovery in Chromium
+        run: node tests/browser/startup-offline.cjs
       - name: Test native IndexedDB recovery and exports in Chromium
         run: node tests/browser/persistence.cjs --lifecycle --queue-recovery
       - name: Test native allocation limits and georeferenced pixels in Chromium

@@ -176,7 +176,7 @@ function showTab(id) {
 $$(".rail [data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
 // ---------------------------------------------------------------- map
-const map = L.map("map").setView([25.25, 55.36], 11);
+const map = L.map("map", { zoomControl: false }).setView([25.25, 55.36], 11);
 // Map-owned panes keep rebuilt AOI paths below selectable detections.
 map.createPane("gmd-aois").style.zIndex = "410";
 map.createPane("gmd-detections").style.zIndex = "430";

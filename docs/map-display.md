@@ -3,6 +3,9 @@
 Open **Map settings** at the top right of the map. The controls use the existing
 theme and stay over the map at desktop and mobile widths.
 
+The map omits dedicated +/− zoom buttons. Use the mouse wheel, touch pinch, or
+focus the 2D map and use the keyboard +/− keys. AOI Zoom actions remain available.
+
 The Esri equivalent of the supplied Google satellite tile is:
 
 ```text

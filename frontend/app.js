@@ -180,25 +180,118 @@ const map = L.map("map").setView([25.25, 55.36], 11);
 // Map-owned panes keep rebuilt AOI paths below selectable detections.
 map.createPane("gmd-aois").style.zIndex = "410";
 map.createPane("gmd-detections").style.zIndex = "430";
-const ATTR = "Esri World Imagery Wayback · Esri, Maxar, Earthstar Geographics, GIS User Community";
 let wbLayer = null;
-function setWayback(rel) {
-  if (wbLayer && S.viewRel && S.viewRel.release === rel.release) return;
-  S.viewRel = rel;
-  const url = E.TILE_URL(rel.release, "{z}", "{y}", "{x}");
-  if (wbLayer) wbLayer.setUrl(url);
-  else {
-    wbLayer = L.tileLayer(url, { maxZoom: 21, maxNativeZoom: 19, attribution: ATTR }).addTo(map);
-    wbLayer.bringToBack();
-    wbLayer.on("tileload", () => E.markStartup("mapFirstTile"));
+const savedMapDisplay = store.get("mapDisplay", {});
+let basemapId = GVMapView.BASEMAPS.some(item => item.id === savedMapDisplay?.basemap) ? savedMapDisplay.basemap : "wayback";
+let coordinateCRS = GVMapView.COORDINATES.some(item => item.id === savedMapDisplay?.coordinates) ? savedMapDisplay.coordinates : "EPSG:4326";
+let basemapKey = null, mapMode = "2d", mapModeGeneration = 0, sceneEditing = null, coordinateOwner = null;
+let lastPointer = map.getCenter();
+const scene = GVMapView.createScene({ container: $("#map3d"),
+  onPick: (kind, index) => { if (kind === "aoi") selectAoi(index); else { const layer = detLayer.getLayers()[index]; if (layer) select(layer); } },
+  onCoordinates: updateCoordinates, onStatus: message => { $("#mapModeStatus").textContent = message; },
+  onTerrainChange: enabled => { $("#mapTerrain").value = enabled ? "esri" : "ellipsoid"; },
+  onFailure: error => { setMapMode("2d"); $("#mapModeStatus").textContent = "3D rendering stopped. Continue in 2D or try 3D again. " + error.message; },
+  reserveImage: bytes => { syncResultMemory(); return resultMemory.reserve("display:3d-image", bytes); },
+  reserveVectors: bytes => { syncResultMemory(); return resultMemory.reserve("3d-vectors:" + ++displaySequence, bytes); } });
+$("#mapBasemap").innerHTML = GVMapView.BASEMAPS.map(item => `<option value="${item.id}">${item.label}</option>`).join("");
+$("#mapCoordinateCRS").innerHTML = GVMapView.COORDINATES.map(item => `<option value="${item.id}">${item.label}</option>`).join("");
+$("#mapBasemap").value = basemapId; $("#mapCoordinateCRS").value = coordinateCRS;
+$("#mapOptionsPanel").hidden = true; $("#mapTerrain").value = "ellipsoid";
+function saveMapDisplay() { store.set("mapDisplay", { basemap: basemapId, coordinates: coordinateCRS }); }
+function displayBasemap() { return GVMapView.basemap(basemapId, S.viewRel, E.TILE_URL); }
+function renderBasemap() {
+  const item = displayBasemap(); if (!item) return;
+  if (basemapKey !== item.key) {
+    if (wbLayer) {
+      map.attributionControl?.removeAttribution(wbLayer.options.attribution);
+      wbLayer.options.attribution = item.credit; wbLayer.options.maxNativeZoom = item.maxLevel;
+      map.attributionControl?.addAttribution(item.credit); wbLayer.setUrl(item.url);
+    } else {
+      wbLayer = L.tileLayer(item.url, { maxZoom: 21, maxNativeZoom: item.maxLevel, attribution: item.credit }).addTo(map);
+      wbLayer.bringToBack(); wbLayer.on("tileload", () => E.markStartup("mapFirstTile"));
+    }
+    basemapKey = item.key;
   }
-  $("#hudRel").textContent = rel.date;
-  renderReleases();
+  $("#hudRel").textContent = basemapId === "wayback" ? S.viewRel.date : item.label;
+  $("#mapBasemap").value = basemapId;
+  $("#mapBasemapHint").textContent = basemapId === "wayback" ? "Viewing the selected Wayback release. Choose another date in Imagery."
+    : "Display basemap only. Detection and historical clips still use their captured Wayback dates.";
+  syncScene();
+}
+function setWayback(rel, { activate = true } = {}) {
+  if (wbLayer && S.viewRel?.release === rel.release && (!activate || basemapId === "wayback")) return;
+  S.viewRel = rel;
+  if (activate) { basemapId = "wayback"; saveMapDisplay(); }
+  renderBasemap(); renderReleases();
 }
 const aoiLayer = L.featureGroup().addTo(map), clipLayer = L.layerGroup().addTo(map), detLayer = L.featureGroup().addTo(map);
 map.on("zoomend", () => $("#hudZ").textContent = map.getZoom());
-map.on("mousemove", e => $("#hudXY").textContent = e.latlng.lat.toFixed(5) + ", " + e.latlng.lng.toFixed(5));
+map.on("mousemove", e => updateCoordinates(e.latlng));
+map.on("moveend", () => { if (mapMode === "3d") scene.setCamera({ center: map.getCenter(), zoom: map.getZoom() }); });
 $("#hudZ").textContent = map.getZoom();
+function updateCoordinates(point) {
+  lastPointer = point;
+  try { const value = GVMapView.coordinates(point, coordinateCRS); $("#hudXY").textContent = value.text; $("#hudXY").title = value.code; }
+  catch (error) { $("#hudXY").textContent = error.message; }
+}
+function sceneData() {
+  const r = clipView?.ready ? clipView.clip : null, blob = $("#showImg").checked && (r?.blobs?.display || r?.blobs?.png);
+  return { basemap: displayBasemap(), aois: S.aois, detections: S.annFC,
+    image: blob && !blob.gmdArtifact ? { blob, bounds: r.bounds, size: r.displaySize || r.size } : null,
+    color: (feature, kind, index) => kind === "aoi" ? index === S.activeAoi ? "#f2a516" : "#ffffff" : STYLE(feature).color };
+}
+function syncScene() {
+  if (mapMode !== "3d") return;
+  try { scene.sync(sceneData()); } catch (error) { setMapMode("2d"); toast("3D display could not update: " + error.message, 6000); }
+}
+function renderMapMode() {
+  $("#map2d").setAttribute("aria-pressed", String(mapMode === "2d"));
+  $("#map3dToggle").setAttribute("aria-pressed", String(mapMode === "3d"));
+  $("#map3dToggle").disabled = comparing();
+  $("#mapTerrain").disabled = mapMode !== "3d";
+}
+async function setMapMode(mode, { restoreEdit = true, restoreCamera = true } = {}) {
+  if (mode === "3d" && (!pageActive || comparing() || mapMode === "3d" || mapMode === "loading")) { renderMapMode(); return; }
+  const epoch = ++mapModeGeneration;
+  if (mode === "2d") {
+    const camera = scene.close(); mapMode = "2d";
+    $("#map3d").hidden = true; $(".mapwrap").classList.remove("scene-open"); $("#mapModeStatus").textContent = "";
+    if (restoreCamera && camera && pageActive) map.setView(camera.center, camera.zoom, { animate: false });
+    if (restoreEdit && sceneEditing && S.sel === sceneEditing && canAnnotate() && detLayer.getLayers().includes(sceneEditing)) activateEditor(sceneEditing);
+    sceneEditing = null; renderMapMode(); return;
+  }
+  sceneEditing = S.editing; finishEdit(); ++drawRequest; drawTool?.disable(); cancelAnnotationDraw();
+  mapMode = "loading"; $("#mapModeStatus").textContent = "Loading the 3D globe…"; renderMapMode();
+  $("#map3d").hidden = false;
+  try {
+    await scene.open({ center: map.getCenter(), zoom: map.getZoom() }, sceneData());
+    if (epoch !== mapModeGeneration || !pageActive) return;
+    mapMode = "3d"; $(".mapwrap").classList.add("scene-open");
+    $("#mapModeStatus").textContent = "Drag to explore · right-drag to tilt · drawing and comparison open in 2D.";
+    syncScene(); renderMapMode();
+    if ($("#mapTerrain").value === "esri") scene.terrain(true);
+  } catch (error) {
+    if (epoch !== mapModeGeneration || error.name === "AbortError") return;
+    await setMapMode("2d"); $("#mapModeStatus").textContent = "3D unavailable. " + error.message + " You can continue in 2D and try again.";
+  }
+}
+$("#map2d").onclick = () => setMapMode("2d"); $("#map3dToggle").onclick = () => setMapMode("3d");
+$("#mapBasemap").onchange = () => {
+  const next = $("#mapBasemap").value;
+  if (next === "wayback" && !S.viewRel) { $("#mapBasemap").value = basemapId; return toast("Wayback dates are not available yet. Refresh dates in Imagery.", 5000); }
+  basemapId = next; saveMapDisplay(); renderBasemap();
+};
+$("#mapTerrain").onchange = () => scene.terrain($("#mapTerrain").value === "esri");
+$("#mapCoordinateCRS").onchange = async () => {
+  coordinateCRS = $("#mapCoordinateCRS").value; saveMapDisplay(); coordinateOwner?.abort();
+  const owner = coordinateOwner = new AbortController(); updateCoordinates(lastPointer);
+  if (coordinateCRS !== "UTM" && !coordinateCRS.startsWith("EPSG:326")) return;
+  try { await E.ensureLibrary("proj4", { signal: owner.signal }); if (!owner.signal.aborted) updateCoordinates(lastPointer); }
+  catch (error) { if (!owner.signal.aborted) $("#hudXY").textContent = "Coordinate projection unavailable; select the CRS to retry. " + error.message; }
+};
+function closeMapOptions() { $("#mapOptionsPanel").hidden = true; $("#mapOptionsToggle").setAttribute("aria-expanded", "false"); }
+$("#mapOptionsToggle").onclick = () => { const open = $("#mapOptionsPanel").hidden; $("#mapOptionsPanel").hidden = !open; $("#mapOptionsToggle").setAttribute("aria-expanded", String(open)); };
+$("#mapOptions").onkeydown = event => { event.stopPropagation(); if (event.key === "Escape") { closeMapOptions(); $("#mapOptionsToggle").focus(); } };
 
 // Map-owned navigation only: no AOI, release, job or annotation state is changed.
 const placeRoot = $("#mapSearch"), placeInput = $("#mapSearchInput"), placePopup = $("#mapSearchPopup");
@@ -302,7 +395,7 @@ placeInput.onkeydown = event => {
 };
 placeRoot.onkeydown = event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); placeInput.focus(); closePlaceSearch(); } };
 $("#mapSearchClear").onclick = () => { closePlaceSearch({ removeMarker: true }); placeInput.value = ""; placeInput.focus(); previewPlaceInput(); };
-document.addEventListener("pointerdown", event => { if (!placeRoot.contains(event.target)) closePlaceSearch(); });
+document.addEventListener("pointerdown", event => { if (!placeRoot.contains(event.target)) closePlaceSearch(); if (!$("#mapOptions").contains(event.target)) closeMapOptions(); });
 
 // ---------------------------------------------------------------- engine + server
 async function checkApi() {
@@ -390,6 +483,7 @@ function renderAois() {
   list.querySelectorAll("[data-aoi-zoom]").forEach(button => button.onclick = () => zoomToAoi(Number(button.dataset.aoiZoom)));
   $("#aoiCount").textContent = S.aois.length ? `(${S.aois.length})` : "";
   renderRunAois();
+  syncScene();
 }
 const chosenRunAois = () => S.aois.filter(aoi => runAoiSelection.has(aoi));
 function updateRunSelection() {
@@ -520,6 +614,7 @@ function cancelAnnotationDraw() {
   ++drawRequest; drawTool?.disable(); drawTool = null; drawMode = drawPurpose = null; drawingView = null;
 }
 async function startDraw(kind, purpose) {
+  if (mapMode !== "2d") await setMapMode("2d", { restoreEdit: false });
   if (readOnly || !persistenceReady || !pageActive || comparing()) return;
   if (purpose === "ann" && clipView && !canAnnotate()) return toast("Wait for the clip to finish loading");
   const request = ++drawRequest;
@@ -546,7 +641,7 @@ map.on("draw:created", e => {
 function applyReleases(releases) {
   if (!pageActive) return;
   S.releases = releases;
-  if (!S.viewRel && releases.length) setWayback(releases[0]); else renderReleases();
+  if (!S.viewRel && releases.length) setWayback(releases[0], { activate: false }); else renderReleases();
   if (pendingLiveRelease != null && !S.clip) {
     const release = releases.find(r => r.release === pendingLiveRelease);
     if (release) { pendingLiveRelease = null; setWayback(release); }
@@ -1168,6 +1263,7 @@ function exitComparison() {
   stopComparison(); compareChosen = []; compareRecords = [];
   $("#showImg").disabled = false; $("#resultHint").textContent = "Select a row to review its clipped imagery and detections.";
   renderResults();
+  renderMapMode();
 }
 async function refreshCompareCatalog() {
   catalogController?.abort(); const controller = catalogController = new AbortController(), generation = ++catalogGeneration;
@@ -1440,6 +1536,8 @@ $("#timelinePlayer").addEventListener("keydown", event => {
 });
 document.addEventListener("visibilitychange", () => { if (document.hidden) { pauseTimeline(); stopTimelineSample(); } });
 $("#resultView").onchange = () => {
+  if (mapMode !== "2d") setMapMode("2d", { restoreEdit: false });
+  renderMapMode();
   if (!comparing()) return exitComparison();
   cancelAnnotationDraw(); ++editRequest;
   if (clipView && !clipView.ready) disposeClipView();
@@ -1585,6 +1683,7 @@ function disposeClipView({ preserveDraft = true } = {}) {
     view.fc = null; view.clip = null; viewMetrics.disposed++;
   }
   clearDetectionLayers(); clipView = null; S.clip = S.annFC = null;
+  syncScene();
   renderResultMemory();
   $("#annCtx").innerHTML = '<span class="hint">Open a clip from Results, or annotate on the live Wayback layer.</span>';
   updStats();
@@ -1672,7 +1771,7 @@ async function openClip(i, { record = RES[i], fitView = true, selectDate = true 
     }
   } finally { payload?.release(); clearTimeout(view.timer); view.timer = null; renderResultMemory(); }
 }
-$("#showImg").onchange = () => { renderClipImage(); renderResultMemory(); };
+$("#showImg").onchange = () => { renderClipImage(); syncScene(); renderResultMemory(); };
 $("#openLiveDraft").onclick = async () => {
   if (!pageActive) return;
   if (comparing()) exitComparison();
@@ -1728,6 +1827,7 @@ function renderDetections() {
   } }).eachLayer(l => detLayer.addLayer(l));
   const replacement = selected && detLayer.getLayers().find(layer => layer.feature === selected); if (replacement) select(replacement);
   updStats();
+  syncScene();
 }
 function renderAnnCtx() {
   const c = S.clip; if (!c) return;
@@ -1771,8 +1871,10 @@ function setStatus(st, cls) {
   if (!S.sel || !canAnnotate() || !detLayer.getLayers().includes(S.sel)) return; const p = S.sel.feature.properties;
   if (cls) { p.original_class = p.original_class || p.class; p.class = cls; }
   p.status = st; p.reviewed_at = new Date().toISOString(); S.sel.setStyle(STYLE(S.sel.feature)); select(S.sel); updStats(); dirty = true; saveDraft();
+  syncScene();
 }
 async function editShape() {
+  if (mapMode !== "2d") await setMapMode("2d", { restoreEdit: false });
   const selected = S.sel, owner = clipView, request = ++editRequest;
   if (!selected || !canAnnotate()) return;
   try {
@@ -2057,6 +2159,9 @@ $("#expCsv").onclick = async () => {
 // ---------------------------------------------------------------- boot
 memoryReady = true;
 renderAois(); renderClasses(); updModeHint();
+renderMapMode();
+if (basemapId !== "wayback") renderBasemap();
+if (coordinateCRS !== "EPSG:4326" && coordinateCRS !== "EPSG:3857") $("#mapCoordinateCRS").onchange();
 showTab(store.get("tab", "aoi"));
 E.markStartup("appReady");
 loadReleases();
@@ -2136,6 +2241,7 @@ $("#deleteJob").onclick = async () => {
   finally { job.deleting = false; renderStorage(); drainBrowserQueue(); }
 };
 window.addEventListener("pagehide", () => {
+  setMapMode("2d", { restoreEdit: false, restoreCamera: false }); coordinateOwner?.abort(); closeMapOptions();
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); E.cancelReleaseRefresh();
   closePlaceSearch({ removeMarker: true });
   for (const record of [...downloadURLs.values()]) record.release();
@@ -2198,6 +2304,7 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },
   queue: browserQueueState(),
+  mapDisplay: { mode: mapMode, basemap: basemapId, coordinateCRS, projection: "EPSG:3857", scene: scene.diagnostics() },
   processing: window.GVProcessing.diagnostics(),
   downloadLeases: downloadURLs.size }) };
 })();

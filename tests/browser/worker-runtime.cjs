@@ -9,7 +9,7 @@ const http = require('node:http');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), forceWasm = process.argv.includes('--wasm'), failGpu = process.argv.includes('--gpu-failure'), liveImagery = process.argv.includes('--live-imagery');
-const files = ['engine.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'storage.js'];
+const files = ['engine.js', 'map-view.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'storage.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), forcedWasm: forceWasm, failGpu, liveImagery, mode: 'Local project path, actual pinned runtime and published nano/small weights; '+(liveImagery ? 'live DXB imagery' : 'deterministic image fixture'),
   sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };

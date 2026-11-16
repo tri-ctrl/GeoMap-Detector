@@ -27,6 +27,8 @@ const libraries = {
   fflate: { url: "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js", ready: () => global.fflate?.zlibSync },
   zip: { url: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", ready: () => global.JSZip },
   streaming: { url: "streaming.js", ready: () => global.GVStreaming },
+  cesium: { url: "https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/Cesium.js", ready: () => global.Cesium?.Viewer },
+  proj4: { url: "https://cdn.jsdelivr.net/npm/proj4@2.22.0/dist/proj4.js", ready: () => global.proj4 },
   shp: { url: "https://unpkg.com/shpjs@4.0.4/dist/shp.js", ready: () => global.shp },
   kml: { url: "https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js", ready: () => global.toGeoJSON },
 };

@@ -12,6 +12,7 @@ async function withChrome(run, startupAttempt = 0) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "geomap-browser-"));
   const chrome = spawn(executable, ["--headless=new", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1", "--window-size=1440,1000",
+    ...(process.argv.includes('--scene') ? ["--enable-unsafe-swiftshader"] : []),
     `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
   let socket, retryStartup = false;
   const pending = new Map();

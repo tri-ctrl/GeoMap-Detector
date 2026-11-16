@@ -3,6 +3,7 @@ const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+const mapViewSource = readFileSync(path.join(__dirname, "../../frontend/map-view.js"), "utf8");
 const appSource = readFileSync(path.join(__dirname, "../../frontend/app.js"), "utf8");
 const engineSource = readFileSync(path.join(__dirname, "../../frontend/engine.js"), "utf8");
 const processingSource = readFileSync(path.join(__dirname, "../../frontend/processing.js"), "utf8");
@@ -201,6 +202,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
   vm.runInContext(processingSource, context);
+  vm.runInContext(mapViewSource, context);
   vm.runInContext(comparisonSource, context);
   vm.runInContext(storageSource, context);
   vm.runInContext(streamingSource, context);

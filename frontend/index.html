@@ -151,8 +151,27 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 .trend-bar.selected .trend-fill{stroke:var(--fg);stroke-width:2}
 .trend-bar:focus-visible .trend-hit{stroke:var(--sea);stroke-width:2}
 #map{height:100%;background:var(--bg)}
+#map3d{position:absolute;inset:0;z-index:450;background:var(--bg);opacity:0;pointer-events:none}
+.mapwrap.scene-open #map3d{opacity:1;pointer-events:auto}
+#map3d[hidden]{display:none}
+.map-options{position:absolute;z-index:760;right:12px;top:12px;display:flex;gap:5px;align-items:center;padding:5px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:var(--shadow)}
+.map-options .btn{padding:5px 9px;font-size:12px}
+.map-options .btn[aria-pressed=true]{background:var(--accent);color:var(--bg)}
+.map-options-panel{position:absolute;right:0;top:calc(100% + 7px);width:300px;max-width:calc(100vw - 28px);max-height:min(440px,calc(100dvh - 185px));overflow:auto;display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:var(--shadow)}
+.map-options-panel[hidden]{display:none}
+.map-options-panel label{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.map-mode-status{position:absolute;z-index:490;left:12px;right:12px;bottom:66px;pointer-events:none;text-align:center}
+.map-mode-status:not(:empty){padding:7px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;font-size:12px}
+.mapwrap.scene-open .leaflet-container{visibility:hidden}
+.mapwrap.scene-open .legend{z-index:500}
+.mapwrap.scene-open .cesium-viewer-bottom{left:auto;right:0;max-width:55%;font-size:10px}
+.mapwrap.scene-open .hud{bottom:38px}
+.mapwrap.scene-open .map-mode-status{bottom:96px}
+@media(min-width:1100px){.map-search{max-width:calc(100% - 275px)}}
+@media(max-width:1099px){.map-options{top:62px}.mapwrap .legend,.mapwrap .compare-badge{top:112px}}
 .mapwrap{position:relative;min-width:0}
 .map-search{position:absolute;z-index:750;left:56px;top:12px;width:min(360px,calc(100% - 70px));font-size:13px}
+.map-search:focus-within{z-index:780}
 .map-search-form{display:flex;align-items:center;gap:2px;padding:4px 6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
 .map-search-form:focus-within{border-color:var(--accent)}
 .map-search-form input{flex:1;min-width:0;border:0;background:transparent;padding:8px 6px}
@@ -476,6 +495,21 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
   <main class="mapwrap">
     <div id="map"></div>
+    <div id="map3d" aria-label="Esri 3D globe" hidden></div>
+    <div class="map-options" id="mapOptions" role="group" aria-label="Map display settings">
+      <button type="button" class="btn" id="map2d" aria-pressed="true">2D</button>
+      <button type="button" class="btn" id="map3dToggle" aria-pressed="false">3D</button>
+      <button type="button" class="btn" id="mapOptionsToggle" aria-controls="mapOptionsPanel" aria-expanded="false">Map settings</button>
+      <section class="map-options-panel" id="mapOptionsPanel" aria-label="Basemap and coordinate settings" hidden>
+        <label>Esri basemap<select id="mapBasemap"></select></label>
+        <p class="hint" id="mapBasemapHint">Wayback uses the imagery date selected in the Imagery panel. Detection jobs keep their captured Wayback dates.</p>
+        <label>Coordinate CRS<select id="mapCoordinateCRS"></select></label>
+        <p class="hint">Formats pointer coordinates. The 2D map projection remains Web Mercator (EPSG:3857).</p>
+        <label>3D surface<select id="mapTerrain"><option value="ellipsoid">Globe · WGS 84 ellipsoid</option><option value="esri">Esri World Elevation 3D</option></select></label>
+        <p class="hint">Explore AOIs and results in 3D. Drawing, vertex editing and comparison open in 2D.</p>
+      </section>
+    </div>
+    <div id="mapModeStatus" class="map-mode-status" role="status" aria-live="polite"></div>
     <div class="map-search" id="mapSearch">
       <form class="map-search-form" id="mapSearchForm" role="search" aria-label="Search the map">
         <input id="mapSearchInput" type="search" role="combobox" aria-label="Search place or latitude, longitude" aria-autocomplete="list" aria-controls="mapSearchOptions" aria-expanded="false" aria-describedby="mapSearchHint" placeholder="Search place or lat, lon" autocomplete="off" spellcheck="false" maxlength="300">
@@ -527,6 +561,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="engine.js"></script>
+<script src="map-view.js"></script>
 <script src="processing.js"></script>
 <script src="comparison.js"></script>
 <script src="storage.js"></script>

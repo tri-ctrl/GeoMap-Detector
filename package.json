@@ -5,10 +5,12 @@
     "test": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
+    "cesium": "1.147.0",
     "fake-indexeddb": "6.2.5",
     "fflate": "0.8.2",
     "jszip": "3.10.1",
     "leaflet": "1.9.4",
-    "leaflet-draw": "1.0.4"
+    "leaflet-draw": "1.0.4",
+    "proj4": "2.22.0"
   }
 }

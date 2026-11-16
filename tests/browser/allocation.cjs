@@ -8,7 +8,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
-const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'app.js'];
+const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'map-view.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'app.js'];
 const sources = Object.fromEntries(names.map(name => [name, fs.readFileSync(path.join(root, 'frontend', name), 'utf8')]));
 const samples = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'), 'utf8')).features;
 const result = { checkedAt: new Date().toISOString(), mode: 'Local source, native Chromium; deterministic tiles and fixed inference outputs',
@@ -19,9 +19,9 @@ window.Worker=undefined; // This fixture explicitly verifies the compatibility p
 window.__tileRequests=0;
 const originalFetch=window.fetch.bind(window);let tile;
 window.fetch=async(url,options)=>{
-  if(String(url).includes('/tilemap/')){__tileRequests++;const [rel,z,top,left,width,height]=String(url).split('/tilemap/')[1].split('/').map(Number);
+  if(String(url).includes('wayback.maptiles.arcgis.com')&&String(url).includes('/tilemap/')){__tileRequests++;const [rel,z,top,left,width,height]=String(url).split('/tilemap/')[1].split('/').map(Number);
     return new Response(JSON.stringify({valid:true,location:{top,left,width,height},data:Array(width*height).fill(1)}));}
-  if(String(url).includes('/MapServer/tile/')){__tileRequests++;
+  if(String(url).includes('wayback.maptiles.arcgis.com')&&String(url).includes('/MapServer/tile/')){__tileRequests++;
     if(window.__boundedFixture){const [ty,tx]=String(url).split('/').slice(-2).map(Number),canvas=new OffscreenCanvas(256,256),g=canvas.getContext('2d');
       try{g.fillStyle='rgb('+(tx%31+20)+','+(ty%31+80)+',150)';g.fillRect(0,0,256,256);g.fillStyle='rgb(220,40,20)';g.fillRect(80,40,90,170);return new Response(await canvas.convertToBlob());}finally{canvas.width=canvas.height=1;}}
     if(!tile){const canvas=new OffscreenCanvas(256,256),g=canvas.getContext('2d');g.fillStyle='rgb(40,90,150)';g.fillRect(0,0,256,256);tile=await canvas.convertToBlob();canvas.width=canvas.height=1;}return new Response(tile);}
@@ -48,18 +48,32 @@ const server = http.createServer((request, response) => {
       .replace(/<script[^>]+src="https:[^"]*leaflet@1\.9\.4[^\"]*"[^>]*><\/script>/, '<script src="leaflet.js"></script>')
       .replace(/<script[^>]+src="https:[^\"]*"[^>]*><\/script>/g, '')
       .replace('<script src="engine.js">', '<script src="fflate.js"></script><script src="jszip.js"></script><script src="engine.js">');
+    if (process.argv.includes('--scene')) body = body.replace('<title>', '<link rel="stylesheet" href="leaflet-draw.css"><title>');
   } else if (file === 'leaflet.js' || file === 'leaflet.css') { type = file.endsWith('.css') ? 'text/css' : type; body = fs.readFileSync(require.resolve('leaflet/dist/' + file)); }
   else if (file === 'fflate.js') body = fs.readFileSync(path.resolve(path.dirname(require.resolve('fflate')), '../umd/index.js'));
   else if (file === 'jszip.js') body = fs.readFileSync(require.resolve('jszip/dist/jszip.min.js'));
+  else if (file === 'leaflet-draw.js' || file === 'leaflet-draw.css') { type = file.endsWith('.css') ? 'text/css' : type; body = fs.readFileSync(require.resolve('leaflet-draw/dist/' + file.replace('leaflet-draw.', 'leaflet.draw.'))); }
+  else if (file === 'proj4.js') body = fs.readFileSync(require.resolve('proj4/dist/proj4.js'));
+  else if (file.startsWith('vendor/Cesium/') && !file.split('/').includes('..')) {
+    const asset = path.join(root, 'node_modules/cesium/Build/Cesium', file.slice('vendor/Cesium/'.length));
+    if (!fs.existsSync(asset)) { response.writeHead(404); response.end(); return; }
+    type = file.endsWith('.css') ? 'text/css' : file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg' : file.endsWith('.json') ? 'application/json' : file.endsWith('.wasm') ? 'application/wasm' : type;
+    body = fs.readFileSync(asset);
+  }
   else if (file === 'engine.js') {
     const workerMode = process.argv.includes('--worker');
-    const shared = fixture.replace('window.Worker=undefined;', workerMode ? '' : 'window.Worker=undefined;').replaceAll('window.', 'globalThis.').replace('.bind(window)', '.bind(globalThis)').replace("localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));", "if(globalThis.localStorage)localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));");
-    body = sources[file].replace('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js', 'fflate.js') + '\n' + shared + (workerMode ? `
+    const shared = fixture.replace('window.Worker=undefined;', workerMode || process.argv.includes('--scene') ? '' : 'window.Worker=undefined;').replaceAll('window.', 'globalThis.').replace('.bind(window)', '.bind(globalThis)').replace("localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));", "if(globalThis.localStorage)localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));");
+    body = sources[file].replace('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js', 'fflate.js')
+      .replace('https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/Cesium.js', 'vendor/Cesium/Cesium.js')
+      .replace('https://cdn.jsdelivr.net/npm/proj4@2.22.0/dist/proj4.js', 'proj4.js')
+      .replace('https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js', 'leaflet-draw.js') + '\n' + shared + (workerMode || process.argv.includes('--scene') ? `
       GVEngine.loadModel=async spec=>({...__model,key:spec.key,provider:'fixture',names:spec.names,session:{...__model.session,release:async()=>{}}});
       const run=__model.session.run;__model.session.run=async feeds=>{const end=performance.now()+60;while(performance.now()<end){}return run(feeds)};
     ` : '');
   }
   else if (file === 'storage.js') body = sources[file] + '\nconst createRepo=GVStorage.create;GVStorage.create=options=>{const repo=createRepo(options);window.__repo=repo;return repo};';
+  else if (file === 'map-view.js' && process.argv.includes('--scene')) body = sources[file].replace('"https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/"', 'location.origin+"/vendor/Cesium/"');
+  else if (file === 'app.js' && process.argv.includes('--scene')) body = 'const makeSceneMap=L.map;L.map=(...args)=>(window.__sceneMap=makeSceneMap(...args));\n' + sources[file];
   else if (sources[file]) body = sources[file] + (file === 'processing-worker.js' && request.url.includes('crash=1')
     ? "\naddEventListener('message',event=>{if(event.data.type==='clip')setTimeout(()=>{throw Error('Injected worker crash')},20)});" : '');
   else if (file === 'models/models.json') { type = 'application/json'; body = JSON.stringify([{ file: 'nano.onnx', label: 'Fixture', names: ['plane'], imgsz: 1024 }]); }
@@ -75,6 +89,9 @@ const server = http.createServer((request, response) => {
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (process.argv.includes('--scene')) {
+        await require('./scene-cases.cjs')({ page, browser, evaluate, until, errors, on, result }); return;
+      }
       if (process.argv.includes('--worker')) {
         await require('./worker-cases.cjs')({ page, browser, evaluate, until, errors, result }); return;
       }

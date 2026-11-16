@@ -3,6 +3,7 @@ clip imagery to AOI, detect objects, write GeoJSON + images, build a zip export.
 from __future__ import annotations
 
 import json
+import copy
 import re
 import threading
 import time
@@ -14,6 +15,7 @@ from pathlib import Path
 from shapely.geometry import mapping, shape
 
 import wayback
+import identity
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "outputs"
 JOBS: dict[str, dict] = {}
@@ -41,7 +43,9 @@ def resolve_releases(geom, mode: str, chosen: list[int], zoom: int) -> list[dict
 
 
 def start_job(params: dict) -> str:
-    job_id = time.strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
+    params = copy.deepcopy(params)
+    params["aois"]["features"] = identity.prepare_aois(params["aois"]["features"])
+    job_id = time.strftime("%Y%m%d_%H%M%S_") + str(uuid.uuid4())
     JOBS[job_id] = {"id": job_id, "status": "queued", "progress": 0.0, "log": [], "params": params,
                     "results": [], "started": time.time()}
     threading.Thread(target=_run, args=(job_id,), daemon=True).start()
@@ -60,11 +64,14 @@ def _run(job_id: str):
     job["status"] = "running"
     all_feats, summary = [], []
     try:
-        aois = p["aois"]["features"]
+        aois = identity.prepare_aois(p["aois"]["features"])
+        p["aois"]["features"] = aois
         zoom = int(p.get("zoom", 18))
         detect_on = p.get("detect", True)
         if detect_on:
             import detector  # heavy import only when needed
+        model_id = detector.model_fingerprint(p.get("model")) if detect_on else "imagery"
+        p["model_fingerprint"] = model_id
         (root / "aois.geojson").write_text(json.dumps(p["aois"]))
 
         plan = []
@@ -82,13 +89,18 @@ def _run(job_id: str):
         for n, (i, name, geom, rel) in enumerate(plan):
             base = n / len(plan)
             step = 1 / len(plan)
-            sub = root / slug(name) / (rel["date"] or str(rel["release"]))
+            feature = aois[i]
+            clip_id = identity.clip_id(job_id, feature["_gmd_id"], rel["release"], model_id)
+            legacy_path = f'{slug(name)}/{rel["date"] or rel["release"]}'
+            sub = root / (slug(name) + "__" + identity.digest(feature["_gmd_id"])) / (str(rel["release"]) + "__" + clip_id.split(":")[-1])
             _log(job, f"[{n + 1}/{len(plan)}] {name} · {rel['date']} — fetching imagery")
             ras = wayback.build_raster(geom, rel["release"], zoom,
                                        progress=lambda f: job.__setitem__("progress", base + step * 0.5 * f))
             files = wayback.save_raster(ras, sub)
             bounds = wayback.raster_bounds_ll(ras)
             props = {"aoi_id": slug(name), "aoi_name": name, "release": rel["release"],
+                     "gmd_identity_version": 1, "gmd_job_id": job_id, "gmd_clip_id": clip_id,
+                     "gmd_aoi_id": feature["_gmd_id"], "gmd_model_id": model_id, "gmd_model_key": p.get("model"),
                      "imagery_date": rel["date"], "zoom": ras.zoom,
                      "gsd_m": round(ras.ground_res(geom.centroid.y), 3), "source": "Esri Wayback"}
             feats, counts = [], {}
@@ -106,10 +118,11 @@ def _run(job_id: str):
                   "properties": {**props, "image_bounds": bounds}}
             (sub / "detections.geojson").write_text(json.dumps(fc))
             (sub / "aoi.geojson").write_text(json.dumps(
-                {"type": "Feature", "properties": {"name": name}, "geometry": mapping(geom)}))
+                {**feature, "geometry": mapping(geom)}))
             all_feats.extend(feats)
             rel_path = sub.relative_to(root).as_posix()
             entry = {"aoi": name, "aoi_id": slug(name), "release": rel["release"], "date": rel["date"],
+                     "storeId": clip_id, "identity": props, "aoiFeature": feature, "legacy_path": legacy_path,
                      "zoom": ras.zoom, "bounds": bounds, "path": rel_path, "files": files,
                      "counts": counts, "total": len(feats)}
             summary.append(entry)
@@ -120,7 +133,8 @@ def _run(job_id: str):
         (root / "all_detections.geojson").write_text(json.dumps(
             {"type": "FeatureCollection", "features": all_feats}))
         (root / "summary.json").write_text(json.dumps(
-            {"job": job_id, "params": {k: v for k, v in p.items() if k != "aois"}, "results": summary}, indent=2))
+            {"job": job_id, "identity_schema": 1, "createdAt": int(job["started"] * 1000),
+             "params": {k: v for k, v in p.items() if k != "aois"}, "results": summary}, indent=2))
         make_zip(job_id)
         job["status"] = "done"
         job["progress"] = 1.0

@@ -17,6 +17,7 @@ from PIL import Image
 from shapely.geometry import box, shape
 
 import wayback
+import identity
 
 ROOT = Path(__file__).resolve().parent.parent
 ANN_FILE = ROOT / "data" / "annotations.geojson"
@@ -32,19 +33,7 @@ def load_annotations() -> dict:
 
 
 def save_annotations(fc: dict, replace_ids: bool = True) -> dict:
-    """Upsert features by id."""
-    cur = load_annotations()
-    by_id = {f.get("id"): f for f in cur["features"] if f.get("id")}
-    extra = [f for f in cur["features"] if not f.get("id")]
-    for f in fc.get("features", []):
-        if f.get("id") and replace_ids:
-            by_id[f["id"]] = f
-        else:
-            extra.append(f)
-    out = {"type": "FeatureCollection", "features": list(by_id.values()) + extra}
-    ANN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ANN_FILE.write_text(json.dumps(out))
-    return out
+    return identity.save_annotations(ANN_FILE, fc, replace_ids)
 
 
 def build_dataset(chip: int = 1024, zoom: int = 18, val_frac: float = 0.15, log=print) -> Path:

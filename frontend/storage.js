@@ -4,7 +4,15 @@
 (function (global) {
 "use strict";
 const VERSION = 2, NAME = "geomap-detector", LEASE_MS = 30000;
-const uuid = () => global.crypto?.randomUUID?.() || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+function uuid() {
+  if (global.crypto?.randomUUID) return global.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (global.crypto?.getRandomValues) global.crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = bytes[6] & 15 | 64; bytes[8] = bytes[8] & 63 | 128;
+  const hex = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 const copy = value => JSON.parse(JSON.stringify(value));
 // Conservative JS/string estimates plus encoded Blob bytes, not heap/process
 // measurements. Chunk manifests count metadata; their files stay store-owned.
@@ -108,8 +116,9 @@ function create(options = {}) {
   const owner = uuid(), stats = { reads: {}, writes: 0, commits: 0, lastCommitMs: 0 };
   const state = () => ({ available: Boolean(db), writable, ...stats, reads: { ...stats.reads } });
   const emit = reason => onState({ ...state(), reason });
-  function transaction(names, mode, action, protectedWrite = true) {
+  function transaction(names, mode, action, protectedWrite = true, signal) {
     if (!db) return Promise.reject(fail("Device database is unavailable"));
+    if (signal?.aborted) return Promise.reject(fail("Review linking cancelled", "AbortError"));
     if (mode === "readwrite" && protectedWrite && !writable) return Promise.reject(fail("Another tab owns this workspace. Reload after closing it.", "ReadOnlyError"));
     return new Promise((resolve, reject) => {
       const started = global.performance?.now?.() || Date.now();
@@ -118,12 +127,15 @@ function create(options = {}) {
       catch (error) { reject(error); return; }
       const stores = Object.fromEntries([...tx.objectStoreNames].map(key => [key, tx.objectStore(key)]));
       const abort = error => { ownError = error; try { tx.abort(); } catch {} };
+      const cancel = () => abort(fail("Review linking cancelled", "AbortError"));
+      signal?.addEventListener("abort", cancel, { once: true });
       const run = () => { try { action(stores, result => { value = result; }, abort); } catch (error) { abort(error); } };
       tx.oncomplete = () => {
+        signal?.removeEventListener("abort", cancel);
         if (mode === "readwrite") { stats.commits++; stats.lastCommitMs = (global.performance?.now?.() || Date.now()) - started; }
         resolve(value);
       };
-      tx.onabort = () => reject(ownError || tx.error || fail("Database transaction aborted", "AbortError"));
+      tx.onabort = () => { signal?.removeEventListener("abort", cancel); reject(ownError || tx.error || fail("Database transaction aborted", "AbortError")); };
       tx.onerror = () => {}; // Abort reports the actual request/transaction error.
       if (mode === "readwrite" && protectedWrite) {
         const request = stores.meta.get("writer");
@@ -250,7 +262,14 @@ function create(options = {}) {
       queue: queue.sort((a, b) => a.createdAt - b.createdAt).map(r => r.id), models };
   }
   function saveAois(features) {
-    const records = features.map((f, order) => { f._gmd_id ||= uuid(); return { id: f._gmd_id, feature: copy(f), order, active: true }; });
+    const seen = new Set();
+    const records = features.map((f, order) => {
+      if (typeof f._gmd_id !== "string" || !f._gmd_id || seen.has(f._gmd_id)) {
+        if (f._gmd_id) f._gmd_aliases = [...new Set([...(f._gmd_aliases || []), f._gmd_id])];
+        f._gmd_id = uuid();
+      }
+      seen.add(f._gmd_id); return { id: f._gmd_id, feature: copy(f), order, active: true };
+    });
     return transaction(["aois"], "readwrite", s => {
       const current = new Set(records.map(r => r.id)), r = s.aois.openCursor();
       r.onsuccess = () => { const c = r.result; if (c) { if (!current.has(c.key)) c.update({ ...c.value, active: false }); c.continue(); } };
@@ -267,6 +286,11 @@ function create(options = {}) {
   function saveClip(job, result) {
     const meta = resultRecord(result, job.id);
     return transaction(["jobs", "queue", "results", "predictions", "artifacts"], "readwrite", (s, done, abort) => {
+      const existing = s.predictions.get(meta.id);
+      existing.onsuccess = () => {
+        if (existing.result && (existing.result.jobId !== job.id || JSON.stringify(existing.result.fc) !== JSON.stringify(result.fc)))
+          abort(fail("Committed predictions are immutable. Create a new run instead of replacing this clip.", "IdentityError"));
+      };
       s.results.put(meta); s.predictions.put({ id: meta.id, jobId: job.id, fc: copy(result.fc) });
       for (const [kind, value] of Object.entries(result.blobs)) if (value != null) s.artifacts.put({ id: meta.id + ":" + kind, clipId: meta.id, jobId: job.id, kind, value });
       if (result.artifactSpool) {
@@ -304,9 +328,77 @@ function create(options = {}) {
       r.onsuccess = () => {
         const cursor = r.result;
         if (cursor) { s.reviews.delete(cursor.primaryKey); cursor.continue(); }
-        else features.forEach((feature, index) => s.reviews.put({ id: scope + ":" + index, scope, jobId, aoiId, order: index, feature: copy(feature) }));
+        else {
+          const occurrences = new Map();
+          features.forEach((feature, index) => {
+            const key = feature.id == null ? "missing:" + index : JSON.stringify(feature.id), occurrence = occurrences.get(key) || 0;
+            occurrences.set(key, occurrence + 1);
+            s.reviews.put({ id: scope + ":object:" + encodeURIComponent(key) + ":" + occurrence, scope, jobId, aoiId, order: index, feature: copy(feature) });
+          });
+        }
       };
     });
+  }
+  const aliasId = id => "identity:legacy:" + id;
+  async function legacyReviews({ includeResolved = false, limit = 100, after = null } = {}) {
+    const metadata = await read("meta");
+    const aliases = new Map(metadata.filter(r => r.id.startsWith("identity:legacy:")).map(r => [r.legacyId, r]));
+    return transaction(["reviews"], "readonly", (s, done) => {
+      const records = [], request = s.reviews.index("scope").openCursor("legacy");
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor || records.length >= limit) return done(records);
+        const resolution = aliases.get(cursor.primaryKey) || null;
+        if ((!after || String(cursor.primaryKey) > after) && (includeResolved || !resolution?.verifiedAt)) records.push({ ...cursor.value, resolution });
+        cursor.continue();
+      };
+    });
+  }
+  async function resolveLegacy(legacyId, scope, predictionId, { signal } = {}) {
+    if (signal?.aborted) throw fail("Review linking cancelled", "AbortError");
+    const [legacy, meta, raw, previousDraft, existing] = await Promise.all([read("reviews", legacyId), read("results", scope),
+      read("predictions", scope), read("drafts", scope), read("meta", aliasId(legacyId))]);
+    if (signal?.aborted) throw fail("Review linking cancelled", "AbortError");
+    if (!legacy || legacy.scope !== "legacy" || !meta || !raw) throw fail("Saved review or target clip is unavailable", "IdentityError");
+    if (existing && (existing.scope !== scope || existing.predictionId !== predictionId)) throw fail("This review is already linked to another object", "IdentityError");
+    if (!existing) {
+      const prediction = raw.fc.features.find(f => f.id === predictionId);
+      if (!prediction) throw fail("Select an original prediction from this clip", "IdentityError");
+      const context = { scope, jobId: meta.jobId, aoiId: meta.aoiId, release: meta.release, aoiLegacyId: meta.aoi_id,
+        modelId: meta.identity?.gmd_model_id || raw.fc.properties?.gmd_model_id || null,
+        modelKey: meta.identity?.gmd_model_key || raw.fc.properties?.gmd_model_key || null };
+      let feature;
+      try { feature = global.GVEngine.identity.resolveReview(legacy.feature, prediction, context, raw.fc.features); }
+      catch (error) { throw fail(error.message, "IdentityError"); }
+      const fc = copy(previousDraft?.fc || raw.fc), index = fc.features.findIndex(f => f.id === predictionId);
+      if (index < 0) throw fail("This object was removed from the draft. Restore it before linking.", "IdentityError");
+      fc.features[index] = feature;
+      await transaction(["meta", "reviews", "drafts"], "readwrite", (s, done, abort) => {
+        const checks = [s.drafts.get(scope), s.meta.get(aliasId(legacyId))]; let pending = checks.length;
+        checks.forEach(request => { request.onsuccess = () => {
+          if (--pending) return;
+          if (JSON.stringify(checks[0].result) !== JSON.stringify(previousDraft) || checks[1].result) {
+            abort(fail("The draft or link changed. Retry with the current object.", "IdentityError")); return;
+          }
+          s.drafts.put({ id: scope, jobId: meta.jobId, fc, updatedAt: Date.now() });
+          const reviews = s.reviews.index("scope").openCursor(scope);
+          reviews.onsuccess = () => {
+            const cursor = reviews.result;
+            if (cursor) { if (cursor.value.feature.id === predictionId) cursor.delete(); cursor.continue(); }
+            else s.reviews.put({ id: scope + ":resolved:" + legacyId, scope, jobId: meta.jobId, aoiId: meta.aoiId, feature });
+          };
+          s.meta.put({ id: aliasId(legacyId), version: 1, legacyId, legacyFeatureId: legacy.feature.id ?? null,
+            scope, predictionId, linkedAt: Date.now() });
+        }; });
+      }, true, signal);
+    }
+    // Journal and target commit together. If verification is interrupted, the
+    // same explicit link can be retried; original records are never deleted.
+    const [alias, draft, reviews] = await Promise.all([read("meta", aliasId(legacyId)), read("drafts", scope), read("reviews", scope, "scope")]);
+    if (!alias || !draft?.fc.features.some(f => f.id === predictionId) || !reviews.some(r => r.feature.id === predictionId))
+      throw fail("Review link read-back verification failed. Original data is preserved.", "IdentityError");
+    if (!alias.verifiedAt) await transaction(["meta"], "readwrite", s => s.meta.put({ ...alias, verifiedAt: Date.now() }), true, signal);
+    return copy(draft.fc);
   }
   function deleteJob(id) {
     return transaction(["jobs", "queue", "results", "predictions", "artifacts", "drafts"], "readwrite", s => {
@@ -376,10 +468,15 @@ function create(options = {}) {
     if (db && writable) await transaction(["meta"], "readwrite", s => s.meta.delete("writer")).catch(() => {});
     writable = false; db?.close(); db = null; releaseLock?.(); releaseLock = null;
   }
-  return { open, close, state, migrate, restore, saveAois, saveModel, saveJob, saveClip, clip, saveDraft, saveReviews, deleteJob,
+  return { open, close, state, migrate, restore, saveAois, saveModel, saveJob, saveClip, clip, saveDraft, saveReviews, deleteJob, legacyReviews, resolveLegacy,
     createSpool, readArtifactChunk, discardSpool,
     migrated: async () => Boolean((await read("meta", "legacy-v1"))?.verifiedAt),
-    reviews: async scope => ({ type: "FeatureCollection", features: (await read("reviews", scope, scope === undefined ? undefined : "scope")).sort((a, b) => (a.scope || "").localeCompare(b.scope || "") || (a.order || 0) - (b.order || 0)).map(r => r.feature) }),
+    reviews: async scope => {
+      const records = await read("reviews", scope, scope === undefined ? undefined : "scope");
+      const resolved = scope === undefined ? new Set((await read("meta")).filter(r => r.id.startsWith("identity:legacy:") && r.verifiedAt).map(r => r.legacyId)) : new Set();
+      return { type: "FeatureCollection", features: records.filter(r => !resolved.has(r.id)).sort((a, b) => (a.scope || "").localeCompare(b.scope || "") || (a.order || 0) - (b.order || 0)).map(r =>
+        scope && scope !== "legacy" && r.feature.properties?.gmd_clip_id == null ? { ...r.feature, properties: { ...r.feature.properties, gmd_clip_id: r.scope } } : r.feature) };
+    },
     draft: async id => (await read("drafts", id))?.fc,
     model: async key => { const meta = await read("models", key); const weights = await read("weights", key); return meta ? { ...meta, buffer: weights ? new Uint8Array(await weights.blob.arrayBuffer()) : undefined } : null; },
   };

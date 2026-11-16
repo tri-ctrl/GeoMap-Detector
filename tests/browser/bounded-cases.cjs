@@ -28,9 +28,9 @@ module.exports = async function boundedCases({ page, evaluate, until, errors, re
       {type:'MultiPolygon',coordinates:[__shape(900,1300).coordinates,[[__ll(x+1000,y+50),__ll(x+1700,y+200),__ll(x+1600,y+1200),__ll(x+1000,y+50)]]]},__shape(8191,4)];
     for(let i=0;i<shapes.length;i++){
       const geometry=shapes[i],plan=E.estimateRaster(geometry,18,{bounded:true,modelSize:1024});__qualityWidth=plan.width;__qualityHeight=plan.height;__inputHashes=[];
-      const original=await E.processClip(__feature(geometry),{release:101,date:'2026-10-29'},{model:__model,geotiff:false});
+      const original=await E.processClip(__feature(geometry),{release:101,date:'2026-10-29'},{jobId:'quality',clipId:'quality-'+i,model:__model,geotiff:false});
       const oldHashes=__inputHashes.slice(),expected=await decode(original.blobs.png);__inputHashes=[];
-      const reference=await E.processClip(__feature(geometry),{release:101,date:'2026-10-29'},{model:__model,geotiff:false,maskVersion:'area-evenodd-v1'});
+      const reference=await E.processClip(__feature(geometry),{release:101,date:'2026-10-29'},{jobId:'quality',clipId:'quality-'+i,model:__model,geotiff:false,maskVersion:'area-evenodd-v1'});
       const hashes=__inputHashes.slice(),canonical=await decode(reference.blobs.png);__inputHashes=[];
       const bounded=await E.processClip(__feature(geometry),{release:101,date:'2026-10-29'},{bounded:true,forceBlocks:true,model:__model,store:__repo,jobId:'quality',clipId:'quality-'+i});
       const actualBlob=await IO.materialize(bounded.blobs.png,{store:__repo}),actual=await decode(actualBlob);

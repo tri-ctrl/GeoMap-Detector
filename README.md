@@ -62,6 +62,13 @@ Orange **Imagery update near …** labels identify the queried AOI's historical
 updates. Several releases may qualify; the active row is the viewed date and
 checkboxes choose processing dates. Changing the AOI clears obsolete lookup results.
 
+AOIs keep managed IDs when renamed, and detection/review identities belong to
+the captured run and clip. In **Annotate → Recover legacy reviews**, link a saved
+review to a selected prediction only when its release, known provenance and
+original shape match. **Export originals** preserves unresolved records. See the
+[identity and compatibility contract](docs/identity.md) for migration, export and
+optional-server behavior.
+
 Run `node --use-system-ca tests/browser/startup.cjs` for five cold/warm comparisons
 of committed versus working-tree sources and real-browser first-use checks. It
 uses a temporary local server/profile, real CDN/imagery requests and controlled

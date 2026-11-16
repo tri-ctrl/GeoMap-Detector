@@ -25,7 +25,7 @@ jobs:
       - name: Test map-first startup, cached dates and request recovery in Chromium
         run: node tests/browser/startup-offline.cjs
       - name: Test native IndexedDB recovery and exports in Chromium
-        run: node tests/browser/persistence.cjs --lifecycle --queue-recovery
+        run: node tests/browser/persistence.cjs --lifecycle --queue-recovery --identity
       - name: Test native allocation limits and georeferenced pixels in Chromium
         run: node tests/browser/allocation.cjs
       - name: Test bounded mosaics, native writers and cancellation in Chromium
@@ -44,8 +44,8 @@ jobs:
         run: node tests/browser/allocation.cjs --memory
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - name: Test model asset checks (no ML dependencies)
-        run: python -m unittest discover -s tests -p 'test_model_assets.py' -v
+      - name: Test model assets and backend identities (no ML dependencies)
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Cache exported models
         id: models
         uses: actions/cache@v4

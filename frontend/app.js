@@ -38,6 +38,7 @@ let activeBrowserJob = null, selectedBrowserJobId = null, serverRunning = false,
 let datasetOperation = null, exportOperation = null, serverPoll = null, trainingPoll = null, exportParts = null;
 let browserJobSequence = 0, modelSourceSequence = 0, viewEpoch = 0;
 let localHits = new Set(), localLookup = null, pageActive = true;
+let legacyEntries = [], legacyOwner = null, legacyLinking = false;
 let pendingLiveRelease = null;
 let volatileLiveDraft = null;
 let suspendedClip = null, unsavedAois = false;
@@ -75,7 +76,10 @@ async function flushWrites() {
     while (pendingWrites.length && !storageError) {
       const item = pendingWrites[0];
       try { await item.action(); pendingWrites.shift(); item.resolve(); }
-      catch (error) { storageError = error; queuePaused = true; item.reject(error); toast("Could not save on this device. Work is kept in this tab; retry saving or export it.", 6500); }
+      catch (error) {
+        if (error.name === "IdentityError") { pendingWrites.shift(); item.reject(error); }
+        else { storageError = error; queuePaused = true; item.reject(error); toast("Could not save on this device. Work is kept in this tab; retry saving or export it.", 6500); }
+      }
       renderStorage();
     }
   } finally {
@@ -165,6 +169,7 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   exp:["Export","GeoJSON and AOI-clipped images for every location and date."] };
 function showTab(id) {
   ++viewEpoch;
+  if (id !== "ann") closeLegacyReviews();
   if (id !== "res" && comparing()) exitComparison();
   closeRunAoiPanel({ restoreFocus: false });
   $$(".rail [data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
@@ -435,9 +440,9 @@ function normalizeFeatures(fc) {
     if (!f || !f.geometry) return;
     const g = f.geometry;
     if (g.type === "Point") out.push({ ...f, geometry: squareAround(g.coordinates[0], g.coordinates[1], km) });
-    else if (g.type === "MultiPoint") g.coordinates.forEach((c, i) => out.push({ type: "Feature", properties: { ...f.properties, name: aoiName(f, 0) + "_" + (i + 1) }, geometry: squareAround(c[0], c[1], km) }));
+    else if (g.type === "MultiPoint") g.coordinates.forEach((c, i) => out.push({ ...f, type: "Feature", properties: { ...f.properties, name: aoiName(f, 0) + "_" + (i + 1) }, geometry: squareAround(c[0], c[1], km) }));
     else if (g.type === "Polygon" || g.type === "MultiPolygon") out.push(f);
-    else if (g.type === "GeometryCollection") g.geometries.forEach(gg => out.push(...normalizeFeatures({ type: "Feature", properties: f.properties, geometry: gg })));
+    else if (g.type === "GeometryCollection") g.geometries.forEach(gg => out.push(...normalizeFeatures({ ...f, type: "Feature", geometry: gg })));
   });
   return out;
 }
@@ -455,9 +460,15 @@ function addAois(feats) {
   toast(`${added} AOI${added === 1 ? "" : "s"} added${skipped ? ` · ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}`);
 }
 function saveAois() {
-  if (!durable) { unsavedAois = !store.set("aois", S.aois); if (unsavedAois) toast("AOIs could not be saved. Export them before closing.", 5000); return; }
   const ids = new Set();
-  S.aois.forEach(feature => { if (!feature._gmd_id || ids.has(feature._gmd_id)) feature._gmd_id = window.GVStorage.uuid(); ids.add(feature._gmd_id); });
+  S.aois.forEach(feature => {
+    if (typeof feature._gmd_id !== "string" || !feature._gmd_id || ids.has(feature._gmd_id)) {
+      if (feature._gmd_id) feature._gmd_aliases = [...new Set([...(feature._gmd_aliases || []), feature._gmd_id])];
+      feature._gmd_id = window.GVStorage.uuid();
+    }
+    ids.add(feature._gmd_id);
+  });
+  if (!durable) { unsavedAois = !store.set("aois", S.aois); if (unsavedAois) toast("AOIs could not be saved. Export them before closing.", 5000); return; }
   const features = JSON.parse(JSON.stringify(S.aois));
   persistWrite(() => DB.saveAois(features)).catch(() => {});
 }
@@ -957,7 +968,7 @@ async function enqueueBrowser(mode, aois) {
   const fingerprint = JSON.stringify({ params, aois, releaseSource: mode === "latest" ? releaseSource.slice(0, 1) : releaseSource });
   const duplicate = Object.values(BJOBS).find(job => pendingJob(job) && job.fingerprint === fingerprint);
   if (duplicate) { selectBrowserJob(duplicate.id); toast("A job with these settings is already running or queued."); return; }
-  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || Date.now().toString(36) + "_" + ++browserJobSequence);
+  const id = "browser_" + new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "").replace(/(\d{8})/, "$1_") + "_" + window.GVStorage.uuid();
   const modelSpec = detectOn ? { key: m.key, url: m.url, buffer: m.buffer, names: m.names?.slice(), imgsz: m.imgsz } : null;
   const job = BJOBS[id] = { id, createdAt: Date.now() + ++browserJobSequence / 1000, status: "queued", progress: 0, log: [], results: [], outcomes: [], params, aois, modelSpec, releaseSource, fingerprint };
   job.durableReady = false;
@@ -998,8 +1009,10 @@ async function runBrowser(job) {
       model = { ...loaded, names: modelSpec.names?.slice() || loaded.names };
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
       params.provider = model.provider; params.imgsz = model.imgsz;
+      params.model_fingerprint = model.fingerprint || null;
     } else await processing.loadModel(null);
     params.processingContext = processing.context;
+    const modelIdentity = params.detect ? params.model_fingerprint || params.model_key || "unidentified-model" : "imagery";
     const plan = job.plan ? job.plan.map(entry => [job.aois[entry.aoiIndex], entry.release]) : [];
     if (!job.plan) for (const aoi of job.aois) {
       let rels;
@@ -1011,7 +1024,14 @@ async function runBrowser(job) {
       rels.forEach(r => plan.push([aoi, r]));
     }
     if (!job.plan) {
-      job.plan = plan.map(([aoi, release], order) => ({ aoiIndex: job.aois.indexOf(aoi), release, clipId: job.id + ":clip:" + order }));
+      const nextPlan = [];
+      for (const [aoi, release] of plan) {
+        E.operations.check(signal);
+        nextPlan.push({ aoiIndex: job.aois.indexOf(aoi), release,
+          clipId: await E.identity.clipId(job.id, aoi._gmd_id, release.release, modelIdentity) });
+      }
+      E.operations.check(signal);
+      job.plan = nextPlan;
       job.outcomes = plan.map(([aoi, rel], order) => ({ clipId: job.plan[order].clipId, aoi: aoi.properties.name, aoi_id: E.slug(aoi.properties.name),
         date: rel.date, release: rel.release, requestedZoom: params.zoom, status: "pending" }));
       await checkpointJob(job);
@@ -1041,6 +1061,8 @@ async function runBrowser(job) {
         }
         r.createdAt ??= Date.now();
         r.storeId = job.plan[i].clipId; r.order = i; r.persisted = false;
+        r.identity ||= { gmd_identity_version: 1, gmd_job_id: job.id, gmd_clip_id: r.storeId, gmd_aoi_id: aoi._gmd_id,
+          gmd_model_id: modelIdentity, gmd_model_key: params.detect ? params.model_key : null };
         job.results.push(r);
         Object.assign(outcome, { status: r.missing ? "partial" : "completed", zoom: r.zoom, coverage: r.coverage, total: r.total });
         outcome.committedStatus = outcome.status;
@@ -1657,7 +1679,7 @@ const clipBounds = r => [[r.bounds[1], r.bounds[0]], [r.bounds[3], r.bounds[2]]]
 function makeClipView(clip) {
   viewMetrics.created++;
   return { generation: ++clipGeneration, clip, scope: draftScope(clip), controller: new AbortController(),
-    serverBase: S.api || "", annotationServer: isServer(), disposed: false, ready: false, loading: true, image: null, url: null, timer: null, fc: null, resumeEditing: null };
+    serverBase: S.api || "", annotationServer: clip ? !clip.browser : isServer(), disposed: false, ready: false, loading: true, image: null, url: null, timer: null, fc: null, resumeEditing: null };
 }
 function releaseClipImage(view = clipView) {
   if (!view) return;
@@ -1766,12 +1788,9 @@ async function openClip(i, { record = RES[i], fitView = true, selectDate = true 
     if (!draftCache.has(view.scope)) { syncResultMemory(); resultMemory.ensure(GVStorage.estimateBytes(raw), "This editable clip"); }
     const fc = JSON.parse(JSON.stringify(raw));
     if (!saved) {
-      const ann = await viewRead(view, durable ? DB.reviews(view.scope) : getAnnotations({ signal, base: view.serverBase, server: view.annotationServer }));
+      const ann = await viewRead(view, getAnnotations({ scope: view.scope, signal, base: view.serverBase, server: view.annotationServer }));
       requireView(view); validateFeatures(ann);
-      const byId = new Map(ann.features.map(feature => [feature.id, feature]));
-      fc.features = fc.features.map(feature => byId.get(feature.id) || feature);
-      const have = new Set(fc.features.map(feature => feature.id));
-      ann.features.filter(f => f.properties.status === "manual" && f.properties.release === r.release && f.properties.aoi_id === r.aoi_id && !have.has(f.id)).forEach(f => fc.features.push(f));
+      E.identity.mergeReviews(fc, ann, view.scope);
     }
     requireView(view);
     // Reuse the live draft object only at commit, after checking ownership.
@@ -1813,24 +1832,86 @@ function restoreLiveDate(fc) {
 }
 
 // ---------------------------------------------------------------- annotations
-async function getAnnotations({ signal, base = S.api || "", server = isServer() } = {}) {
-  const local = durable ? await DB.reviews() : store.get("ann", { type: "FeatureCollection", features: [] });
+function reviewProperties(clip) {
+  return { gmd_clip_id: draftScope(clip), gmd_job_id: clip?.job || null,
+    gmd_aoi_id: clip?.identity?.gmd_aoi_id || clip?.source?.aoiFeature?._gmd_id || null };
+}
+function closeLegacyReviews({ force = false } = {}) {
+  // A link already committing must finish atomically. Closing its panel only
+  // releases the list; page shutdown still cancels UI work and drains writes.
+  if (!legacyLinking || force) { legacyOwner?.close(); legacyOwner = null; legacyLinking = false; }
+  legacyEntries = [];
+  $("#legacyChoice").innerHTML = ""; $("#legacyNext").disabled = true;
+  resultMemory.protect("legacyReviews", 0);
+}
+async function loadLegacyReviews(after = null) {
+  if (legacyLinking) return;
+  if (!durable) { $("#legacyStatus").textContent = "Device storage is required for linking. Export originals to keep session-only reviews."; return; }
+  closeLegacyReviews();
+  const owner = legacyOwner = E.operations.open("Load legacy reviews", { timeoutMs: 30000 });
+  try {
+    const records = await E.operations.read(DB.legacyReviews({ after }), owner.signal); owner.check();
+    if (!pageActive || legacyOwner !== owner) return;
+    const bytes = GVStorage.estimateBytes(records); syncResultMemory(); resultMemory.ensure(bytes, "Legacy review page"); resultMemory.protect("legacyReviews", bytes);
+    legacyEntries = records;
+    $("#legacyChoice").innerHTML = records.map((r, i) => `<option value="${i}">${esc(r.feature.properties.class || "unknown")} · ${esc(r.feature.properties.imagery_date || r.feature.properties.release || "unknown date")} · ${esc(r.feature.id ?? r.id)}</option>`).join("");
+    $("#legacyNext").disabled = records.length < 100;
+    $("#legacyStatus").textContent = records.length ? `${records.length} unresolved reviews. Select an original object in this saved clip before linking.` : "No more unresolved reviews. Originals remain available for export.";
+  } catch (error) { if (legacyOwner === owner && pageActive) $("#legacyStatus").textContent = error.message; }
+  finally { if (legacyOwner === owner) { owner.close(); legacyOwner = null; } }
+}
+$("#legacyLoad").onclick = () => loadLegacyReviews();
+$("#legacyNext").onclick = () => loadLegacyReviews(legacyEntries.at(-1)?.id);
+$("#legacyPanel").ontoggle = () => { if (!$("#legacyPanel").open) closeLegacyReviews(); };
+$("#legacyExport").onclick = async () => {
+  if (legacyLinking) return;
+  legacyOwner?.close();
+  const owner = legacyOwner = E.operations.open("Export legacy reviews", { timeoutMs: 30000 }); let release;
+  try {
+    const records = durable ? await E.operations.read(DB.legacyReviews({ includeResolved: true, limit: Infinity }), owner.signal) : null; owner.check();
+    const fc = records ? { type: "FeatureCollection", features: records.map(r => r.feature), gmd_resolutions: records.filter(r => r.resolution).map(r => r.resolution) } : store.get("ann", { type: "FeatureCollection", features: [] });
+    syncResultMemory(); release = resultMemory.reserve("legacyExport", GVStorage.estimateBytes(fc) * 3);
+    if (pageActive && legacyOwner === owner) await download("legacy_reviews.geojson", JSON.stringify(fc));
+  } catch (error) { if (pageActive && legacyOwner === owner) $("#legacyStatus").textContent = error.message; }
+  finally { release?.(); if (legacyOwner === owner) { owner.close(); legacyOwner = null; } }
+};
+$("#legacyLink").onclick = async () => {
+  const entry = legacyEntries[Number($("#legacyChoice").value)], view = clipView, prediction = S.sel?.feature;
+  if (!durable || !view?.clip?.browser || !prediction || !entry || !canAnnotate()) {
+    $("#legacyStatus").textContent = "Open a saved browser clip, select its prediction on the map, and choose a legacy review."; return;
+  }
+  finishEdit(); saveDraft(); legacyOwner?.close();
+  const owner = legacyOwner = E.operations.open("Link legacy review", { timeoutMs: 30000 }); legacyLinking = true;
+  try {
+    let fc;
+    await E.operations.read(persistWrite(async () => {
+      if (owner.signal.aborted) return;
+      try { fc = await DB.resolveLegacy(entry.id, view.scope, prediction.id, { signal: owner.signal }); }
+      catch (error) { if (owner.signal.aborted) throw Object.assign(new Error("Review linking cancelled"), { name: "IdentityError" }); throw error; }
+    }, view.clip.job), owner.signal);
+    owner.check();
+    if (legacyOwner === owner && currentView(view)) { clearSelection(); commitClipView(view, fc); dirty = false; }
+    if (pageActive && legacyOwner === owner) $("#legacyStatus").textContent = "Linked and saved. Original review retained; reload reviews to update the list.";
+  } catch (error) { if (pageActive && legacyOwner === owner) $("#legacyStatus").textContent = error.message; }
+  finally { if (legacyOwner === owner) { owner.close(); legacyOwner = null; legacyLinking = false; } }
+};
+async function getAnnotations({ scope, signal, base = S.api || "", server = isServer() } = {}) {
+  const local = durable ? await DB.reviews(scope) : store.get("ann", { type: "FeatureCollection", features: [] });
   if (!server) return local;
   try { const srv = validateFeatures(await E.requestJSON(base + "/api/annotations", { signal })); const exact = new Set(srv.features.map(f => JSON.stringify(f))); return { type: "FeatureCollection", features: srv.features.concat(local.features.filter(f => !exact.has(JSON.stringify(f)))) }; }
   catch (error) { if (signal?.aborted) throw error; return local; }
 }
 async function upsertLocal(features, clip = S.clip) {
+  const { gmd_clip_id: scope, gmd_job_id: jobId, gmd_aoi_id: aoiId } = reviewProperties(clip);
+  const records = JSON.parse(JSON.stringify(features));
+  records.forEach(f => { f.properties = { ...f.properties, gmd_clip_id: scope, gmd_job_id: jobId, gmd_aoi_id: aoiId }; });
   if (durable) {
-    const scope = draftScope(clip);
-    const jobId = clip?.job || null, aoiId = clip?.source?.aoiFeature?._gmd_id || null;
-    const records = JSON.parse(JSON.stringify(features));
-    records.forEach(f => { f.properties = { ...f.properties, gmd_clip_id: scope, gmd_job_id: jobId, gmd_aoi_id: aoiId }; });
     await persistWrite(() => DB.saveReviews(scope, jobId, aoiId, records));
     return DB.reviews();
   }
-  const cur = store.get("ann", { type: "FeatureCollection", features: [] }), by = new Map(cur.features.map(f => [f.id, f]));
-  features.forEach(f => by.set(f.id, f));
-  const out = { type: "FeatureCollection", features: [...by.values()] };
+  const cur = store.get("ann", { type: "FeatureCollection", features: [] });
+  const ids = new Set(records.map(f => f.id));
+  const out = { type: "FeatureCollection", features: cur.features.filter(f => f.properties.gmd_clip_id !== scope || !ids.has(f.id)).concat(records) };
   if (!store.set("ann", out)) { toast("Browser storage is full. Download the training dataset or annotations to keep them.", 5000); throw new Error("Annotations are not saved"); }
   return out;
 }
@@ -1859,7 +1940,7 @@ function activateEditor(layer) {
   clipView.editStart = JSON.stringify(layer.toGeoJSON(false).geometry);
   S.editing = layer; layer.editing.enable();
 }
-function canAnnotate() { return Boolean(clipView?.ready && currentView(clipView) && S.annFC && !readOnly && persistenceReady && !BJOBS[S.clip?.job]?.deleting); }
+function canAnnotate() { return Boolean(clipView?.ready && currentView(clipView) && S.annFC && !readOnly && !legacyLinking && persistenceReady && !BJOBS[S.clip?.job]?.deleting); }
 function selectionNumber(value, digits) {
   if ((typeof value !== "number" && typeof value !== "string") || String(value).trim() === "") return "—";
   const number = Number(value); return Number.isFinite(number) ? number.toFixed(digits) : "—";
@@ -1924,7 +2005,7 @@ function addManualObject(geom) {
     : { release: S.viewRel ? S.viewRel.release : null, imagery_date: S.viewRel ? S.viewRel.date : null, zoom: Math.min(19, map.getZoom()), aoi_id: "live", aoi_name: "Live map" };
   const ring = geom.coordinates[0], c = [ring.slice(0, -1).reduce((s, p) => s + p[0], 0) / (ring.length - 1), ring.slice(0, -1).reduce((s, p) => s + p[1], 0) / (ring.length - 1)];
   const f = { type: "Feature", id: "manual_" + (window.GVStorage?.uuid() || Date.now().toString(36) + "_" + Math.random().toString(36).slice(2)), geometry: geom,
-    properties: { ...ctx, class: $("#drawClass").value, status: "manual", source: "Esri Wayback", centroid: c, reviewed_at: new Date().toISOString() } };
+    properties: { ...ctx, ...S.clip?.identity, ...reviewProperties(S.clip), class: $("#drawClass").value, status: "manual", source: "Esri Wayback", centroid: c, reviewed_at: new Date().toISOString() } };
   S.annFC.features.push(f); renderDetections(); dirty = true; saveDraft();
   const l = detLayer.getLayers().find(x => x.feature === f); if (l) select(l);
 }
@@ -1937,7 +2018,7 @@ $("#acceptAll").onclick = () => { if (!canAnnotate()) return; let n = 0; S.annFC
 $("#saveAnn").onclick = async () => {
   if (!canAnnotate()) return toast("Open a clip or live draft to review first");
   finishEdit();
-  const owner = clipView, original = S.annFC, clip = S.clip, base = S.api || "", server = isServer();
+  const owner = clipView, original = S.annFC, clip = S.clip, base = clipView?.serverBase || S.api || "", server = clipView?.annotationServer || isServer();
   const snapshot = JSON.stringify(original), reviewed = JSON.parse(snapshot).features.filter(f => f.properties.status !== "predicted");
   let out;
   try {
@@ -1947,7 +2028,7 @@ $("#saveAnn").onclick = async () => {
     if (owner === clipView) saveDraft(); out = await upsertLocal(reviewed, clip);
   }
   catch { return; }
-  if (server) { try { const response = await fetch(base + "/api/annotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "FeatureCollection", features: reviewed }) }); if (!response.ok) throw new Error("Server annotation save failed"); } catch { if (owner === clipView) toast("Saved in this browser; the server did not respond"); } }
+  if (server) { try { const response = await fetch(base + "/api/annotations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "FeatureCollection", features: reviewed.map(f => ({ ...f, properties: { ...f.properties, ...reviewProperties(clip) } })) }) }); if (!response.ok) throw new Error("Server annotation save failed"); } catch { if (owner === clipView) toast("Saved in this browser; the server did not respond"); } }
   if (owner === clipView && currentView(owner)) { if (S.annFC === original && JSON.stringify(original) === snapshot) dirty = false; toast(`Saved · training set has ${out.features.length} objects`); }
 };
 map.on("click", finishEdit);
@@ -2222,7 +2303,9 @@ async function restoreStorage() {
     else { storageError = error; readOnly = true; queuePaused = true; }
     toast("Device storage needs attention: " + error.message, 6500);
   } finally {
-    restoring = false; persistenceReady = true; renderStorage(); updateRunSelection();
+    restoring = false; persistenceReady = true;
+    if (!durable && !readOnly) saveAois();
+    renderStorage(); updateRunSelection();
   }
 }
 const storageReady = restoreStorage();
@@ -2260,7 +2343,7 @@ $("#deleteJob").onclick = async () => {
 };
 window.addEventListener("pagehide", () => {
   setMapMode("2d", { restoreEdit: false, restoreCamera: false }); coordinateOwner?.abort(); closeMapOptions();
-  pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); cancelReleaseLoad(); E.cancelReleaseRefresh();
+  pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); cancelReleaseLoad(); E.cancelReleaseRefresh(); closeLegacyReviews({ force: true });
   closePlaceSearch({ removeMarker: true });
   for (const record of [...downloadURLs.values()]) record.release();
   datasetOperation?.controller.abort(); exportOperation?.controller.abort();
@@ -2311,6 +2394,7 @@ window.addEventListener("pageshow", async event => {
 window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView && !clipView.disposed ? 1 : 0,
   loading: Boolean(clipView?.loading), imageLeases: clipView?.url ? 1 : 0, imageLayers: clipView?.image ? 1 : 0,
   selected: Boolean(S.sel), editing: Boolean(S.editing), scope: clipView?.scope || null },
+  identity: { version: 1, legacyRows: legacyEntries.length, legacyOperation: Boolean(legacyOwner), linking: legacyLinking },
   drafts: { retained: draftCache.size, dirty: [...draftCache.values()].filter(entry => entry.dirty).length },
   memory: syncResultMemory(),
   rowPayloads: RES.filter(row => row.blobs || row.fc || row.draftFC).length,

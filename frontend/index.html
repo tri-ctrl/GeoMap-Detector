@@ -433,6 +433,16 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <button class="btn ghost" id="acceptAll">Accept all ≥ 0.6</button>
         </div>
       </div>
+      <div class="sec">
+        <details id="legacyPanel">
+          <summary class="label">Recover legacy reviews</summary>
+          <p class="hint">Older reviews stay separate from new runs. Open a saved clip, select its object on the map, then link a matching original shape. Ambiguous or edited legacy shapes remain exportable.</p>
+          <div class="row"><button class="btn ghost" id="legacyLoad">Load reviews</button><button class="btn ghost" id="legacyNext" disabled>Next 100</button></div>
+          <select id="legacyChoice" aria-label="Legacy review" style="width:100%;margin:8px 0"></select>
+          <div class="row"><button class="btn" id="legacyLink">Link to selected object</button><button class="btn ghost" id="legacyExport">Export originals</button></div>
+          <p class="hint" id="legacyStatus" role="status">Original records are kept after linking.</p>
+        </details>
+      </div>
     </section>
 
     <!-- Train -->

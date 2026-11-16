@@ -57,14 +57,15 @@ test('reordered server detections abort the previous view and only the newest re
   assert.match(app.element('#annCtx').innerHTML, /2026-10-22/); assert.deepEqual(app.snapshot(), before);
 });
 test('a late non-cancellable IndexedDB review read cannot mutate an old job draft or overwrite the current clip', async t => {
-  const gate = deferred(); let repository, waiting = false;
+  const gate = deferred(); let repository, waiting = false, firstScope;
   const app = await setup({ selected: true, indexedDB: new IDBFactory(), beforeBoot: context => {
     const create = context.GVStorage.create; context.GVStorage.create = options => {
       const db = repository = create(options), reviews = db.reviews;
-      db.reviews = scope => scope?.endsWith(':clip:0') ? (waiting = true, gate.promise) : reviews(scope); return db;
+      db.reviews = scope => scope === firstScope ? (waiting = true, gate.promise) : reviews(scope); return db;
     };
   } }); t.after(() => repository.close());
   const job = await app.element('#runBtn').onclick(); assert.equal(job?.status, 'done', job?.log?.join('\n') || app.element('#storageStatus').textContent);
+  firstScope = job.results[0].storeId;
   const first = app.openClip(0); await until(() => waiting);
   await app.openClip(1); await first; gate.resolve(fc(101, 'rejected')); await turn();
   assert.equal(job.results[0].draftFC, undefined); assert.equal((await repository.clip(job.results[0].storeId)).fc.features[0].properties.status, 'predicted');

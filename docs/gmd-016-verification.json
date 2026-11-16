@@ -1,0 +1,4017 @@
+{
+  "task": "GMD-016",
+  "status": "Ready for CI",
+  "checkedAt": "2026-11-16T19:48:41.314Z",
+  "baselineRevision": "f5eedb8b1ef80db881baaad83440528fb9e1f37f",
+  "mode": "Local source; isolated native Chrome profiles and deterministic raster fixtures; real published model/runtime assets only where labelled; no deployed parity claim",
+  "environment": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M1 Max",
+    "node": "v24.15.0"
+  },
+  "sources": {
+    "frontend/index.html": "b0fe40e94262ae0b555d8a5688ecf2d13d2888f6661aebfd95f4a33b2f77d933",
+    "frontend/app.js": "db0794e7fa4ce7616634a096bc7857cc367fdf42339c8f22a1e4d4a2c043ff62",
+    "frontend/engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+    "frontend/storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355",
+    "frontend/processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+    "backend/identity.py": "3a52235e5d84e3080fa8cd10c515b2d2a9068aa2144c78a53b504630a340e4f3",
+    "backend/pipeline.py": "118741a79ede52ba33e5b4056c958103e8f6f15ad32e7a807ca262cac74de374",
+    "backend/detector.py": "3ed01a0741e111ac4c243fa433e9a987ea5fcfb8090e68deff600af171d03d95",
+    "backend/train.py": "7409b0aafdd912b3e3474ec294b861779a2b3a84a6e3dde0b90c8c54c0c0fa16",
+    "tests/identity.test.cjs": "213ada478b842dacb5b34852e092227d5711366e9a316a35152f798870fcd887",
+    "tests/test_identity.py": "f2d41c214ef3ea32c39f3e1c23051fd6ae00a4a1412a903284962a3213c0d4ed",
+    "tests/browser/identity-cases.cjs": "ede1ab95cff18bd3719c20f15517398539b4617e9d4253581556973a996f97ce",
+    "tests/browser/persistence.cjs": "bba24a13f8f7ee2d38a84c2a2f5cd096c7ca47eaeedb708aee6a8d290352653f",
+    "tests/browser/bounded-cases.cjs": "84435542fd523679ec8bb12c41a59d90c86e18f12128156a7d38bccd10173883",
+    "tests/browser/worker-runtime.cjs": "976a17aa86af069058065ee2a34b976fbd7fe4e96a44ab9272de069f94cfc97e",
+    ".github/workflows/pages.yml": "e2c32805b7447369b9acce8a198bcc47568da86a94572f0f4c1bf3dae3082ac9",
+    "scripts/export_onnx.py": "06b339fdcbe59db7ce9af634f16c0791e292fa67b5d26a11e585ff014996740d"
+  },
+  "checks": {
+    "javascript": {
+      "command": "npm test",
+      "passed": 300,
+      "failed": 0,
+      "newIdentityCases": 17
+    },
+    "python": {
+      "command": "python3 -m unittest discover -s tests -p test_*.py -v",
+      "passed": 20,
+      "failed": 0,
+      "identityCases": 8,
+      "modelAssetCases": 12,
+      "scope": "Real identity/pipeline/feature conversion/atomic-file code with raster and ML facades; no optional-backend ML execution"
+    },
+    "syntax": "Modified frontend JavaScript and browser drivers pass node --check; backend compileall passed with a temporary bytecode cache; workflow parsed with Ruby YAML; git diff --check passed",
+    "exportFlow": "Exporter and model manifest unchanged; workflow model cache/export/check/deploy section matches HEAD byte for byte; fresh packaging and dependency-free cached-asset CLI fixtures pass",
+    "nativeCommands": [
+      "node tests/browser/persistence.cjs --lifecycle --queue-recovery --identity",
+      "node tests/browser/allocation.cjs --bounded --ci --quiet",
+      "node tests/browser/allocation.cjs --worker --quiet",
+      "node tests/browser/startup-offline.cjs",
+      "node --use-system-ca tests/browser/worker-runtime.cjs",
+      "node --use-system-ca tests/browser/worker-runtime.cjs --wasm"
+    ]
+  },
+  "compatibility": {
+    "indexedDBVersion": 2,
+    "bulkPredictionOrImageRewrite": false,
+    "legacyPlansAndIDs": "Preserved as stored",
+    "legacyLinks": "Atomic draft/review/journal plus read-back verification; originals retained and exportable",
+    "serverAnnotations": "Scope-aware updates with original backup and atomic replace; loaded model fingerprints stay frozen with the cached model",
+    "backendPaths": "New collision-safe folders with legacy path aliases; old outputs remain served"
+  },
+  "probes": {
+    "startup": {
+      "checkedAt": "2026-11-16T19:39:40.519Z",
+      "mode": "Local unmodified source under Pages project path; not deployed parity",
+      "sources": {
+        "index.html": "b0fe40e94262ae0b555d8a5688ecf2d13d2888f6661aebfd95f4a33b2f77d933",
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355",
+        "app.js": "db0794e7fa4ce7616634a096bc7857cc367fdf42339c8f22a1e4d4a2c043ff62",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d"
+      },
+      "method": {
+        "samplesPerCondition": 5,
+        "httpCacheDisabled": true,
+        "network": "Offline deterministic fixtures; configuration held until app/cache readiness assertions finish",
+        "firstTile": "First loaded synthetic tile, not full map completion or live imagery latency",
+        "lifecycle": "Synthetic persisted pagehide/pageshow events; native fetch cancellation, Leaflet and IndexedDB",
+        "claims": "Regression checks and controlled timings only; no live-network speedup, memory-leak or detection-quality claim"
+      },
+      "samples": [
+        {
+          "pair": 1,
+          "cache": "cold",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 136.5,
+              "metadataReady": 324.7000000476837,
+              "mapFirstTile": 342.7999999523163
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857982211,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:42 PM",
+          "tiles": 1,
+          "fcpMs": 160
+        },
+        {
+          "pair": 1,
+          "cache": "warm",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 33.799999952316284,
+              "metadataReady": 36,
+              "mapFirstTile": 40.700000047683716
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857982678,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:42 PM",
+          "tiles": 1,
+          "fcpMs": 36
+        },
+        {
+          "pair": 2,
+          "cache": "cold",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 75.89999985694885,
+              "metadataReady": 245.19999980926514,
+              "mapFirstTile": 247.59999990463257
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857982971,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:42 PM",
+          "tiles": 1,
+          "fcpMs": 32
+        },
+        {
+          "pair": 2,
+          "cache": "warm",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 22.700000047683716,
+              "metadataReady": 24.600000143051147,
+              "mapFirstTile": 33.40000009536743
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857983414,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:43 PM",
+          "tiles": 1,
+          "fcpMs": 32
+        },
+        {
+          "pair": 3,
+          "cache": "cold",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 26.59999990463257,
+              "metadataReady": 217.39999985694885,
+              "mapFirstTile": 222.5
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857983659,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:43 PM",
+          "tiles": 1,
+          "fcpMs": 32
+        },
+        {
+          "pair": 3,
+          "cache": "warm",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 36.60000014305115,
+              "metadataReady": 38.5,
+              "mapFirstTile": 58.60000014305115
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857984120,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:44 PM",
+          "tiles": 1,
+          "fcpMs": 28
+        },
+        {
+          "pair": 4,
+          "cache": "cold",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 28.100000143051147,
+              "metadataReady": 220.20000004768372,
+              "mapFirstTile": 223.90000009536743
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857984368,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:44 PM",
+          "tiles": 1,
+          "fcpMs": 36
+        },
+        {
+          "pair": 4,
+          "cache": "warm",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 22.59999990463257,
+              "metadataReady": 24.399999856948853,
+              "mapFirstTile": 28.5
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857984812,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:44 PM",
+          "tiles": 1,
+          "fcpMs": 44
+        },
+        {
+          "pair": 5,
+          "cache": "cold",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 24.90000009536743,
+              "metadataReady": 216.80000019073486,
+              "mapFirstTile": 219.20000004768372
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857985051,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:45 PM",
+          "tiles": 1,
+          "fcpMs": 24
+        },
+        {
+          "pair": 5,
+          "cache": "warm",
+          "scripts": [
+            "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+            "/GeoMap-Detector/engine.js",
+            "/GeoMap-Detector/map-view.js",
+            "/GeoMap-Detector/processing.js",
+            "/GeoMap-Detector/comparison.js",
+            "/GeoMap-Detector/storage.js",
+            "/GeoMap-Detector/app.js"
+          ],
+          "diagnostics": {
+            "startup": {
+              "appReady": 101.5,
+              "metadataReady": 107.5,
+              "mapFirstTile": 180.59999990463257
+            },
+            "dependencies": {},
+            "metadata": {
+              "source": "network",
+              "fetchedAt": 1794857985704,
+              "refreshing": false,
+              "error": null
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 0,
+              "canvasesReleased": 0,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 0,
+              "peakReservedBytes": 0,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 0,
+              "closed": 0,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": null
+          },
+          "viewed": "2026-10-29",
+          "checked": [
+            100
+          ],
+          "rows": 2,
+          "status": "Updated release list · 11/16/2026, 11:39:45 PM",
+          "tiles": 1,
+          "fcpMs": 88
+        }
+      ],
+      "failedRefresh": {
+        "diagnostics": {
+          "startup": {
+            "appReady": 101.5,
+            "metadataReady": 107.5,
+            "mapFirstTile": 180.59999990463257
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794857985704,
+            "refreshing": false,
+            "error": "Request failed (HTTP 503): https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-22",
+        "checked": [
+          100
+        ],
+        "rows": 2,
+        "status": "Showing saved release list. Refresh failed. Try Refresh dates.",
+        "tiles": 1,
+        "fcpMs": 88
+      },
+      "recovered": {
+        "diagnostics": {
+          "startup": {
+            "appReady": 101.5,
+            "metadataReady": 107.5,
+            "mapFirstTile": 180.59999990463257
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": "network",
+            "fetchedAt": 1794857986229,
+            "refreshing": false,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "2026-10-22",
+        "checked": [
+          100
+        ],
+        "rows": 3,
+        "status": "Updated release list · 11/16/2026, 11:39:46 PM",
+        "tiles": 1,
+        "fcpMs": 88
+      },
+      "liveBeforeMetadata": {
+        "diagnostics": {
+          "startup": {
+            "appReady": 56.60000014305115,
+            "mapFirstTile": 72.5
+          },
+          "dependencies": {},
+          "metadata": {
+            "source": null,
+            "fetchedAt": null,
+            "refreshing": true,
+            "error": null
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 0,
+            "canvasesReleased": 0,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 0,
+            "peakReservedBytes": 0,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 0,
+            "closed": 0,
+            "timedOut": 0,
+            "pendingReads": 1,
+            "requests": 1,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": null
+        },
+        "viewed": "Esri satellite · latest",
+        "checked": [],
+        "rows": 0,
+        "status": "Refreshing…",
+        "tiles": 1,
+        "fcpMs": 40
+      },
+      "finalOperations": {
+        "created": 0,
+        "closed": 0,
+        "timedOut": 0,
+        "pendingReads": 0,
+        "requests": 0,
+        "tileAttempts": 0,
+        "cacheWrites": 0,
+        "inference": 0,
+        "bitmaps": 0,
+        "tensors": 0,
+        "active": []
+      },
+      "runtimeErrors": [],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "summary": {
+        "cold": {
+          "medianAppReadyMs": 28.100000143051147,
+          "medianMetadataReadyMs": 220.20000004768372,
+          "medianFirstSyntheticTileMs": 223.90000009536743,
+          "scripts": 7
+        },
+        "warm": {
+          "medianAppReadyMs": 33.799999952316284,
+          "medianMetadataReadyMs": 36,
+          "medianFirstSyntheticTileMs": 40.700000047683716,
+          "scripts": 7
+        }
+      }
+    },
+    "persistence": {
+      "checkedAt": "2026-11-16T19:32:56.848Z",
+      "mode": "Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim",
+      "sources": {
+        "index.html": "b0fe40e94262ae0b555d8a5688ecf2d13d2888f6661aebfd95f4a33b2f77d933",
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+        "app.js": "db0794e7fa4ce7616634a096bc7857cc367fdf42339c8f22a1e4d4a2c043ff62"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "startup": {
+        "ms": 161.89999985694885,
+        "reads": {
+          "meta": 3,
+          "aois": 2,
+          "reviews": 1,
+          "jobs": 1,
+          "results": 1,
+          "queue": 1,
+          "models": 1,
+          "drafts": 1
+        }
+      },
+      "beforeReload": {
+        "jobs": [
+          {
+            "id": "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c",
+            "status": "running",
+            "clips": 1
+          },
+          {
+            "id": "browser_20261116_193258_baa5822f-4731-47eb-9b0c-f7843adc9e8e",
+            "status": "queued",
+            "clips": 0
+          }
+        ],
+        "queue": [
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c",
+          "browser_20261116_193258_baa5822f-4731-47eb-9b0c-f7843adc9e8e"
+        ]
+      },
+      "recovery": {
+        "jobs": [
+          {
+            "status": "interrupted",
+            "clips": 1
+          },
+          {
+            "status": "queued",
+            "clips": 0
+          }
+        ],
+        "calls": [],
+        "reads": {
+          "meta": 1,
+          "aois": 2,
+          "jobs": 2,
+          "results": 2,
+          "queue": 2,
+          "models": 2,
+          "drafts": 1
+        },
+        "status": "Paused · 2/10 queued"
+      },
+      "resumed": [
+        {
+          "release": 100,
+          "model": "url:alpha.onnx"
+        },
+        {
+          "release": 101,
+          "model": "url:beta.onnx"
+        }
+      ],
+      "reviews": {
+        "raw": "predicted",
+        "draft": "verified",
+        "legacy": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"legacy-review\",\"properties\":{\"class\":\"ship\",\"status\":\"verified\",\"release\":101},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]}}]}",
+        "saved": 2,
+        "clipId": "gmd:c1:0f104b4d2086b7d4c8dc17b2659dbe43b58d8d5a99dbe6453409174b42ba61e7",
+        "commit": 0.7000000476837158
+      },
+      "afterDraftReload": {
+        "stats": "1/1 reviewed",
+        "urls": {
+          "created": 1,
+          "revoked": 0
+        },
+        "reads": {
+          "meta": 1,
+          "aois": 1,
+          "jobs": 1,
+          "results": 2,
+          "queue": 1,
+          "models": 1,
+          "drafts": 2,
+          "predictions": 1,
+          "artifacts": 1
+        }
+      },
+      "imageOwnership": {
+        "created": 2,
+        "revoked": 1
+      },
+      "lazyDrawing": {
+        "loadedBeforeEdit": false,
+        "existingPolygons": 1
+      },
+      "dragSwitch": {
+        "disabled": true,
+        "detached": true,
+        "events": [],
+        "markers": 0,
+        "selected": false,
+        "activeDrag": false
+      },
+      "switches": {
+        "count": 20,
+        "medianMs": 210,
+        "maxMs": 221,
+        "last": {
+          "ms": 218,
+          "created": 23,
+          "disposed": 22,
+          "imageURLsCreated": 43,
+          "imageURLsRevoked": 42,
+          "staleReads": 0,
+          "active": 1,
+          "loading": false,
+          "imageLeases": 1,
+          "imageLayers": 1,
+          "selected": false,
+          "editing": false,
+          "scope": "gmd:c1:5feb2afac28dd8a7b0b446a26886674c740407e625d965e7aaa358e3414de6eb",
+          "rowPayloads": 1,
+          "markers": 0,
+          "obsoleteMapListeners": 0
+        },
+        "measurement": "UI/poll end-to-end on tiny local fixtures; not production latency or a memory/leak benchmark"
+      },
+      "editedDraft": {
+        "draftMatches": true,
+        "rawUnchanged": true
+      },
+      "reorderedRead": {
+        "created": 25,
+        "disposed": 24,
+        "imageURLsCreated": 44,
+        "imageURLsRevoked": 43,
+        "staleReads": 1,
+        "active": 1,
+        "loading": false,
+        "imageLeases": 1,
+        "imageLayers": 1,
+        "selected": false,
+        "editing": false,
+        "scope": "gmd:c1:5feb2afac28dd8a7b0b446a26886674c740407e625d965e7aaa358e3414de6eb"
+      },
+      "export": {
+        "files": [
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/image.tif",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/image.png",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/image.pgw",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/image.prj",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/preview_detections.jpg",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/detections.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2026-10-29/aoi.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/image.tif",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/image.png",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/image.pgw",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/image.prj",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/preview_detections.jpg",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/detections.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/Persistence/2025-03-27/aoi.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/all_detections.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/aois.geojson",
+          "browser_20261116_193258_d6d3363c-600c-4ec8-af9c-36e4846b9f6c/summary.json"
+        ],
+        "dimensions": [
+          32,
+          16
+        ],
+        "pgw": "1\n0\n0\n-1\n10\n20",
+        "tiff": "native-tiff-fixture",
+        "status": "verified"
+      },
+      "collidingExport": {
+        "images": 2,
+        "paths": [
+          "Persistence/2026-10-29",
+          "Persistence/2026-10-29__clip_1"
+        ]
+      },
+      "identity": {
+        "method": "Native DOM/Leaflet/IndexedDB; deterministic predictions, no inference claim",
+        "linked": {
+          "raw": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"same-external-prediction-id\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]},\"properties\":{\"class\":\"aircraft\",\"status\":\"predicted\",\"confidence\":0.91,\"centroid\":[55.361,25.251],\"aoi_id\":\"Persistence\",\"release\":101}}]}",
+          "draftClass": "ship",
+          "scope": "gmd:c1:0f104b4d2086b7d4c8dc17b2659dbe43b58d8d5a99dbe6453409174b42ba61e7",
+          "original": "{\"type\":\"Feature\",\"id\":\"legacy-review\",\"properties\":{\"class\":\"ship\",\"status\":\"verified\",\"release\":101},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]}}",
+          "verified": true,
+          "unresolved": 0,
+          "scopedReviews": 1,
+          "otherRaw": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"same-external-prediction-id\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]},\"properties\":{\"class\":\"aircraft\",\"status\":\"predicted\",\"confidence\":0.91,\"centroid\":[55.361,25.251],\"aoi_id\":\"Persistence\",\"release\":101}}]}"
+        },
+        "reopened": {
+          "raw": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"same-external-prediction-id\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.36,25.25],[55.362,25.25],[55.362,25.252],[55.36,25.252],[55.36,25.25]]]},\"properties\":{\"class\":\"aircraft\",\"status\":\"predicted\",\"confidence\":0.91,\"centroid\":[55.361,25.251],\"aoi_id\":\"Persistence\",\"release\":101}}]}",
+          "draftClass": "ship"
+        },
+        "cleanup": {
+          "version": 1,
+          "legacyRows": 0,
+          "legacyOperation": false,
+          "linking": false
+        }
+      },
+      "secondTab": {
+        "writable": false,
+        "blocked": true
+      },
+      "quotaRollback": {
+        "error": "QuotaExceededError",
+        "before": 2,
+        "after": 2,
+        "missing": true
+      },
+      "deletion": {
+        "jobs": 1,
+        "before": 1,
+        "after": 1,
+        "missing": true
+      },
+      "deletedView": {
+        "views": {
+          "created": 1,
+          "disposed": 1,
+          "imageURLsCreated": 1,
+          "imageURLsRevoked": 1,
+          "staleReads": 0,
+          "active": 0,
+          "loading": false,
+          "imageLeases": 0,
+          "imageLayers": 0,
+          "selected": false,
+          "editing": false,
+          "scope": null
+        },
+        "identity": {
+          "version": 1,
+          "legacyRows": 0,
+          "legacyOperation": false,
+          "linking": false
+        },
+        "drafts": {
+          "retained": 0,
+          "dirty": 0
+        },
+        "memory": {
+          "limitBytes": 134217728,
+          "totalBytes": 8746,
+          "cacheBytes": 0,
+          "pinnedBytes": 8746,
+          "inactiveBytes": 0,
+          "protectedBytes": 8746,
+          "encodedCacheBytes": 0,
+          "vectorEstimateBytes": 0,
+          "decodedDisplayEstimateBytes": 0,
+          "overBudgetBytes": 0,
+          "peakBytes": 27005,
+          "entries": 0,
+          "pins": 0,
+          "hits": 0,
+          "misses": 1,
+          "evictions": 1,
+          "protected": {
+            "catalog": 8746
+          },
+          "storedArtifactBytes": 285,
+          "unknownStoredClips": 0
+        },
+        "rowPayloads": 0,
+        "comparisonRowPayloads": 0,
+        "timeline": {
+          "frames": 0,
+          "index": -1,
+          "playing": false,
+          "loading": false,
+          "timer": false,
+          "seek": false
+        },
+        "timelineEffects": {
+          "effect": "fade",
+          "duration": 450,
+          "interval": 2000,
+          "transitioning": false,
+          "sampleAnimations": 0,
+          "sampleTimer": false
+        },
+        "auxiliary": {
+          "dataset": false,
+          "export": false,
+          "parts": 0,
+          "partReads": 0,
+          "partDownloads": 0,
+          "serverPoll": false,
+          "trainingPoll": false
+        },
+        "mapSearch": {
+          "open": false,
+          "request": false,
+          "scheduled": false,
+          "marker": false
+        },
+        "queue": {
+          "state": "idle",
+          "label": "Idle",
+          "hint": "One job runs at a time. Queued jobs start when the current job finishes.",
+          "waiting": 0,
+          "activeId": null,
+          "paused": false,
+          "draining": false,
+          "pendingWrites": 0,
+          "headReady": true
+        },
+        "mapDisplay": {
+          "mode": "2d",
+          "basemap": "wayback",
+          "coordinateCRS": "EPSG:4326",
+          "projection": "EPSG:3857",
+          "scene": {
+            "created": 0,
+            "destroyed": 0,
+            "urlsCreated": 0,
+            "urlsRevoked": 0,
+            "frames": 0,
+            "entities": 0,
+            "stale": 0,
+            "picks": 0,
+            "lastPick": null,
+            "active": false,
+            "loading": false,
+            "image": false,
+            "terrainLoading": false
+          }
+        },
+        "processing": {
+          "active": 0,
+          "created": 0,
+          "terminated": 0,
+          "crashes": 0,
+          "forcedStops": 0,
+          "fallbacks": 0,
+          "storageRequests": 0,
+          "transferredBytes": 0,
+          "pendingStorage": 0,
+          "last": null,
+          "jobId": null
+        },
+        "downloadLeases": 0
+      },
+      "queueRecovery": {
+        "calls": 0,
+        "state": {
+          "state": "paused",
+          "label": "Paused",
+          "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+          "waiting": 3,
+          "activeId": null,
+          "paused": true,
+          "draining": false,
+          "pendingWrites": 0,
+          "headReady": true
+        },
+        "status": "Paused · 3/10 queued",
+        "hint": "Saved work is paused after reopening, suspension or a saving error. Choose Resume queue to continue.",
+        "resumeVisible": true,
+        "after": {
+          "calls": 3,
+          "maxActive": 1,
+          "jobs": [
+            {
+              "id": "browser_20261116_193258_baa5822f-4731-47eb-9b0c-f7843adc9e8e",
+              "status": "done"
+            },
+            {
+              "id": "recover-1",
+              "status": "done"
+            },
+            {
+              "id": "recover-2",
+              "status": "done"
+            },
+            {
+              "id": "recover-3",
+              "status": "done"
+            }
+          ],
+          "queued": 0,
+          "reviews": 1
+        }
+      },
+      "otherDocument": {
+        "status": "Read only · close the other tab and reload to edit.",
+        "runDisabled": true
+      },
+      "disabledStorage": {
+        "status": "Session only · storage unavailable. Export before closing.",
+        "map": true,
+        "runEnabled": true
+      },
+      "upgradeRollback": {
+        "error": "AbortError",
+        "status": "Not saved · Storage ownership changed. Reload this tab to recover."
+      },
+      "afterUpgradeRollback": {
+        "jobs": 1,
+        "reviews": true
+      },
+      "newerSchema": {
+        "error": "VersionError",
+        "version": 3
+      },
+      "exceptions": []
+    },
+    "bounded": {
+      "checkedAt": "2026-11-16T19:34:08.001Z",
+      "mode": "Local native Chromium, bounded blocks/chunked IndexedDB/native writers; deterministic tiles and model outputs",
+      "sources": {
+        "index.html": "b0fe40e94262ae0b555d8a5688ecf2d13d2888f6661aebfd95f4a33b2f77d933",
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+        "app.js": "db0794e7fa4ce7616634a096bc7857cc367fdf42339c8f22a1e4d4a2c043ff62"
+      },
+      "limitations": [
+        "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+        "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "quality": [
+        {
+          "kind": "rectangle",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "2dc0d47304c80f486392f4afefbf23b4ed8ba2598b48fd5cec2e787e23bd574d",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "8fe83d959200c21adbc4ab4fa643eb7617ad9560f205574a82d739c38b24a7bf",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-0:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:e390fb0c7d210cf6e74764837f157959971874a028b0286912b1321014d20db6",
+                "gmd_clip_id": "quality-0",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-0:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-0:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:e390fb0c7d210cf6e74764837f157959971874a028b0286912b1321014d20db6",
+                "gmd_clip_id": "quality-0",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-0:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-0:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:e390fb0c7d210cf6e74764837f157959971874a028b0286912b1321014d20db6",
+                "gmd_clip_id": "quality-0",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-0:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-0:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:e390fb0c7d210cf6e74764837f157959971874a028b0286912b1321014d20db6",
+                "gmd_clip_id": "quality-0",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-0:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "hole",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "71467dd70472c5993fce369bbbddfa2e60ab9dd9915afee7d11380246c56b7f6",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "cc36fd717aaa87cd97f27214528d5cfab434347e5113507abc435f10e5143c87",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-1:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:54899ec1ff03c6d6ea64f0df71a620615a696a1ef3c47fada16945b3e1092b37",
+                "gmd_clip_id": "quality-1",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-1:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-1:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:54899ec1ff03c6d6ea64f0df71a620615a696a1ef3c47fada16945b3e1092b37",
+                "gmd_clip_id": "quality-1",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-1:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-1:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:54899ec1ff03c6d6ea64f0df71a620615a696a1ef3c47fada16945b3e1092b37",
+                "gmd_clip_id": "quality-1",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-1:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-1:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:54899ec1ff03c6d6ea64f0df71a620615a696a1ef3c47fada16945b3e1092b37",
+                "gmd_clip_id": "quality-1",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-1:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "multi",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "referenceHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "originalHashes": [
+            "71e8e9bf1384c57a35e828508eac58b105291488d97e44231cfdd606c85f15f1",
+            "f2974898bbc9a0ad72ec987ecffe765dab2bd1bd054e57b1a9da688f4b0df660",
+            "97c6da0705823eb3e46bb68ff069fb48c1012d7a9367d2197a3fded1dfe728d7",
+            "6a26e0b5d83a9756622180166beb7b2f400fad7e4400e5fb482c915ae935ebf2"
+          ],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-2:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:ffe5343fc4acbd73e6a2f360f3e18644eff829df27d4a5569bbef0a62fc4fb22",
+                "gmd_clip_id": "quality-2",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-2:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-2:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:ffe5343fc4acbd73e6a2f360f3e18644eff829df27d4a5569bbef0a62fc4fb22",
+                "gmd_clip_id": "quality-2",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-2:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "diagonal-hole",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "referenceHashes": [
+            "1010a5a72193e374a6724aab26cf950ef1b2638f8c39ce153a5686513021a7aa",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "e2f8588639a7de99d0582da01ad4a82dc02d95a22e2a88ec35714bb060a0a0a1",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "originalHashes": [
+            "a99d6d03ce8e590580e041bf94b941bbdcac1cff5a32dbd85354f53c5fa89fdb",
+            "66f0219d029cf1800bc52ffbf2909f7c5cda7086c85b8488a0fde322668fec8e",
+            "7815c614f3b88e0302e365d343a030300afdecde81799e0776b8bbc6b82b8004",
+            "1a9d46054196709e190442bb52dbea2c4bc2ce9b8e0255f21c9b5cfc52de85e8"
+          ],
+          "different": 558,
+          "canonicalDifferences": 0,
+          "examples": [
+            {
+              "x": 200,
+              "y": 151,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 200,
+              "y": 151,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 399,
+              "y": 151,
+              "channel": 3,
+              "old": 63,
+              "actual": 64
+            },
+            {
+              "x": 201,
+              "y": 153,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 201,
+              "y": 153,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 202,
+              "y": 155,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            },
+            {
+              "x": 202,
+              "y": 155,
+              "channel": 3,
+              "old": 192,
+              "actual": 191
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 0,
+              "old": 227,
+              "actual": 219
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 1,
+              "old": 42,
+              "actual": 36
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 2,
+              "old": 14,
+              "actual": 24
+            },
+            {
+              "x": 398,
+              "y": 156,
+              "channel": 3,
+              "old": 18,
+              "actual": 21
+            },
+            {
+              "x": 203,
+              "y": 157,
+              "channel": 1,
+              "old": 104,
+              "actual": 103
+            }
+          ],
+          "maxAlphaDelta": 3,
+          "maxPremultDelta": 2.011764705882353,
+          "opaqueDifferences": 0,
+          "changedPixels": 294,
+          "maxEdgeDistance": 0.4109974685269643,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-3:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:f972d780d74a486093733404fcc38393c1d8e44c577367ce18959a5b927e67e0",
+                "gmd_clip_id": "quality-3",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-3:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-3:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:f972d780d74a486093733404fcc38393c1d8e44c577367ce18959a5b927e67e0",
+                "gmd_clip_id": "quality-3",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-3:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-3:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:f972d780d74a486093733404fcc38393c1d8e44c577367ce18959a5b927e67e0",
+                "gmd_clip_id": "quality-3",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-3:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-3:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3634687,
+                      25.2498529
+                    ],
+                    [
+                      55.3634559,
+                      25.2499297
+                    ],
+                    [
+                      55.3638272,
+                      25.2499804
+                    ],
+                    [
+                      55.36384,
+                      25.2499037
+                    ],
+                    [
+                      55.3634687,
+                      25.2498529
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:f972d780d74a486093733404fcc38393c1d8e44c577367ce18959a5b927e67e0",
+                "gmd_clip_id": "quality-3",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.85,
+                "length_m": 37.8,
+                "width_m": 8.6,
+                "heading_deg": 81.4,
+                "centroid": [
+                  55.3636479,
+                  25.2499167
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0001"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-3:19978a40c39b5e6e8d226865fe57b54caf2aa3b5bc2c876be3e6b639060ea8b9:0"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "diagonal-multi",
+          "size": [
+            1700,
+            1301
+          ],
+          "inputHashes": [
+            "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+            "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+          ],
+          "referenceHashes": [
+            "d6709437057fbcada95f56f85a5a686cdad95424db8690e9979e683f7fabb81e",
+            "93e91a791644fac5f40db2697e28803a37bfb9e4cbd6e13f437b998b95f1d81a",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "c7a00acfa3b5289ca8223561608eccb883aef9cf38a3ad96c02c277a9283d553"
+          ],
+          "originalHashes": [
+            "3e222921462c909b60fd765f1c9c528106122179c511268ee9a94c59f8faad86",
+            "f9cb29ee7b88067a16ee6b4262588f196a0c9a8f0aeaea7d2b3d6d0fe8ced161",
+            "76500a9ca63a9d8d9b3c9576d8adba8d9bb3c964f30740a0068f562a7b5d4395",
+            "9aab5af21c5509c01dc9d7c96782a3013f1cb3d46aa0ba7ae4207af8c9a6552c"
+          ],
+          "different": 6507,
+          "canonicalDifferences": 0,
+          "examples": [
+            {
+              "x": 1000,
+              "y": 50,
+              "channel": 3,
+              "old": 163,
+              "actual": 161
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 0,
+              "old": 26,
+              "actual": 43
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 1,
+              "old": 102,
+              "actual": 106
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 2,
+              "old": 153,
+              "actual": 149
+            },
+            {
+              "x": 1004,
+              "y": 50,
+              "channel": 3,
+              "old": 10,
+              "actual": 12
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 0,
+              "old": 38,
+              "actual": 36
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 1,
+              "old": 101,
+              "actual": 105
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 2,
+              "old": 149,
+              "actual": 150
+            },
+            {
+              "x": 1000,
+              "y": 51,
+              "channel": 3,
+              "old": 53,
+              "actual": 56
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 1,
+              "old": 103,
+              "actual": 102
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 2,
+              "old": 151,
+              "actual": 150
+            },
+            {
+              "x": 1005,
+              "y": 51,
+              "channel": 3,
+              "old": 210,
+              "actual": 209
+            }
+          ],
+          "maxAlphaDelta": 10,
+          "maxPremultDelta": 6.901960784313729,
+          "opaqueDifferences": 0,
+          "changedPixels": 2509,
+          "maxEdgeDistance": 0.5974810934413347,
+          "comparedBytes": 8846800,
+          "referenceFeatures": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-4:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:098ea0669599898842e9e3c6f668b3882cec57503c82face753f6b9b38309f47",
+                "gmd_clip_id": "quality-4",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-4:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            }
+          ],
+          "features": [
+            {
+              "type": "Feature",
+              "id": "gmd:p1:quality-4:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      55.3629737,
+                      25.251853
+                    ],
+                    [
+                      55.3629865,
+                      25.25191
+                    ],
+                    [
+                      55.3632493,
+                      25.2518619
+                    ],
+                    [
+                      55.3632365,
+                      25.2518048
+                    ],
+                    [
+                      55.3629737,
+                      25.251853
+                    ]
+                  ]
+                ]
+              },
+              "properties": {
+                "gmd_identity_version": 1,
+                "gmd_job_id": "quality",
+                "gmd_aoi_id": "geometry:098ea0669599898842e9e3c6f668b3882cec57503c82face753f6b9b38309f47",
+                "gmd_clip_id": "quality-4",
+                "gmd_model_id": "unidentified-model",
+                "gmd_model_key": null,
+                "aoi_id": "Allocation",
+                "aoi_name": "Allocation",
+                "release": 101,
+                "imagery_date": "2026-10-29",
+                "zoom": 18,
+                "gsd_m": 0.54,
+                "source": "Esri Wayback",
+                "imagery_coverage": "full",
+                "missing_tiles": 0,
+                "class": "aircraft",
+                "confidence": 0.92,
+                "length_m": 27,
+                "width_m": 6.5,
+                "heading_deg": 101.5,
+                "centroid": [
+                  55.3631115,
+                  25.2518574
+                ],
+                "status": "predicted",
+                "gmd_legacy_ids": [
+                  "Allocation_101_0000"
+                ],
+                "gmd_prediction_id": "gmd:p1:quality-4:1decb8f4152a91bcb9133062c16039a3980843c15033226aaaf6623716de30fb:0"
+              }
+            }
+          ],
+          "cache": {
+            "cachedBytes": 8846800,
+            "peakCachedBytes": 8846800,
+            "cacheLimit": 16777216
+          }
+        },
+        {
+          "kind": "thin",
+          "size": [
+            8191,
+            5
+          ],
+          "inputHashes": [],
+          "referenceHashes": [],
+          "originalHashes": [],
+          "different": 0,
+          "canonicalDifferences": 0,
+          "examples": [],
+          "maxAlphaDelta": 0,
+          "maxPremultDelta": 0,
+          "opaqueDifferences": 0,
+          "changedPixels": 0,
+          "maxEdgeDistance": 0,
+          "comparedBytes": 163820,
+          "referenceFeatures": [],
+          "features": [],
+          "cache": {
+            "cachedBytes": 163820,
+            "peakCachedBytes": 163820,
+            "cacheLimit": 16777216
+          }
+        }
+      ],
+      "cancelInference": {
+        "code": "AbortError",
+        "waited": true,
+        "disposed": 1,
+        "afterInferenceMs": 21.40000009536743,
+        "operations": {
+          "created": 13,
+          "closed": 13,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 274,
+          "canvasesReleased": 274,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 17693600,
+          "peakReservedBytes": 114623472,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        }
+      },
+      "samples": [
+        {
+          "aoi": "DXB",
+          "ms": 14809.399999856949,
+          "size": [
+            9322,
+            6391
+          ],
+          "estimatedSize": [
+            9322,
+            6391
+          ],
+          "zoom": 18,
+          "requestedZoom": 18,
+          "pngSize": [
+            9322,
+            6391
+          ],
+          "pngBytes": 1823024,
+          "tiffBytes": 1798784,
+          "estimatedWorkingBytes": 72316672,
+          "cache": {
+            "cachedBytes": 16724088,
+            "peakCachedBytes": 16776748,
+            "cacheLimit": 16777216
+          },
+          "requests": 934,
+          "canvasCount": 1922,
+          "maxCanvasSide": 2048,
+          "allCanvasesReleased": true,
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1263,
+            "canvasesReleased": 1263,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 3177,
+            "bytesWritten": 4362525,
+            "chunksWritten": 26,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        }
+      ],
+      "ui": {
+        "status": "done",
+        "size": [
+          400,
+          128
+        ],
+        "displaySize": [
+          400,
+          128
+        ],
+        "pngDescriptor": 1,
+        "tiffDescriptor": 1,
+        "storedOwner": "b5adb012-54f5-4377-8a24-75f40293a842",
+        "mapImage": "blob:http://127.0.0.1:64793/eff33f66-d23e-47d6-b68c-aeb80117ec75",
+        "diagnostics": {
+          "views": {
+            "created": 1,
+            "disposed": 0,
+            "imageURLsCreated": 1,
+            "imageURLsRevoked": 0,
+            "staleReads": 0,
+            "active": 1,
+            "loading": false,
+            "imageLeases": 1,
+            "imageLayers": 1,
+            "selected": false,
+            "editing": false,
+            "scope": "gmd:c1:562ff11dbd297ce38b7a0d1ce1b4d54eee3ff4271558c458992b2870ca63d47c"
+          },
+          "identity": {
+            "version": 1,
+            "legacyRows": 0,
+            "legacyOperation": false,
+            "linking": false
+          },
+          "drafts": {
+            "retained": 1,
+            "dirty": 0
+          },
+          "memory": {
+            "limitBytes": 134217728,
+            "totalBytes": 219459,
+            "cacheBytes": 2987,
+            "pinnedBytes": 219459,
+            "inactiveBytes": 0,
+            "protectedBytes": 216472,
+            "encodedCacheBytes": 1639,
+            "vectorEstimateBytes": 1224,
+            "decodedDisplayEstimateBytes": 204800,
+            "overBudgetBytes": 0,
+            "peakBytes": 219459,
+            "entries": 1,
+            "pins": 1,
+            "hits": 0,
+            "misses": 1,
+            "evictions": 0,
+            "protected": {
+              "catalog": 10448,
+              "drafts": 1224,
+              "display:1": 204800
+            },
+            "storedArtifactBytes": 7432,
+            "unknownStoredClips": 0
+          },
+          "rowPayloads": 1,
+          "comparisonRowPayloads": 0,
+          "timeline": {
+            "frames": 0,
+            "index": -1,
+            "playing": false,
+            "loading": false,
+            "timer": false,
+            "seek": false
+          },
+          "timelineEffects": {
+            "effect": "fade",
+            "duration": 450,
+            "interval": 2000,
+            "transitioning": false,
+            "sampleAnimations": 0,
+            "sampleTimer": false
+          },
+          "auxiliary": {
+            "dataset": false,
+            "export": false,
+            "parts": 0,
+            "partReads": 0,
+            "partDownloads": 0,
+            "serverPoll": false,
+            "trainingPoll": false
+          },
+          "mapSearch": {
+            "open": false,
+            "request": false,
+            "scheduled": false,
+            "marker": false
+          },
+          "queue": {
+            "state": "idle",
+            "label": "Idle",
+            "hint": "One job runs at a time. Queued jobs start when the current job finishes.",
+            "waiting": 0,
+            "activeId": null,
+            "paused": false,
+            "draining": false,
+            "pendingWrites": 0,
+            "headReady": true
+          },
+          "mapDisplay": {
+            "mode": "2d",
+            "basemap": "wayback",
+            "coordinateCRS": "EPSG:4326",
+            "projection": "EPSG:3857",
+            "scene": {
+              "created": 0,
+              "destroyed": 0,
+              "urlsCreated": 0,
+              "urlsRevoked": 0,
+              "frames": 0,
+              "entities": 0,
+              "stale": 0,
+              "picks": 0,
+              "lastPick": null,
+              "active": false,
+              "loading": false,
+              "image": false,
+              "terrainLoading": false
+            }
+          },
+          "processing": {
+            "active": 0,
+            "created": 0,
+            "terminated": 0,
+            "crashes": 0,
+            "forcedStops": 0,
+            "fallbacks": 1,
+            "storageRequests": 0,
+            "transferredBytes": 0,
+            "pendingStorage": 0,
+            "last": null,
+            "jobId": null
+          },
+          "downloadLeases": 0
+        }
+      },
+      "file": {
+        "saved": true,
+        "entries": [
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/image.png",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/image.tif",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/display.png",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/preview_detections.jpg",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/image.pgw",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/image.prj",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/detections.geojson",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/Allocation/2026-10-29/aoi.geojson",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/all_detections.geojson",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/aois.geojson",
+          "browser_20261116_193429_f900f169-5576-463f-b683-71e7c0b255f4/summary.json"
+        ],
+        "pngBytes": 1934
+      },
+      "dataset": {
+        "chips": 1,
+        "classes": [
+          "ship"
+        ],
+        "old": {
+          "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+          "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+          "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+          "dataset/images/train/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/images/val/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+          "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+        },
+        "bounded": {
+          "dataset/TRAIN.md": "# Train and bring the model back to the portal\n\npip install ultralytics\ncd dataset\nyolo obb train data=data.yaml model=yolo11n-obb.pt imgsz=1024 epochs=50 batch=4\nyolo export model=runs/obb/train/weights/best.pt format=onnx imgsz=1024 opset=17 simplify=True\n\nThen in the portal: Detect > Load ONNX model > pick best.onnx.\nClass names, in order: ship\n\nNo GPU? Upload this folder to Google Colab or Kaggle and run the same commands.\n",
+          "dataset/annotations.geojson": "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{\"class\":\"ship\",\"status\":\"accepted\",\"release\":101,\"zoom\":18},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[55.35881996154785,25.253312952776728],[55.35892724990845,25.253312952776728],[55.35892724990845,25.253264435335364],[55.35881996154785,25.253264435335364],[55.35881996154785,25.253312952776728]]]}}]}",
+          "dataset/data.yaml": "path: .\ntrain: images/train\nval: images/val\nnames:\n  0: ship\n",
+          "dataset/images/train/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/images/val/r101_z18_00000.jpg": [
+            1024,
+            1024
+          ],
+          "dataset/labels/train/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500",
+          "dataset/labels/val/r101_z18_00000.txt": "0 0.273437 0.302734 0.292969 0.302734 0.292969 0.312500 0.273437 0.312500"
+        }
+      },
+      "formats": {
+        "keys": [
+          "pgw",
+          "tif",
+          "display",
+          "preview"
+        ],
+        "size": [
+          400,
+          128
+        ]
+      },
+      "failure": [
+        {
+          "target": "raw",
+          "message": "injected raw write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1272,
+            "canvasesReleased": 1272,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 21,
+            "closed": 21,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4404771,
+            "chunksWritten": 30,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        },
+        {
+          "target": "png",
+          "message": "injected png write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1291,
+            "canvasesReleased": 1291,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 23,
+            "closed": 23,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4404771,
+            "chunksWritten": 30,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        },
+        {
+          "target": "tiff-strips",
+          "message": "injected tiff-strips write failure",
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1310,
+            "canvasesReleased": 1310,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 17693600,
+            "peakReservedBytes": 114623472,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 134217728
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 25,
+            "closed": 25,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "io": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 17168,
+            "bytesWritten": 4432826,
+            "chunksWritten": 31,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        }
+      ],
+      "parts": {
+        "parts": [
+          {
+            "size": 262144
+          },
+          {
+            "size": 262144
+          },
+          {
+            "size": 262144
+          },
+          {
+            "size": 23019
+          }
+        ],
+        "bytes": 809451
+      },
+      "narrow": {
+        "viewport": 390,
+        "width": 390
+      },
+      "final": {
+        "operations": {
+          "created": 26,
+          "closed": 26,
+          "timedOut": 0,
+          "pendingReads": 0,
+          "requests": 0,
+          "tileAttempts": 0,
+          "cacheWrites": 0,
+          "inference": 0,
+          "bitmaps": 0,
+          "tensors": 0,
+          "active": []
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 1310,
+          "canvasesReleased": 1310,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 17693600,
+          "peakReservedBytes": 114623472,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 134217728
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "io": {
+          "pendingBytes": 0,
+          "peakPendingBytes": 262215,
+          "bytesWritten": 5242277,
+          "chunksWritten": 35,
+          "activeWriters": 0,
+          "cleanupFailures": 0,
+          "memorySpools": 0,
+          "memoryBytes": 0
+        },
+        "allBitmapsClosed": true
+      },
+      "reload": {
+        "pngDescriptor": 1,
+        "mapImage": "blob:http://127.0.0.1:64793/f0124d31-1416-4460-9810-ab1b26f1c8cc"
+      }
+    },
+    "worker": {
+      "checkedAt": "2026-11-16T19:38:14.584Z",
+      "mode": "Local source, native Chromium; deterministic tiles and fixed inference outputs",
+      "sources": {
+        "index.html": "b0fe40e94262ae0b555d8a5688ecf2d13d2888f6661aebfd95f4a33b2f77d933",
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "comparison.js": "225a959d8e8ff0ed67eba0b27a2dbccbeda546f7f6702af9c36607c434dd9929",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+        "app.js": "db0794e7fa4ce7616634a096bc7857cc367fdf42339c8f22a1e4d4a2c043ff62"
+      },
+      "limitations": [
+        "Owned canvas bytes and estimated reservations are not browser/process/GPU memory.",
+        "Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check."
+      ],
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "worker": {
+        "equalPredictions": true,
+        "equalTransform": true,
+        "native": {
+          "png": {
+            "main": "100a8c45522df5eb37b36a8fe39177bbf30d08bca0e0963e14307e7a36e3917b",
+            "worker": "100a8c45522df5eb37b36a8fe39177bbf30d08bca0e0963e14307e7a36e3917b"
+          },
+          "tif": {
+            "main": "9b11fc5fe25f1d05484d800921ff667e8cea288b6f0316d47239056b9ac716b1",
+            "worker": "9b11fc5fe25f1d05484d800921ff667e8cea288b6f0316d47239056b9ac716b1"
+          }
+        },
+        "displayHashes": [
+          "c05781969bd48c814f275bf3ec6ceeaa169254983c4daf6c466b416e0df5313b",
+          "c05781969bd48c814f275bf3ec6ceeaa169254983c4daf6c466b416e0df5313b"
+        ],
+        "durationMs": 844,
+        "longTasks": [],
+        "inputSamples": [
+          1.2999999523162842,
+          0.6000001430511475,
+          0.39999985694885254,
+          0.40000009536743164,
+          0.39999985694885254,
+          0.7999999523162842,
+          0.40000009536743164,
+          0.2999999523162842,
+          0.40000009536743164,
+          0.5,
+          0.40000009536743164,
+          0.40000009536743164
+        ],
+        "mapInputs": 12,
+        "processing": {
+          "active": 0,
+          "created": 1,
+          "terminated": 1,
+          "crashes": 0,
+          "forcedStops": 0,
+          "fallbacks": 0,
+          "storageRequests": 185,
+          "transferredBytes": 20287836,
+          "pendingStorage": 0,
+          "last": {
+            "models": {
+              "leased": 0,
+              "legacyCached": 0
+            },
+            "allocations": {
+              "rejected": 0,
+              "canvasesCreated": 51,
+              "canvasesReleased": 51,
+              "liveCanvasBytes": 0,
+              "peakCanvasBytes": 9854976,
+              "peakReservedBytes": 112143488,
+              "reservedBytes": 0,
+              "activeOperations": [],
+              "waiting": 0,
+              "limits": {
+                "maxPixels": 32000000,
+                "maxDimension": 8192,
+                "maxEstimatedBytes": 536870912
+              },
+              "maxConcurrentProcessing": 1,
+              "maxConcurrentDownloads": 4
+            },
+            "operations": {
+              "created": 2,
+              "closed": 2,
+              "timedOut": 0,
+              "pendingReads": 0,
+              "requests": 0,
+              "tileAttempts": 0,
+              "cacheWrites": 0,
+              "inference": 0,
+              "bitmaps": 0,
+              "tensors": 0,
+              "active": []
+            },
+            "streaming": {
+              "pendingBytes": 0,
+              "peakPendingBytes": 359,
+              "bytesWritten": 25954,
+              "chunksWritten": 2,
+              "activeWriters": 0,
+              "cleanupFailures": 0,
+              "memorySpools": 0,
+              "memoryBytes": 0
+            },
+            "pendingStorage": 0
+          },
+          "jobId": null
+        },
+        "allocations": {
+          "rejected": 0,
+          "canvasesCreated": 51,
+          "canvasesReleased": 51,
+          "liveCanvasBytes": 0,
+          "peakCanvasBytes": 8282112,
+          "peakReservedBytes": 126823552,
+          "reservedBytes": 0,
+          "activeOperations": [],
+          "waiting": 0,
+          "limits": {
+            "maxPixels": 32000000,
+            "maxDimension": 8192,
+            "maxEstimatedBytes": 536870912
+          },
+          "maxConcurrentProcessing": 1,
+          "maxConcurrentDownloads": 4
+        },
+        "inputP95Ms": 1.2999999523162842,
+        "cancel": {
+          "error": "AbortError",
+          "processing": {
+            "active": 0,
+            "created": 2,
+            "terminated": 2,
+            "crashes": 0,
+            "forcedStops": 0,
+            "fallbacks": 0,
+            "storageRequests": 188,
+            "transferredBytes": 20287836,
+            "pendingStorage": 0,
+            "last": {
+              "models": {
+                "leased": 0,
+                "legacyCached": 0
+              },
+              "allocations": {
+                "rejected": 0,
+                "canvasesCreated": 1,
+                "canvasesReleased": 1,
+                "liveCanvasBytes": 0,
+                "peakCanvasBytes": 7680000,
+                "peakReservedBytes": 111122624,
+                "reservedBytes": 0,
+                "activeOperations": [],
+                "waiting": 0,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "maxConcurrentProcessing": 1,
+                "maxConcurrentDownloads": 4
+              },
+              "operations": {
+                "created": 1,
+                "closed": 1,
+                "timedOut": 0,
+                "pendingReads": 0,
+                "requests": 0,
+                "tileAttempts": 0,
+                "cacheWrites": 0,
+                "inference": 0,
+                "bitmaps": 0,
+                "tensors": 0,
+                "active": []
+              },
+              "streaming": {
+                "pendingBytes": 0,
+                "peakPendingBytes": 378,
+                "bytesWritten": 0,
+                "chunksWritten": 0,
+                "activeWriters": 0,
+                "cleanupFailures": 0,
+                "memorySpools": 0,
+                "memoryBytes": 0
+              },
+              "pendingStorage": 0
+            },
+            "jobId": null
+          },
+          "reserved": 0,
+          "session": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 359,
+            "bytesWritten": 25954,
+            "chunksWritten": 2,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          }
+        },
+        "session": {
+          "png": 611,
+          "tiff": 582,
+          "memory": 0
+        },
+        "crash": {
+          "error": "WORKER_CRASH",
+          "processing": {
+            "active": 0,
+            "created": 5,
+            "terminated": 5,
+            "crashes": 1,
+            "forcedStops": 0,
+            "fallbacks": 0,
+            "storageRequests": 198,
+            "transferredBytes": 20301101,
+            "pendingStorage": 0,
+            "last": {
+              "models": {
+                "leased": 0,
+                "legacyCached": 0
+              },
+              "allocations": {
+                "rejected": 0,
+                "canvasesCreated": 0,
+                "canvasesReleased": 0,
+                "liveCanvasBytes": 0,
+                "peakCanvasBytes": 0,
+                "peakReservedBytes": 0,
+                "reservedBytes": 0,
+                "activeOperations": [],
+                "waiting": 0,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "maxConcurrentProcessing": 1,
+                "maxConcurrentDownloads": 4
+              },
+              "operations": {
+                "created": 0,
+                "closed": 0,
+                "timedOut": 0,
+                "pendingReads": 0,
+                "requests": 0,
+                "tileAttempts": 0,
+                "cacheWrites": 0,
+                "inference": 0,
+                "bitmaps": 0,
+                "tensors": 0,
+                "active": []
+              },
+              "streaming": {
+                "pendingBytes": 0,
+                "peakPendingBytes": 0,
+                "bytesWritten": 0,
+                "chunksWritten": 0,
+                "activeWriters": 0,
+                "cleanupFailures": 0,
+                "memorySpools": 0,
+                "memoryBytes": 0
+              },
+              "pendingStorage": 0
+            },
+            "jobId": null
+          },
+          "reserved": 0
+        },
+        "app": {
+          "log": "23:38:18  Queued: Fixture · 1 AOI(s). Settings captured for this job.\n23:38:18  Processing in a dedicated worker.\n23:38:18  Loading model Fixture…\n23:38:18  Model ready on CPU (WebAssembly) · 1024 px input\n23:38:18  Allocation: 1 release(s) 2026-10-29\n23:38:18  [1/1] Allocation · 2026-10-29\n23:38:18      Budget: z18 · 400×128 px · 2 tiles · estimated 78.6 MiB\n23:38:18      Coverage z18: 2/2 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.0s\n23:38:18      z18 · 400×128 px · 1 objects aircraft:1\n23:38:18  Finished: 1 objects across 1 AOI/date clips. Saved on this device. Export a zip for a separate backup.",
+          "processing": {
+            "active": 0,
+            "created": 6,
+            "terminated": 6,
+            "crashes": 1,
+            "forcedStops": 0,
+            "fallbacks": 0,
+            "storageRequests": 206,
+            "transferredBytes": 20302798,
+            "pendingStorage": 0,
+            "last": {
+              "models": {
+                "leased": 0,
+                "legacyCached": 0
+              },
+              "allocations": {
+                "rejected": 0,
+                "canvasesCreated": 1,
+                "canvasesReleased": 1,
+                "liveCanvasBytes": 0,
+                "peakCanvasBytes": 204800,
+                "peakReservedBytes": 78209152,
+                "reservedBytes": 0,
+                "activeOperations": [],
+                "waiting": 0,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "maxConcurrentProcessing": 1,
+                "maxConcurrentDownloads": 4
+              },
+              "operations": {
+                "created": 1,
+                "closed": 1,
+                "timedOut": 0,
+                "pendingReads": 0,
+                "requests": 0,
+                "tileAttempts": 0,
+                "cacheWrites": 0,
+                "inference": 0,
+                "bitmaps": 0,
+                "tensors": 0,
+                "active": []
+              },
+              "streaming": {
+                "pendingBytes": 0,
+                "peakPendingBytes": 260,
+                "bytesWritten": 1193,
+                "chunksWritten": 2,
+                "activeWriters": 0,
+                "cleanupFailures": 0,
+                "memorySpools": 0,
+                "memoryBytes": 0
+              },
+              "pendingStorage": 0
+            },
+            "jobId": null
+          }
+        },
+        "staging": 0,
+        "recovery": {
+          "log": "23:38:19  Queued: Fixture · 1 AOI(s). Settings captured for this job.\n23:38:19  Processing in a dedicated worker.\n23:38:19  Loading model Fixture…\n23:38:19  Model ready on CPU (WebAssembly) · 1024 px input\n23:38:19  Allocation: 1 release(s) 2026-10-29\n23:38:19  [1/1] Allocation · 2026-10-29\n23:38:19      Budget: z18 · 400×128 px · 2 tiles · estimated 78.6 MiB\n23:38:19      Coverage z18: 2/2 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.0s\n23:38:19  Paused. Saved clips are kept; resume the unfinished clips when ready.\n23:38:19  Processing in a dedicated worker.\n23:38:19  Loading model Fixture…\n23:38:19  Model ready on CPU (WebAssembly) · 1024 px input\n23:38:19  [1/1] Allocation · 2026-10-29\n23:38:19      Budget: z18 · 400×128 px · 2 tiles · estimated 78.6 MiB\n23:38:19      Coverage z18: 2/2 tiles available, 0 unavailable, 0 unknown · 1 check(s) · 0.0s\n23:38:19      z18 · 400×128 px · 1 objects aircraft:1\n23:38:19  Finished: 1 objects across 1 AOI/date clips. Saved on this device. Export a zip for a separate backup.",
+          "processing": {
+            "active": 0,
+            "created": 8,
+            "terminated": 8,
+            "crashes": 1,
+            "forcedStops": 0,
+            "fallbacks": 0,
+            "storageRequests": 217,
+            "transferredBytes": 20304495,
+            "pendingStorage": 0,
+            "last": {
+              "models": {
+                "leased": 0,
+                "legacyCached": 0
+              },
+              "allocations": {
+                "rejected": 0,
+                "canvasesCreated": 1,
+                "canvasesReleased": 1,
+                "liveCanvasBytes": 0,
+                "peakCanvasBytes": 204800,
+                "peakReservedBytes": 78209152,
+                "reservedBytes": 0,
+                "activeOperations": [],
+                "waiting": 0,
+                "limits": {
+                  "maxPixels": 32000000,
+                  "maxDimension": 8192,
+                  "maxEstimatedBytes": 536870912
+                },
+                "maxConcurrentProcessing": 1,
+                "maxConcurrentDownloads": 4
+              },
+              "operations": {
+                "created": 1,
+                "closed": 1,
+                "timedOut": 0,
+                "pendingReads": 0,
+                "requests": 0,
+                "tileAttempts": 0,
+                "cacheWrites": 0,
+                "inference": 0,
+                "bitmaps": 0,
+                "tensors": 0,
+                "active": []
+              },
+              "streaming": {
+                "pendingBytes": 0,
+                "peakPendingBytes": 260,
+                "bytesWritten": 1193,
+                "chunksWritten": 2,
+                "activeWriters": 0,
+                "cleanupFailures": 0,
+                "memorySpools": 0,
+                "memoryBytes": 0
+              },
+              "pendingStorage": 0
+            },
+            "jobId": null
+          }
+        }
+      }
+    },
+    "runtime-gpu": {
+      "checkedAt": "2026-11-16T19:06:37.573Z",
+      "forcedWasm": false,
+      "failGpu": false,
+      "liveImagery": false,
+      "mode": "Local project path, actual pinned runtime and published nano/small weights; deterministic image fixture",
+      "sources": {
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "runs": [
+        {
+          "model": "yolo11n",
+          "modelFingerprint": "sha256:f171f6d6c993dba2e10d3eea9c9d29f6497023765a1201e6e05160e7f495f014",
+          "provider": "webgpu",
+          "release": {
+            "release": 101,
+            "date": "2026-10-29"
+          },
+          "loadMs": 3754.2000000476837,
+          "clipMs": 380.39999985694885,
+          "predictions": true,
+          "world": true,
+          "total": 0,
+          "size": [
+            374,
+            413
+          ],
+          "timings": {
+            "prepareMs": 73.20000004768372,
+            "imageryMs": 94.19999980926514,
+            "detectionMs": 168,
+            "identityMs": 0.10000014305114746,
+            "pngMs": 17.399999856948853,
+            "tiffMs": 26.100000143051147,
+            "displayMs": 1.3999998569488525,
+            "cleanupMs": 0,
+            "totalMs": 380.39999985694885
+          }
+        },
+        {
+          "model": "yolo11s",
+          "modelFingerprint": "sha256:f6ef60e0e4eac7c0e3ed1d4c217812bb24098efc696f793b81f972fcab051baa",
+          "provider": "webgpu",
+          "release": {
+            "release": 101,
+            "date": "2026-10-29"
+          },
+          "loadMs": 7217.799999952316,
+          "clipMs": 342.2999999523163,
+          "predictions": true,
+          "world": true,
+          "total": 0,
+          "size": [
+            374,
+            413
+          ],
+          "timings": {
+            "prepareMs": 16,
+            "imageryMs": 3.799999952316284,
+            "detectionMs": 276.40000009536743,
+            "identityMs": 0.09999990463256836,
+            "pngMs": 18.5,
+            "tiffMs": 26,
+            "displayMs": 1.5,
+            "cleanupMs": 0,
+            "totalMs": 342.2999999523163
+          }
+        }
+      ],
+      "cleanup": {
+        "active": 0,
+        "created": 2,
+        "terminated": 2,
+        "crashes": 0,
+        "forcedStops": 0,
+        "fallbacks": 0,
+        "storageRequests": 36,
+        "transferredBytes": 20812,
+        "pendingStorage": 0,
+        "last": {
+          "models": {
+            "leased": 0,
+            "legacyCached": 0
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1,
+            "canvasesReleased": 1,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 617848,
+            "peakReservedBytes": 83642856,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 2,
+            "closed": 2,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 463,
+            "bytesWritten": 5444,
+            "chunksWritten": 2,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          },
+          "pendingStorage": 0
+        },
+        "jobId": null
+      }
+    },
+    "runtime-wasm": {
+      "checkedAt": "2026-11-16T19:24:48.389Z",
+      "forcedWasm": true,
+      "failGpu": false,
+      "liveImagery": false,
+      "mode": "Local project path, actual pinned runtime and published nano/small weights; deterministic image fixture",
+      "sources": {
+        "engine.js": "d8099eedabe8a53363b037625339dc26856b1d6fda9e76558a70349001fd63f2",
+        "map-view.js": "68314dff866b8db1bb824e3e6d207e10dc3d5b9597c2b61607120e7c59ba392c",
+        "streaming.js": "94cd63edf516807563d3503dd67ec98241838d6a0d019e9416dedf5b6a2adc4b",
+        "processing.js": "546efcc774941b8fd9b9b90866797856eb4cd25752b4ccb52a2c7010074d5af3",
+        "processing-worker.js": "0c0c9d3c007f9ced237be00c2ebbb51f12be77f3b6adfdebb936afab4bb1789d",
+        "storage.js": "cb8a553f79186ec796438ece51add8ee5e31d48d5aa0abe76abc461a45fc0355"
+      },
+      "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "runs": [
+        {
+          "model": "yolo11n",
+          "modelFingerprint": "sha256:f171f6d6c993dba2e10d3eea9c9d29f6497023765a1201e6e05160e7f495f014",
+          "provider": "wasm",
+          "release": {
+            "release": 101,
+            "date": "2026-10-29"
+          },
+          "loadMs": 4730,
+          "clipMs": 830.4000000953674,
+          "predictions": true,
+          "world": true,
+          "total": 0,
+          "size": [
+            374,
+            413
+          ],
+          "timings": {
+            "prepareMs": 79.40000009536743,
+            "imageryMs": 32.09999990463257,
+            "detectionMs": 679,
+            "identityMs": 0.09999990463256836,
+            "pngMs": 16.100000143051147,
+            "tiffMs": 21.700000047683716,
+            "displayMs": 1.5999999046325684,
+            "cleanupMs": 0.40000009536743164,
+            "totalMs": 830.4000000953674
+          }
+        },
+        {
+          "model": "yolo11s",
+          "modelFingerprint": "sha256:f6ef60e0e4eac7c0e3ed1d4c217812bb24098efc696f793b81f972fcab051baa",
+          "provider": "wasm",
+          "release": {
+            "release": 101,
+            "date": "2026-10-29"
+          },
+          "loadMs": 13455.400000095367,
+          "clipMs": 2004.2999999523163,
+          "predictions": true,
+          "world": true,
+          "total": 0,
+          "size": [
+            374,
+            413
+          ],
+          "timings": {
+            "prepareMs": 23.799999952316284,
+            "imageryMs": 8.100000143051147,
+            "detectionMs": 1932.0999999046326,
+            "identityMs": 0.20000004768371582,
+            "pngMs": 17.200000047683716,
+            "tiffMs": 21.299999952316284,
+            "displayMs": 1.5999999046325684,
+            "cleanupMs": 0,
+            "totalMs": 2004.2999999523163
+          }
+        }
+      ],
+      "cleanup": {
+        "active": 0,
+        "created": 2,
+        "terminated": 2,
+        "crashes": 0,
+        "forcedStops": 0,
+        "fallbacks": 0,
+        "storageRequests": 36,
+        "transferredBytes": 20812,
+        "pendingStorage": 0,
+        "last": {
+          "models": {
+            "leased": 0,
+            "legacyCached": 0
+          },
+          "allocations": {
+            "rejected": 0,
+            "canvasesCreated": 1,
+            "canvasesReleased": 1,
+            "liveCanvasBytes": 0,
+            "peakCanvasBytes": 617848,
+            "peakReservedBytes": 83642856,
+            "reservedBytes": 0,
+            "activeOperations": [],
+            "waiting": 0,
+            "limits": {
+              "maxPixels": 32000000,
+              "maxDimension": 8192,
+              "maxEstimatedBytes": 536870912
+            },
+            "maxConcurrentProcessing": 1,
+            "maxConcurrentDownloads": 4
+          },
+          "operations": {
+            "created": 2,
+            "closed": 2,
+            "timedOut": 0,
+            "pendingReads": 0,
+            "requests": 0,
+            "tileAttempts": 0,
+            "cacheWrites": 0,
+            "inference": 0,
+            "bitmaps": 0,
+            "tensors": 0,
+            "active": []
+          },
+          "streaming": {
+            "pendingBytes": 0,
+            "peakPendingBytes": 463,
+            "bytesWritten": 5444,
+            "chunksWritten": 2,
+            "activeWriters": 0,
+            "cleanupFailures": 0,
+            "memorySpools": 0,
+            "memoryBytes": 0
+          },
+          "pendingStorage": 0
+        },
+        "jobId": null
+      }
+    }
+  },
+  "remainingGates": [
+    "Normal GitHub Pages CI and served/executed source parity after publication",
+    "Actual optional-backend ML/provider execution if releasing that optional service"
+  ],
+  "limitations": [
+    "No resolution, overlap, precision, confidence or suppression default changed; no accuracy or throughput speedup claim.",
+    "Real model probes are loading/provider/parity smoke checks with deterministic imagery, not a held-out accuracy benchmark.",
+    "Unscoped, ambiguous or shape-edited historical reviews can remain unresolved; original records/API collections/backups remain available.",
+    "Recovery pages retain at most 100 budget-accounted records; one unusually large feature can still cause a temporary read spike.",
+    "Owned-resource counters establish cleanup, not a sustained native/GPU memory-leak fix; saved review/alias records are intentionally retained.",
+    "Backend annotation locking remains process-local; broader concurrency/cache/storage policy remains GMD-019."
+  ]
+}

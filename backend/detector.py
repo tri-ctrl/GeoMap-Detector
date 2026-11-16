@@ -8,12 +8,15 @@ this portal (OBB or axis-aligned) is also accepted.
 from __future__ import annotations
 
 import math
+import hashlib
+import uuid
 from pathlib import Path
 
 import numpy as np
 from shapely.geometry import Polygon, mapping
 
 from wayback import Raster
+import identity
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 DEFAULT_MODEL = "yolo11s-obb.pt"
@@ -30,6 +33,7 @@ LABELS = {
 }
 
 _models: dict = {}
+_fingerprints: dict[str, str] = {}
 
 
 def resolve_model(name: str | None) -> str:
@@ -46,13 +50,34 @@ def load_model(name: str | None = None):
     from ultralytics import YOLO
     path = resolve_model(name)
     if path not in _models:
-        _models[path] = YOLO(path)
+        model = YOLO(path)
+        fingerprint = _checkpoint_fingerprint(model, name)
+        _models[path] = model
+        _fingerprints[path] = fingerprint
     return _models[path]
 
 
 def model_classes(name: str | None = None) -> list[str]:
     m = load_model(name)
     return [LABELS.get(v, v) for _, v in sorted(m.names.items())]
+
+
+def _checkpoint_fingerprint(model, name: str | None = None) -> str:
+    path = Path(getattr(model, "ckpt_path", None) or resolve_model(name))
+    if not path.is_file():
+        return "source:" + str(name or DEFAULT_MODEL)
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1048576), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
+def model_fingerprint(name: str | None = None) -> str:
+    model = load_model(name)
+    # The digest belongs to the cached loaded model, even if a checkpoint file
+    # is later replaced. Cache invalidation is a separate model-manager policy.
+    return _fingerprints.get(resolve_model(name)) or _checkpoint_fingerprint(model, name)
 
 
 def _windows(h, w, size, overlap):
@@ -170,6 +195,15 @@ def to_features(dets: list[dict], raster: Raster, props: dict) -> list[dict]:
                 "status": "predicted",
             },
         })
+    occurrences = {}
+    scope = props.get("gmd_clip_id") or "session:" + str(uuid.uuid4())
+    for feature in feats:
+        old = feature["id"]
+        key = identity.canonical([feature["properties"]["class"], identity.geometry_key(feature["geometry"])])
+        occurrence = occurrences.get(key, 0)
+        occurrences[key] = occurrence + 1
+        feature["id"] = identity.prediction_id(scope, feature["geometry"], feature["properties"]["class"], occurrence)
+        feature["properties"].update(gmd_prediction_id=feature["id"], gmd_legacy_ids=[old])
     return feats
 
 

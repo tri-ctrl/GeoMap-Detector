@@ -254,13 +254,92 @@ function uniqueAois(features) {
   // Keep different names, geometries, and metadata as separate AOIs.
   const seen = new Set();
   return features.filter(f => {
-    const { _gmd_id, ...external } = f;
-    const key = JSON.stringify(external);
+    const { _gmd_id, _gmd_aliases, ...external } = f;
+    const key = JSON.stringify(external, (_, value) => value && !Array.isArray(value) && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().map(k => [k, value[k]])) : value);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
+// Identity version 1 is additive: external AOI IDs, names and old prediction
+// IDs remain data/aliases. Only an exact clip scope can authorize review reuse.
+const identity = {
+  version: 1,
+  async digest(value) {
+    if (!global.crypto?.subtle || !global.TextEncoder) return "raw:" + encodeURIComponent(value);
+    const bytes = await global.crypto.subtle.digest("SHA-256", new global.TextEncoder().encode(value));
+    return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, "0")).join("");
+  },
+  async clipId(job, aoi, release, model) { return "gmd:c1:" + await identity.digest(JSON.stringify([job, aoi, release, model])); },
+  geometry(geometry) {
+    // A ring's starting vertex/direction is not an object identity. Keep the
+    // original exported coordinates untouched and normalize only this key.
+    const ring = points => {
+      const p = points.slice(); if (JSON.stringify(p[0]) === JSON.stringify(p.at(-1))) p.pop();
+      if (!p.length) return "[]";
+      let start = 0;
+      for (let i = 1; i < p.length; i++) if (JSON.stringify(p[i]) < JSON.stringify(p[start])) start = i;
+      const forward = JSON.stringify(p.slice(start).concat(p.slice(0, start)));
+      const backward = JSON.stringify(p.map((_, i) => p[(start - i + p.length) % p.length]));
+      return forward < backward ? forward : backward;
+    };
+    const polygon = rings => [ring(rings[0]), ...rings.slice(1).map(ring).sort()];
+    if (geometry?.type === "Polygon") return JSON.stringify(["Polygon", polygon(geometry.coordinates)]);
+    if (geometry?.type === "MultiPolygon") return JSON.stringify(["MultiPolygon", geometry.coordinates.map(polygon).map(JSON.stringify).sort()]);
+    return JSON.stringify(geometry);
+  },
+  async predictions(features, props, signal) {
+    const occurrences = new Map();
+    // Sequential hashing bounds scratch buffers and preserves original output
+    // ordering. Confidence/rank never participates in the identifier.
+    for (const feature of features) {
+      checkAbort(signal);
+      const key = JSON.stringify([feature.properties.class, identity.geometry(feature.geometry)]), digest = await identity.digest(key);
+      const occurrence = occurrences.get(key) || 0; occurrences.set(key, occurrence + 1);
+      const old = feature.id;
+      feature.id = "gmd:p1:" + encodeURIComponent(props.gmd_clip_id) + ":" + digest + ":" + occurrence;
+      feature.properties.gmd_legacy_ids = [old];
+      feature.properties.gmd_prediction_id = feature.id;
+    }
+    checkAbort(signal); return features;
+  },
+  async context(aoi, release, opt) {
+    const job = opt.jobId || "session:" + (global.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const aoiId = aoi._gmd_id || "geometry:" + await identity.digest(JSON.stringify(aoi));
+    const model = opt.model ? opt.model.fingerprint || opt.model.key || "unidentified-model" : "imagery";
+    return { gmd_identity_version: 1, gmd_job_id: job, gmd_aoi_id: aoiId,
+      gmd_clip_id: opt.clipId || await identity.clipId(job, aoiId, release.release, model), gmd_model_id: model, gmd_model_key: opt.model?.key || null };
+  },
+  mergeReviews(fc, annotations, scope) {
+    const byId = new Map();
+    for (const feature of annotations.features) if (feature.properties.gmd_clip_id === scope) {
+      if (byId.has(feature.id)) byId.set(feature.id, null); else byId.set(feature.id, feature);
+    }
+    const have = new Set(fc.features.map(f => f.id));
+    fc.features = fc.features.map(feature => byId.get(feature.id) || feature);
+    for (const feature of byId.values()) if (feature?.properties.status === "manual" && !have.has(feature.id)) {
+      fc.features.push(feature); have.add(feature.id);
+    }
+    return fc;
+  },
+  resolveReview(review, prediction, context, rawFeatures) {
+    const p = review.properties || {}, q = prediction.properties || {};
+    if (!["verified", "corrected", "rejected", "manual"].includes(p.status) || typeof p.class !== "string" || !p.class.trim())
+      throw new Error("Choose a reviewed object with a valid class.");
+    if (p.release == null || String(p.release) !== String(context.release)) throw new Error("The imagery releases do not match.");
+    for (const [field, expected] of [["gmd_clip_id", context.scope], ["gmd_job_id", context.jobId], ["gmd_aoi_id", context.aoiId], ["gmd_model_id", context.modelId]])
+      if (p[field] != null && p[field] !== expected) throw new Error("The saved review belongs to another run, AOI or model.");
+    if ((p.gmd_model_key || p.model_key) != null && (p.gmd_model_key || p.model_key) !== context.modelKey) throw new Error("The saved review uses another model.");
+    if (p.aoi_id != null && p.aoi_id !== context.aoiLegacyId) throw new Error("The saved AOI does not match.");
+    const key = identity.geometry(review.geometry), matches = rawFeatures.filter(f => identity.geometry(f.geometry) === key);
+    if (matches.length !== 1 || matches[0].id !== prediction.id) throw new Error("No unique original shape matches this review. Keep it unresolved and export it for manual recovery.");
+    return { ...JSON.parse(JSON.stringify(review)), id: prediction.id, properties: { ...q, ...p,
+      gmd_identity_version: 1, gmd_prediction_id: q.gmd_prediction_id || prediction.id,
+      gmd_clip_id: context.scope, gmd_job_id: context.jobId, gmd_aoi_id: context.aoiId, gmd_model_id: context.modelId,
+      gmd_legacy_ids: [...new Set([...(q.gmd_legacy_ids || []), review.id].filter(id => id != null))] } };
+  },
+};
 function pointInRings(rings, x, y) {          // even-odd over all rings (holes included)
   let inside = false;
   for (const ring of rings) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -790,6 +869,8 @@ async function loadModelOwned(spec, owner) {
     src = new Uint8Array(await response.arrayBuffer()); owner.check();
     if (!src.byteLength) throw new Error(`ONNX model ${spec.url} is empty. ${help}`);
   }
+  const fingerprint = global.crypto?.subtle ? "sha256:" + [...new Uint8Array(await global.crypto.subtle.digest("SHA-256", src))].map(b => b.toString(16).padStart(2, "0")).join("") : null;
+  owner.check();
   await ensureLibrary("ort", { signal: spec.signal }); owner.check();
   let session = null, provider = "wasm";
   try {
@@ -801,7 +882,7 @@ async function loadModelOwned(spec, owner) {
     owner.check();
   } catch (error) { if (session?.release) await session.release(); throw error; }
   const dims = (session.inputMetadata && session.inputMetadata[0] && session.inputMetadata[0].dimensions) || null;
-  const m = { session, provider, names: spec.names || DOTA_NAMES, imgsz: spec.imgsz || (dims && typeof dims[2] === "number" ? dims[2] : 1024), key: spec.key };
+  const m = { session, provider, fingerprint, names: spec.names || DOTA_NAMES, imgsz: spec.imgsz || (dims && typeof dims[2] === "number" ? dims[2] : 1024), key: spec.key };
   if (spec.cache !== false) _sessions.set(spec.key, m);
   return m;
 }
@@ -1112,11 +1193,12 @@ async function processClipBounded(aoi, rel, opt) {
       modelSize: opt.model?.imgsz || 0, onProgress: f => opt.onProgress?.(f * 0.4) }); owner.check();
     mark("imageryMs");
     const name = aoi.properties.name, aoi_id = slug(name), [, clat] = pixelToLonLat(raster, raster.w / 2, raster.h / 2);
-    const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: raster.zoom, gsd_m: +groundRes(raster, clat).toFixed(3),
+    const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: raster.zoom, gsd_m: +groundRes(raster, clat).toFixed(3),
       source: "Esri Wayback", imagery_coverage: raster.coverage.status, missing_tiles: raster.missing };
     const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
     mark("detectionMs");
-    owner.check(); const features = toFeatures(dets, raster, props), counts = {}; for (const feature of features) counts[feature.properties.class] = (counts[feature.properties.class] || 0) + 1;
+    owner.check(); const features = await identity.predictions(toFeatures(dets, raster, props), props, owner.signal), counts = {}; for (const feature of features) counts[feature.properties.class] = (counts[feature.properties.class] || 0) + 1;
+    mark("identityMs");
     const IO = global.GVStreaming, blobs = { pgw: worldFile(raster) };
     if (opt.png !== false) blobs.png = await IO.png(raster, IO.sink(spool, "png", "image/png", { signal: owner.signal }), { signal: owner.signal });
     mark("pngMs");
@@ -1130,7 +1212,7 @@ async function processClipBounded(aoi, rel, opt) {
     for (const d of dets) { context.strokeStyle = COLORS[d.cls] || "#fff"; context.beginPath(); d.poly.forEach(([x, y], i) => i ? context.lineTo(x * sx, y * sy) : context.moveTo(x * sx, y * sy)); context.closePath(); context.stroke(); }
     blobs.preview = await canvasBlob(raster.canvas, "image/jpeg", 0.88); owner.check();
     if (!blobs.display || !blobs.preview) throw new AllocationError("CANVAS_ENCODING", "Could not encode the bounded display image");
-    const bounds = rasterBounds(raster), result = { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: raster.zoom, bounds, counts, total: features.length,
+    const bounds = rasterBounds(raster), result = { identity: props, aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: raster.zoom, bounds, counts, total: features.length,
       tiles: raster.tiles, missing: raster.missing, coverage: raster.coverage, size: [raster.w, raster.h], requestedZoom: plan.requestedZoom,
       displaySize: [raster.canvas.width, raster.canvas.height], maskVersion: plan.maskVersion, artifactSpool: spool.persistent ? spool.id : undefined,
       timings,
@@ -1160,10 +1242,10 @@ async function processClip(aoi, rel, opt = {}) {
     r = await buildRaster(aoi.geometry, rel.release, opt.zoom, { ...opt, allocation: lease, limits: estimate.limits, onProgress: f => opt.onProgress && opt.onProgress(0.45 * f) });
     const name = aoi.properties.name, aoi_id = slug(name);
     const [, clat] = pixelToLonLat(r, r.w / 2, r.h / 2);
-    const props = { aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
+    const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
     let dets = [];
     if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
-    const feats = toFeatures(dets, r, props), counts = {};
+    const feats = await identity.predictions(toFeatures(dets, r, props), props, opt.signal), counts = {};
     feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
     const bounds = rasterBounds(r);
     const png = await canvasBlob(r.canvas, "image/png"), preview = await previewBlob(r, dets);
@@ -1172,7 +1254,7 @@ async function processClip(aoi, rel, opt = {}) {
     const blobs = { png, preview, tif: opt.geotiff === false ? null : geotiffBlob(r, png.size + preview.size), pgw: worldFile(r) };
     checkAbort(opt.signal);
     opt.onProgress && opt.onProgress(1);
-    return { aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
+    return { identity: props, aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
       tiles: r.tiles, missing: r.missing, coverage: r.coverage, size: [r.w, r.h], requestedZoom: estimate.requestedZoom, allocation: { estimatedBytes: estimate.estimatedBytes, rgbaBytes: estimate.rgbaBytes, limits: estimate.limits }, aoiFeature: aoi,
       fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
   } finally { r?.release(); lease.release(); }
@@ -1205,9 +1287,9 @@ async function exportJobZip(job, extra = {}) {
   }
   root.file("all_detections.geojson", track(JSON.stringify({ type: "FeatureCollection", features: all })));
   root.file("aois.geojson", track(JSON.stringify({ type: "FeatureCollection", features: job.aois })));
-  root.file("summary.json", track(JSON.stringify({ job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
+  root.file("summary.json", track(JSON.stringify({ identity_schema: 1, job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
     results: job.results.map((r, index) => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, bounds: r.bounds, counts: r.counts, total: r.total,
-      clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[index] })), ...extra }, null, 2)));
+      clipId: r.storeId, identity: r.identity || null, legacy_path: `${r.aoi_id}/${r.date || r.release}`, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[index] })), ...extra }, null, 2)));
   return await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 1 } }, extra.onProgress);
   } finally { lease.release(); }
 }
@@ -1360,9 +1442,10 @@ async function exportJobZipStream(job, opt = {}) {
     }
     await writer.add(root + "/all_detections.geojson", IO.collection(allFeatures()), { compress: true });
     await writer.add(root + "/aois.geojson", IO.collection(job.aois), { compress: true });
-    const summary = { job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
+    const summary = { identity_schema: 1, job: job.id, status: job.status, params: job.params, outcomes: job.outcomes || [],
       results: results.map((r, i) => ({ aoi: r.aoi, date: r.date, release: r.release, zoom: r.zoom, requestedZoom: r.requestedZoom, bounds: r.bounds,
-        size: r.size, displaySize: r.displaySize, counts: r.counts, total: r.total, clipId: r.storeId, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[i] })) };
+        size: r.size, displaySize: r.displaySize, counts: r.counts, total: r.total, clipId: r.storeId, identity: r.identity || null,
+        legacy_path: `${r.aoi_id}/${r.date || r.release}`, tiles: r.tiles, missing: r.missing, coverage: r.coverage, path: paths[i] })) };
     await writer.add(root + "/summary.json", JSON.stringify(summary), { compress: true }); opt.onProgress?.({ percent: 100 });
   });
 }
@@ -1418,7 +1501,7 @@ async function exportDatasetStream(annFC, opt = {}) {
   return { blob, chips, classes };
 }
 async function exportCSV(job, opt = {}) {
-  const columns = ["id", "aoi_name", "imagery_date", "release", "class", "status", "confidence", "length_m", "width_m", "heading_deg", "lon", "lat"];
+  const columns = ["id", "aoi_name", "imagery_date", "release", "class", "status", "confidence", "length_m", "width_m", "heading_deg", "lon", "lat", "gmd_prediction_id", "gmd_clip_id", "gmd_job_id", "gmd_aoi_id", "gmd_model_id"];
   return exportOutput(opt.name || "detections.csv", { ...opt, archive: false }, async (output, { signal, IO }) => {
     await output.write(fflate.strToU8(columns.join(",") + "\n"));
     for (const descriptor of job.results) {
@@ -1444,7 +1527,7 @@ const allocationDiagnostics = () => ({ ...allocationStats, reservedBytes: [...al
 const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDefaults }), configure(values) { allocationDefaults = limitsFor({ ...DEFAULT_LIMITS, ...values }); return { ...allocationDefaults }; },
   dimensions, pngDimensions, reserve: reserveAllocation, acquire: acquireAllocation, download: (bytes, limits) => reserveAllocation("Download", Math.max(65536, bytes * 3), limits, false, "download"), makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
 const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
-global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+global.GVEngine = { identity, getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
   models: { acquire: acquireModel, diagnostics: () => ({ leased: modelLeases.size, legacyCached: _sessions.size }) },
   mapSearch: { parseCoordinates: parseMapCoordinates, suggest: suggestMapPlaces, find: findMapPlace, currentLocation: currentMapLocation },
   operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },

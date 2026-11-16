@@ -116,6 +116,7 @@ const server = http.createServer((request, response) => {
       await evaluate("document.querySelectorAll('#resTable tbody tr[data-i]')[1].click()"); await until("document.querySelector('#annStats').textContent==='0/1 reviewed'");
       results.imageOwnership = await evaluate('__urls'); assert.equal(results.imageOwnership.created, 2); assert.equal(results.imageOwnership.revoked, 1);
       if (lifecycle) {
+        const clipIds = await evaluate(`__repo.restore().then(s=>s.jobs.find(j=>j.id===${JSON.stringify(firstId)}).results.map(r=>r.storeId))`);
         results.lazyDrawing = await evaluate('({loadedBeforeEdit:!!L.Draw,existingPolygons:Object.values(__map._layers).filter(layer=>layer instanceof L.Polygon&&layer.options.pane===\'gmd-detections\').length})');
         assert.equal(results.lazyDrawing.loadedBeforeEdit, false); assert.equal(results.lazyDrawing.existingPolygons, 1);
         await evaluate(`(() => {
@@ -129,13 +130,13 @@ const server = http.createServer((request, response) => {
         await page('Input.dispatchMouseEvent', { type: 'mouseMoved', x: marker.x + 12, y: marker.y + 9, button: 'left', buttons: 1 });
         await until('JSON.stringify(__retired.toGeoJSON(false).geometry)!==__beforeDrag');
         await evaluate("window.__editedGeometry=JSON.stringify(__retired.toGeoJSON(false).geometry);document.querySelector('#resTable tbody tr[data-i]').click()");
-        await until("GVApp.diagnostics().views.scope.endsWith(':clip:0')&&document.querySelector('#annStats').textContent==='1/1 reviewed'");
+        await until(`GVApp.diagnostics().views.scope===${JSON.stringify(clipIds[0])}&&document.querySelector('#annStats').textContent==='1/1 reviewed'`);
         await page('Input.dispatchMouseEvent', { type: 'mouseReleased', x: marker.x + 12, y: marker.y + 9, button: 'left', clickCount: 1 });
         results.dragSwitch = await evaluate("({disabled:!__retired.editing.enabled(),detached:!__retired._map,events:Object.keys(__retired._events||{}),markers:document.querySelectorAll('.leaflet-editing-icon').length,selected:GVApp.diagnostics().views.selected,activeDrag:!!L.Draggable._dragging})");
         assert.equal(results.dragSwitch.disabled, true); assert.equal(results.dragSwitch.detached, true); assert.equal(results.dragSwitch.markers, 0); assert.equal(results.dragSwitch.selected, false); assert.equal(results.dragSwitch.activeDrag, false); assert.deepEqual(results.dragSwitch.events, []);
         const measurements = [];
         for (let cycle = 0; cycle < 20; cycle++) {
-          const index = cycle % 2, scope = firstId + ':clip:' + index;
+          const index = cycle % 2, scope = clipIds[index];
           const started = Date.now(); await evaluate(`document.querySelectorAll('#resTable tbody tr[data-i]')[${index}].click()`);
           await until(`GVApp.diagnostics().views.scope==='${scope}'&&!GVApp.diagnostics().views.loading&&!!document.querySelector('.leaflet-image-layer')`);
           await evaluate("document.querySelector('#showImg').checked=false;document.querySelector('#showImg').onchange()");
@@ -152,13 +153,13 @@ const server = http.createServer((request, response) => {
         await evaluate(`(() => {
           document.querySelector('#clearResultCache').click();
           const read=window.__readClipOriginal=__repo.clip.bind(__repo);window.__releaseRead=null;window.__waitingRead=false;
-          __repo.clip=async(id,...args)=>{const value=await read(id,...args);if(id==='${firstId}:clip:0'){__waitingRead=true;await new Promise(resolve=>__releaseRead=resolve)}return value};
+          __repo.clip=async(id,...args)=>{const value=await read(id,...args);if(id===${JSON.stringify(clipIds[0])}){__waitingRead=true;await new Promise(resolve=>__releaseRead=resolve)}return value};
           document.querySelector('#resTable tbody tr[data-i]').click();
         })()`);
         await until('__waitingRead'); await evaluate("document.querySelectorAll('#resTable tbody tr[data-i]')[1].click()");
-        await until("GVApp.diagnostics().views.scope.endsWith(':clip:1')&&!GVApp.diagnostics().views.loading");
+        await until(`GVApp.diagnostics().views.scope===${JSON.stringify(clipIds[1])}&&!GVApp.diagnostics().views.loading`);
         await evaluate('__releaseRead()'); await until('GVApp.diagnostics().views.staleReads>0');
-        results.reorderedRead = await evaluate('GVApp.diagnostics().views'); assert.ok(results.reorderedRead.scope.endsWith(':clip:1'));
+        results.reorderedRead = await evaluate('GVApp.diagnostics().views'); assert.equal(results.reorderedRead.scope, clipIds[1]);
         // Release the test gate for subsequent native ZIP/export checks.
         await evaluate('__repo.clip=__readClipOriginal');
         console.log('GMD-004: real vertex drag, twenty view switches, URL release and stale-read rejection passed.');
@@ -168,6 +169,7 @@ const server = http.createServer((request, response) => {
       assert.deepEqual(results.export.dimensions, [32, 16]); assert.equal(results.export.pgw, '1\n0\n0\n-1\n10\n20'); assert.equal(results.export.tiff, 'native-tiff-fixture'); assert.equal(results.export.status, 'verified');
       results.collidingExport = await evaluate(`(async()=>{const s=await __repo.restore(),r=await __repo.clip(s.jobs[0].results[0].storeId),other={...r,storeId:'different-aoi-clip',aoiFeature:{...r.aoiFeature,_gmd_id:'different-aoi'}};const j={...s.jobs[0],results:[r,other]},zip=await JSZip.loadAsync(await GVEngine.exportJobZip(j)),summary=JSON.parse(await zip.file(j.id+'/summary.json').async('string'));return {images:Object.keys(zip.files).filter(f=>f.endsWith('/image.png')).length,paths:summary.results.map(r=>r.path)}})()`);
       assert.equal(results.collidingExport.images, 2); assert.equal(new Set(results.collidingExport.paths).size, 2);
+      if (process.argv.includes('--identity')) await require('./identity-cases.cjs')({ evaluate, until, reloadDocument, ready, results, firstId });
       // A second live connection cannot acquire the workspace's Web Lock.
       results.secondTab = await evaluate('(async()=>{const other=GVStorage.create();const state=await other.open();let blocked=false;try{await other.saveAois([])}catch(e){blocked=e.name===\'ReadOnlyError\'}await other.close();return {writable:state.writable,blocked}})()');
       assert.deepEqual(results.secondTab, { writable: false, blocked: true });
@@ -179,7 +181,8 @@ const server = http.createServer((request, response) => {
       })()`);
       assert.equal(results.quotaRollback.error, 'QuotaExceededError'); assert.equal(results.quotaRollback.before, results.quotaRollback.after); assert.equal(results.quotaRollback.missing, true);
       results.deletion = await evaluate(`(async()=>{const before=(await __repo.reviews()).features.length;${lifecycle ? "await document.querySelector('#deleteJob').onclick()" : "await __repo.deleteJob('" + firstId + "')"};const s=await __repo.restore();let missing=false;try{await __repo.clip('${results.reviews.clipId}')}catch{missing=true}return {jobs:s.jobs.length,before,after:(await __repo.reviews()).features.length,missing}})()`);
-      assert.deepEqual(results.deletion, { jobs: 1, before: 2, after: 2, missing: true });
+      const savedReviewCount = process.argv.includes('--identity') ? 1 : 2;
+      assert.deepEqual(results.deletion, { jobs: 1, before: savedReviewCount, after: savedReviewCount, missing: true });
       if (lifecycle) { results.deletedView = await evaluate('GVApp.diagnostics()'); assert.equal(results.deletedView.views.active, 0); assert.equal(results.deletedView.views.imageLeases, 0); assert.equal(results.deletedView.views.selected, false); }
       if (process.argv.includes('--queue-recovery')) {
         const before=await evaluate(`(async()=>{const s=await __repo.restore(),template=s.jobs[0];for(const [id,status]of [['recover-cancelled','cancelled'],['recover-1','queued'],['recover-2','queued'],['recover-3','queued']])await __repo.saveJob({...template,id,status,createdAt:Date.now(),progress:0,log:[],plan:null,outcomes:[],modelSpec:null,params:{...template.params,detect:false},releaseSource:[{release:101,date:'2026-10-29'}]});return{jobs:s.jobs.length,reviews:(await __repo.reviews()).features.length}})()`);

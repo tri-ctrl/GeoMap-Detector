@@ -58,7 +58,7 @@ self.onmessage = async ({ data: message }) => {
     if (message.type === "load") {
       if (lease) throw new Error("This worker already owns a model");
       if (message.payload.spec) lease = await E.models.acquire({ ...message.payload.spec, signal: owner.controller.signal });
-      result = lease ? { provider: lease.model.provider, imgsz: lease.model.imgsz, key: lease.model.key } : null;
+      result = lease ? { provider: lease.model.provider, imgsz: lease.model.imgsz, key: lease.model.key, fingerprint: lease.model.fingerprint } : null;
     } else if (message.type === "clip") {
       let lastProgress = -Infinity;
       const progress = (kind, value) => {

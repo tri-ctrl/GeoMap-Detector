@@ -52,16 +52,16 @@ const server = http.createServer((request, response) => {
             const start=performance.now(),model=await runner.loadModel(spec),loaded=performance.now();
             const output=await runner.processClip(feature,release,{zoom:18,bounded:true,geotiff:true,clipId:spec.key+':0',classes:['aircraft','ship'],conf:.3});
             const reference=await GVEngine.models.acquire(spec);let original;
-            try{original=await GVEngine.processClip(feature,release,{zoom:18,bounded:true,geotiff:true,model:reference.model,classes:['aircraft','ship'],conf:.3})}finally{await reference.release()}
+            try{original=await GVEngine.processClip(feature,release,{jobId:spec.key,clipId:spec.key+':0',zoom:18,bounded:true,geotiff:true,model:reference.model,classes:['aircraft','ship'],conf:.3})}finally{await reference.release()}
             const predictions=JSON.stringify(output.fc)===JSON.stringify(original.fc);
             const world=output.blobs.pgw===original.blobs.pgw;
             await GVStreaming.discardArtifact(output.artifactSpool,repo);await GVStreaming.discardArtifact(original.blobs.png.spool);
-            runs.push({model:spec.key,provider:model.provider,release,loadMs:loaded-start,clipMs:output.timings.totalMs,predictions,world,total:output.total,size:output.size,timings:output.timings});
+            runs.push({model:spec.key,modelFingerprint:model.fingerprint,provider:model.provider,release,loadMs:loaded-start,clipMs:output.timings.totalMs,predictions,world,total:output.total,size:output.size,timings:output.timings});
           } finally {await runner.close()}
         }
         await repo.close();return runs;
       })()`, 240000);
-      for (const run of results.runs) { assert.equal(run.predictions,true); assert.equal(run.world,true); assert.equal(run.provider,forceWasm||failGpu?'wasm':'webgpu'); if(liveImagery)assert.ok(run.total>0,'Live fixture must exercise nonempty predictions'); }
+      for (const run of results.runs) { assert.match(run.modelFingerprint,/^sha256:[a-f0-9]{64}$/); assert.equal(run.predictions,true); assert.equal(run.world,true); assert.equal(run.provider,forceWasm||failGpu?'wasm':'webgpu'); if(liveImagery)assert.ok(run.total>0,'Live fixture must exercise nonempty predictions'); }
       results.cleanup = await evaluate('GVProcessing.diagnostics()');
       assert.equal(results.cleanup.active,0); assert.equal(results.cleanup.created,results.cleanup.terminated); assert.equal(results.cleanup.pendingStorage,0); assert.equal(results.cleanup.last.models.leased,0);
       assert.deepEqual(errors,[]);

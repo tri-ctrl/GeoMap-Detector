@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const appSource = readFileSync(path.join(__dirname, "../../frontend/app.js"), "utf8");
 const engineSource = readFileSync(path.join(__dirname, "../../frontend/engine.js"), "utf8");
+const processingSource = readFileSync(path.join(__dirname, "../../frontend/processing.js"), "utf8");
 const comparisonSource = readFileSync(path.join(__dirname, "../../frontend/comparison.js"), "utf8");
 const storageSource = readFileSync(path.join(__dirname, "../../frontend/storage.js"), "utf8");
 const streamingSource = readFileSync(path.join(__dirname, "../../frontend/streaming.js"), "utf8");
@@ -199,6 +200,7 @@ async function setup({ server = false, selected = false, showImage = true, aois 
   });
   context.window = context; context.self = context;
   vm.runInContext(engineSource, context);
+  vm.runInContext(processingSource, context);
   vm.runInContext(comparisonSource, context);
   vm.runInContext(storageSource, context);
   vm.runInContext(streamingSource, context);

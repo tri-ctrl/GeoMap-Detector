@@ -48,6 +48,10 @@ test("stale JavaScript fails the source comparison", async t => {
   const { options } = await fixture(t, state => state.bodies.set("app.js", "old app"));
   await assert.rejects(verifyDeployment(options), /app\.js: deployed content differs/);
 });
+test("a stale processing worker cannot pass the published source guard", async t => {
+  const { options } = await fixture(t, state => state.bodies.set("processing-worker.js", "old worker"));
+  await assert.rejects(verifyDeployment(options), /processing-worker\.js: deployed content differs/);
+});
 test("a missing small model entry fails even when nano exists", async t => {
   const { options } = await fixture(t, state => state.manifest.pop());
   await assert.rejects(verifyDeployment(options), /missing yolo11s-obb\.onnx/);

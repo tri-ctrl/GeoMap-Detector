@@ -21,7 +21,8 @@ function setup({ fetchModel, gpu = false, failGpu = false } = {}) {
       const provider = options.executionProviders[0];
       sessions.push({ data, provider });
       if (failGpu && provider === "webgpu") throw new Error("WebGPU unavailable");
-      return { inputNames: ["images"], outputNames: ["output0"] };
+      const record = sessions[sessions.length - 1]; record.releases = 0;
+      return { inputNames: ["images"], outputNames: ["output0"], release: async () => { record.releases++; } };
     } } },
   });
   vm.runInContext(source, context);
@@ -104,4 +105,16 @@ test("a user-supplied ONNX buffer loads without downloading a model", async () =
   await engine.loadModel({ ...spec, key: "custom", buffer: modelBytes });
   assert.equal(downloads.length, 0);
   assert.equal(sessions[0].data, modelBytes);
+});
+
+test("job model leases keep the legacy cache empty and release once after inference ownership ends", async () => {
+  const { engine, sessions, downloads } = setup({ gpu: true });
+  const first = await engine.models.acquire(spec);
+  assert.equal(engine.models.diagnostics().leased, 1); assert.equal(engine.models.diagnostics().legacyCached, 0);
+  assert.equal(sessions[0].releases, 0);
+  await Promise.all([first.release(), first.release()]);
+  assert.equal(sessions[0].releases, 1); assert.equal(engine.models.diagnostics().leased, 0);
+  const second = await engine.models.acquire({ ...spec, names: ['ship'] });
+  assert.deepEqual(second.model.names, ['ship']); assert.equal(downloads.length, 2);
+  await second.release(); assert.equal(sessions[1].releases, 1);
 });

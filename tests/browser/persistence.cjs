@@ -10,13 +10,14 @@ const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..');
 const lifecycle = process.argv.includes('--lifecycle');
-const files = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'app.js'];
+const files = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'app.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source, native Chromium IndexedDB; deterministic raster/model fixtures; no publication or inference claim',
   sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };
 const aoi = { type: 'Feature', id: 'external-aoi-id', properties: { name: 'Persistence', unknown: { preserved: true } },
   geometry: { type: 'Polygon', coordinates: [[[55.36, 25.25], [55.362, 25.25], [55.362, 25.252], [55.36, 25.252], [55.36, 25.25]]] } };
 const fixture = String.raw`
+window.Worker=undefined; // Deterministic main-context model/raster fixture.
 window.__calls=[]; window.__repoReady=performance.now();
 Object.assign(GVEngine,{
   getReleases:async()=>[{release:101,date:'2026-10-29'},{release:100,date:'2025-03-27'}],

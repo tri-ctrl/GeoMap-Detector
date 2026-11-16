@@ -28,6 +28,8 @@ jobs:
         run: node tests/browser/allocation.cjs
       - name: Test bounded mosaics, native writers and cancellation in Chromium
         run: node tests/browser/allocation.cjs --bounded --ci
+      - name: Test processing workers, map input, native pixels and cancellation
+        run: node tests/browser/allocation.cjs --worker
       - name: Test map search, location permissions and mobile layout in Chromium
         run: node tests/browser/allocation.cjs --search
       - name: Test drawn AOIs and selection preserve the map viewport

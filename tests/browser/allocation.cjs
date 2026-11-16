@@ -8,13 +8,14 @@ const path = require('node:path');
 const http = require('node:http');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
-const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'app.js'];
+const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'app.js'];
 const sources = Object.fromEntries(names.map(name => [name, fs.readFileSync(path.join(root, 'frontend', name), 'utf8')]));
 const samples = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'), 'utf8')).features;
 const result = { checkedAt: new Date().toISOString(), mode: 'Local source, native Chromium; deterministic tiles and fixed inference outputs',
   sources: Object.fromEntries(names.map(name => [name, createHash('sha256').update(sources[name]).digest('hex')])),
   limitations: ['Owned canvas bytes and estimated reservations are not browser/process/GPU memory.', 'Not an accuracy benchmark, mobile-device calibration, sustained-memory test or deployed parity check.'] };
 const fixture = String.raw`
+window.Worker=undefined; // This fixture explicitly verifies the compatibility path.
 window.__tileRequests=0;
 const originalFetch=window.fetch.bind(window);let tile;
 window.fetch=async(url,options)=>{
@@ -50,9 +51,17 @@ const server = http.createServer((request, response) => {
   } else if (file === 'leaflet.js' || file === 'leaflet.css') { type = file.endsWith('.css') ? 'text/css' : type; body = fs.readFileSync(require.resolve('leaflet/dist/' + file)); }
   else if (file === 'fflate.js') body = fs.readFileSync(path.resolve(path.dirname(require.resolve('fflate')), '../umd/index.js'));
   else if (file === 'jszip.js') body = fs.readFileSync(require.resolve('jszip/dist/jszip.min.js'));
-  else if (file === 'engine.js') body = sources[file] + '\n' + fixture;
+  else if (file === 'engine.js') {
+    const workerMode = process.argv.includes('--worker');
+    const shared = fixture.replace('window.Worker=undefined;', workerMode ? '' : 'window.Worker=undefined;').replaceAll('window.', 'globalThis.').replace('.bind(window)', '.bind(globalThis)').replace("localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));", "if(globalThis.localStorage)localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));");
+    body = sources[file].replace('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js', 'fflate.js') + '\n' + shared + (workerMode ? `
+      GVEngine.loadModel=async spec=>({...__model,key:spec.key,provider:'fixture',names:spec.names,session:{...__model.session,release:async()=>{}}});
+      const run=__model.session.run;__model.session.run=async feeds=>{const end=performance.now()+60;while(performance.now()<end){}return run(feeds)};
+    ` : '');
+  }
   else if (file === 'storage.js') body = sources[file] + '\nconst createRepo=GVStorage.create;GVStorage.create=options=>{const repo=createRepo(options);window.__repo=repo;return repo};';
-  else if (sources[file]) body = sources[file];
+  else if (sources[file]) body = sources[file] + (file === 'processing-worker.js' && request.url.includes('crash=1')
+    ? "\naddEventListener('message',event=>{if(event.data.type==='clip')setTimeout(()=>{throw Error('Injected worker crash')},20)});" : '');
   else if (file === 'models/models.json') { type = 'application/json'; body = JSON.stringify([{ file: 'nano.onnx', label: 'Fixture', names: ['plane'], imgsz: 1024 }]); }
   else { response.writeHead(404); response.end(); return; }
   response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body);
@@ -66,6 +75,9 @@ const server = http.createServer((request, response) => {
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (process.argv.includes('--worker')) {
+        await require('./worker-cases.cjs')({ page, browser, evaluate, until, errors, result }); return;
+      }
       if (process.argv.includes('--memory')) {
         await require('./memory-cases.cjs')({ page, browser, evaluate, until, errors, on, result }); return;
       }

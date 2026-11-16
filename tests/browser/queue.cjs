@@ -10,7 +10,7 @@ const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
 const root = path.resolve(__dirname, '../..'), base = 'https://tri-ctrl.github.io/GeoMap-Detector/';
-const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js'];
+const forceWasm = process.argv.includes('--wasm'), files = ['index.html', 'app.js', 'engine.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js'];
 const sources = Object.fromEntries(files.map(file => [file, fs.readFileSync(path.join(root, 'frontend', file), 'utf8')]));
 const results = { checkedAt: new Date().toISOString(), mode: 'Local source overrides; live nano/small inference; not deployed verification',
   forcedProvider: forceWasm ? 'wasm' : null, sources: Object.fromEntries(files.map(file => [file, createHash('sha256').update(sources[file]).digest('hex')])) };
@@ -30,6 +30,7 @@ const results = { checkedAt: new Date().toISOString(), mode: 'Local source overr
     console.log('Loaded local queue sources, real Leaflet and provider assets.');
     await evaluate("GVEngine.ensureLibrary('zip')"); // Independent test reader; production writes with fflate.
     await evaluate(`(() => {
+      window.Worker=undefined; // Existing hooks measure main-context resources; worker coverage has its own driver.
       const probe=window.__queueProbe={loads:[],clips:[],events:[],exported:[],active:0,maxActive:0,canvases:[],bitmaps:[]};
       const Canvas=OffscreenCanvas;window.OffscreenCanvas=new Proxy(Canvas,{construct(Target,args){const canvas=new Target(...args);probe.canvases.push(canvas);return canvas}});
       const bitmap=createImageBitmap;window.createImageBitmap=async(...args)=>{const value=await bitmap(...args),close=value.close.bind(value),record={closed:0};value.close=()=>{record.closed++;close()};probe.bitmaps.push(record);return value};

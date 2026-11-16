@@ -17,6 +17,7 @@ const selection = process.argv.includes("--selection");
 const detectionClick = process.argv.includes("--detection-click");
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "frontend/app.js"), "utf8");
+const processingSource = fs.readFileSync(path.join(root, "frontend/processing.js"), "utf8");
 const engineSource = fs.readFileSync(path.join(root, "frontend/engine.js"), "utf8");
 const htmlSource = fs.readFileSync(path.join(root, "frontend/index.html"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "frontend/storage.js"), "utf8");
@@ -101,7 +102,7 @@ let chrome, socket, watchdog;
     } else if (message.method === "Fetch.requestPaused") {
       const { requestId, request } = message.params;
       const file = request.url === base ? "index.html" : new URL(request.url).pathname.split("/").pop();
-      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : file === "comparison.js" ? comparisonSource : file === "storage.js" ? storageSource : file === "streaming.js" ? streamingSource : htmlSource;
+      const content = file === "app.js" ? instrumentation + appSource : file === "engine.js" ? engineSource : file === "processing.js" ? processingSource : file === "comparison.js" ? comparisonSource : file === "storage.js" ? storageSource : file === "streaming.js" ? streamingSource : htmlSource;
       overrides.add(file);
       page("Fetch.fulfillRequest", { requestId, responseCode: 200,
         responseHeaders: [{ name: "Content-Type", value: file === "index.html" ? "text/html" : "application/javascript" }, { name: "Cache-Control", value: "no-store" }],
@@ -111,7 +112,7 @@ let chrome, socket, watchdog;
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }));
   await Promise.all([page("Page.enable"), page("Runtime.enable"), page("Network.enable")]);
-  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }, { urlPattern: base + "storage.js*" }, { urlPattern: base + "streaming.js*" }] });
+  if (!deployed) await page("Fetch.enable", { patterns: [{ urlPattern: base }, { urlPattern: base + "app.js*" }, { urlPattern: base + "engine.js*" }, { urlPattern: base + "comparison.js*" }, { urlPattern: base + "storage.js*" }, { urlPattern: base + "streaming.js*" }, { urlPattern: base + "processing.js*" }] });
   const evaluate = async expression => {
     const result = await page("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }).catch(error => {
       throw new Error(error.message + " while evaluating: " + expression.slice(0, 180));
@@ -137,7 +138,7 @@ let chrome, socket, watchdog;
     }
     await evaluate(instrumentation);
   }
-  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "comparison.js", "engine.js", "index.html", "storage.js"]);
+  assert.deepEqual([...overrides].sort(), deployed ? [] : ["app.js", "comparison.js", "engine.js", "index.html", "processing.js", "storage.js"]);
   console.log(deployed ? "Loaded actual deployed Leaflet/Draw and verified source bytes; no overrides." : "Loaded real Leaflet/Draw with local source overrides in an isolated profile.");
   const initial = await counts();
   await evaluate("(() => { for (let i = 0; i < 5; i++) document.querySelector('#relList .active').click(); })()");
@@ -155,6 +156,7 @@ let chrome, socket, watchdog;
     const files = new DataTransfer(); files.items.add(new File([JSON.stringify(fc)], 'review.geojson', { type: 'application/geo+json' }));
     const input = document.querySelector('#fileIn'); input.files = files.files; input.dispatchEvent(new Event('change'));
     document.querySelector('#detectOn').checked = false; document.querySelector('#tifOn').checked = false;
+    if (!${deployed}) window.Worker=undefined; // Source interception covers the page; worker behavior has its own probe.
   })()`);
   // AOI import now preserves the current view. Navigation is an explicit user
   // action, and also exposes the real map instance to the existing fit spy.

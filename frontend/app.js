@@ -419,7 +419,7 @@ function renderAllocationPreflight() {
   try {
     const options = clipAllocationOptions(), chosen = chosenRunAois();
     if (!chosen.length) { output.textContent = "Select AOIs to estimate their processing footprint."; return false; }
-    const plans = chosen.map(aoi => ({ name: aoi.properties.name, plan: E.estimateRaster(aoi.geometry, Number($("#zoom").value), options) }));
+    const plans = chosen.map(aoi => ({ name: aoi.properties.name, plan: window.GVProcessing.estimateRaster(aoi.geometry, Number($("#zoom").value), options) }));
     output.innerHTML = plans.map(({ name, plan }) => `<div>${esc(name)} · z${plan.requestedZoom}${plan.zoomReduced ? " → z" + plan.zoom : ""} · ${plan.width}×${plan.height} px · ${plan.tiles} tiles · ${(plan.pixels / 1e6).toFixed(2)} MP · estimated ${(plan.estimatedBytes / 1048576).toFixed(1)} MiB${plan.allowed ? "" : `<br><span style="color:var(--bad)">${esc(plan.violations[0].message)}</span>`}</div>`).join("");
     return plans.every(({ plan }) => plan.allowed);
   } catch (error) { output.textContent = error.message; return false; }
@@ -834,7 +834,7 @@ async function enqueueBrowser(mode, aois) {
   if (browserQueue.length >= MAX_WAITING_JOBS) return toast("Queue full. Wait for a job to start or cancel a queued job.");
   if (!S.releases.length) return toast("Wait for Wayback dates to load, or use Refresh dates.");
   let allocationOptions;
-  try { allocationOptions = clipAllocationOptions(); aois.forEach(aoi => E.allocations.requireRaster(E.estimateRaster(aoi.geometry, Number($("#zoom").value), allocationOptions))); }
+  try { allocationOptions = clipAllocationOptions(); aois.forEach(aoi => E.allocations.requireRaster(window.GVProcessing.estimateRaster(aoi.geometry, Number($("#zoom").value), allocationOptions))); }
   catch (error) { renderAllocationPreflight(); return toast(error.message, 6500); }
   const params = { release_mode: mode, releases: [...S.selRel], zoom: +$("#zoom").value, classes: [...S.wantClasses], conf: +$("#conf").value,
     model: m ? m.label : null, model_key: m?.key || null, imgsz: m?.imgsz || null, detect: detectOn, maxTiles: allocationOptions.maxTiles,
@@ -867,7 +867,11 @@ async function enqueueBrowser(mode, aois) {
 }
 async function runBrowser(job) {
   const { params, modelSpec, releaseSource, controller } = job, signal = controller.signal;
+  let processing;
   try {
+    processing = await window.GVProcessing.create({ jobId: job.id, signal, store: durable ? DB : null,
+      onFallback: reason => jlog(job, "Worker unavailable; using browser compatibility processing. " + reason) });
+    jlog(job, processing.context === "worker" ? "Processing in a dedicated worker." : "Using browser compatibility processing.");
     let model = null;
     if (params.detect) {
       if (durable && !modelSpec.buffer && !modelSpec.url) {
@@ -876,12 +880,13 @@ async function runBrowser(job) {
         modelSpec.buffer = source.buffer;
       }
       jlog(job, `Loading model ${params.model}…`);
-      const loaded = await E.loadModel({ ...modelSpec, signal });
+      const loaded = await processing.loadModel(modelSpec);
       // Session reuse must not reuse another job's mutable class-name array.
       model = { ...loaded, names: modelSpec.names?.slice() || loaded.names };
       jlog(job, `Model ready on ${model.provider === "webgpu" ? "GPU (WebGPU)" : "CPU (WebAssembly)"} · ${model.imgsz} px input`);
       params.provider = model.provider; params.imgsz = model.imgsz;
-    }
+    } else await processing.loadModel(null);
+    params.processingContext = processing.context;
     const plan = job.plan ? job.plan.map(entry => [job.aois[entry.aoiIndex], entry.release]) : [];
     if (!job.plan) for (const aoi of job.aois) {
       let rels;
@@ -907,7 +912,7 @@ async function runBrowser(job) {
       outcome.status = "running";
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
       try {
-        const r = await E.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
+        const r = await processing.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
           maxTiles: params.maxTiles, geotiff: params.geotiff, limits: params.allocationLimits,
           bounded: params.bounded !== false, png: params.png !== false, store: durable ? DB : null, jobId: job.id, clipId: job.plan[i].clipId,
           onWaiting: () => jlog(job, "    Waiting for browser image/export resources to be released…"),
@@ -970,6 +975,9 @@ async function runBrowser(job) {
     job.status = job.suspending || storageError || e.code === "RESULT_MEMORY_LIMIT" ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
     jlog(job, job.status === "interrupted" ? "Paused. Saved clips are kept; resume the unfinished clips when ready." : job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
+  } finally {
+    try { await processing?.close(); }
+    catch (error) { jlog(job, "Processing cleanup failed: " + error.message); }
   }
 }
 async function runServer(mode, aois) {
@@ -2190,5 +2198,6 @@ window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView
     partReads: exportParts?.reads.size || 0, partDownloads, serverPoll: Boolean(serverPoll), trainingPoll: Boolean(trainingPoll) },
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },
   queue: browserQueueState(),
+  processing: window.GVProcessing.diagnostics(),
   downloadLeases: downloadURLs.size }) };
 })();

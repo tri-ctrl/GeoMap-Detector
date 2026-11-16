@@ -760,7 +760,7 @@ async function loadModel(spec) {
 }
 async function loadModelOwned(spec, owner) {
   // spec: {key, url | buffer, names[], imgsz, signal}
-  if (_sessions.has(spec.key)) return _sessions.get(spec.key);
+  if (spec.cache !== false && _sessions.has(spec.key)) return _sessions.get(spec.key);
   let src = spec.buffer;
   if (!src) {
     if (!spec.url) throw new Error("No ONNX model file was specified");
@@ -791,8 +791,23 @@ async function loadModelOwned(spec, owner) {
   } catch (error) { if (session?.release) await session.release(); throw error; }
   const dims = (session.inputMetadata && session.inputMetadata[0] && session.inputMetadata[0].dimensions) || null;
   const m = { session, provider, names: spec.names || DOTA_NAMES, imgsz: spec.imgsz || (dims && typeof dims[2] === "number" ? dims[2] : 1024), key: spec.key };
-  _sessions.set(spec.key, m);
+  if (spec.cache !== false) _sessions.set(spec.key, m);
   return m;
+}
+// Job-scoped sessions are never inserted into the legacy cache. A lease owns
+// initialization (including a late cancellation), inference and final release.
+// The worker and the compatibility path use the same ownership contract.
+const modelLeases = new Set();
+async function acquireModel(spec) {
+  const model = await global.GVEngine.loadModel({ ...spec, cache: false });
+  let closing;
+  const lease = { model, release() {
+    if (!closing) closing = Promise.resolve().then(async () => {
+      try { await model.session?.release?.(); } finally { modelLeases.delete(lease); }
+    });
+    return closing;
+  } };
+  modelLeases.add(lease); return lease;
 }
 function windows(h, w, size, overlap) {
   const step = Math.max(size - overlap, 1), ys = [], xs = [];
@@ -1419,6 +1434,7 @@ const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDe
   dimensions, pngDimensions, reserve: reserveAllocation, acquire: acquireAllocation, download: (bytes, limits) => reserveAllocation("Download", Math.max(65536, bytes * 3), limits, false, "download"), makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
 const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
 global.GVEngine = { getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+  models: { acquire: acquireModel, diagnostics: () => ({ leased: modelLeases.size, legacyCached: _sessions.size }) },
   mapSearch: { parseCoordinates: parseMapCoordinates, suggest: suggestMapPlaces, find: findMapPlace, currentLocation: currentMapLocation },
   operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },
   diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),

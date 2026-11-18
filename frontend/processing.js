@@ -172,7 +172,7 @@ async function create({ jobId, signal, store, onFallback } = {}) {
       const result = await call("clip", { aoi, release, options: { zoom: options.zoom, classes: options.classes, conf: options.conf,
         maxTiles: options.maxTiles, geotiff: options.geotiff, limits: options.limits, bounded: options.bounded, png: options.png,
         concurrency: options.concurrency, forceBlocks: options.forceBlocks, maskVersion: options.maskVersion,
-        timeoutMs: options.timeoutMs, imageryTimeoutMs: options.imageryTimeoutMs,
+        timeoutMs: options.timeoutMs, imageryTimeoutMs: options.imageryTimeoutMs, nmsMode: options.nmsMode,
         jobId, clipId: options.clipId, maxSpoolBytes: options.maxSpoolBytes } }, { callbacks: { onWaiting,
           onEstimate: value => onEstimate?.({ ...value, estimatedBytes: value.estimatedBytes + transferBytes, workerTransferBytes: transferBytes }),
           onCoverage, onProgress }, timeoutMs: 1860000, clipId: options.clipId });

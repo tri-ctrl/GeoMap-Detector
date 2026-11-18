@@ -8,6 +8,8 @@
 (function (global) {
 "use strict";
 const ORIGIN = 20037508.342789244, TILE = 256;
+const NMS_INDEX_BYTES = 2 * 1048576;
+const nmsScratchBytes = limits => Math.min(NMS_INDEX_BYTES, Math.floor(limits.maxEstimatedBytes / 32));
 const CONFIG_URL = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
 const TILE_URL = (r, z, y, x) => `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/${r}/${z}/${y}/${x}`;
 const TILEMAP_URL = (r, z, y, x) => `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tilemap/${r}/${z}/${y}/${x}`;
@@ -662,6 +664,7 @@ function estimateRaster(geometry, zoom = 18, options = {}) {
   const modelSize = options.modelSize ?? (options.detect ? 1024 : 0), mode = options.mode || "clip";
   if (!Number.isSafeInteger(modelSize) || modelSize < 0) throw new AllocationError("INVALID_DIMENSIONS", "Model input size is invalid.");
   const encodedAllowance = Math.ceil(rgbaBytes * 1.02) + 65536, stripBytes = layout.width * Math.min(64, layout.height) * 4;
+  const suppressionBytes = modelSize ? nmsScratchBytes(limits) : 0;
   const stages = { tiles: rgbaBytes + Math.min(concurrency, layout.tiles) * TILE * TILE * 4 };
   if (options.bounded) {
     const singleBlock = !options.forceBlocks && layout.width <= Math.min(2048, limits.maxDimension) && layout.height <= Math.min(2048, limits.maxDimension) && layout.pixels <= limits.maxPixels;
@@ -670,7 +673,7 @@ function estimateRaster(geometry, zoom = 18, options = {}) {
     const cacheBytes = Math.max(TILE * TILE * 4, Math.min(16 * 1048576, Math.floor(limits.maxEstimatedBytes / 8)));
     const candidateBytes = modelSize ? Math.min(32 * 1048576, Math.floor(limits.maxEstimatedBytes / 8)) : 0;
     const estimatedBytes = Math.ceil(cacheBytes + candidateBytes + Math.min(concurrency, layout.tiles) * TILE * TILE * 16
-      + displayWidth * displayHeight * 12 + modelSize * modelSize * 16 + 8 * 1048576 + layout.tiles * 64);
+      + displayWidth * displayHeight * 12 + modelSize * modelSize * 16 + suppressionBytes + 8 * 1048576 + layout.tiles * 64);
     const violations = [];
     if (layout.tiles > maxTiles) violations.push({ code: "TILE_LIMIT", message: `The AOI still needs ${layout.tiles} tiles at z10, above ${maxTiles}. Split it into smaller AOIs.` });
     try { dimensions(TILE, TILE, limits, "Acquisition block"); dimensions(displayWidth, displayHeight, limits, "Display preview"); if (modelSize) dimensions(modelSize, modelSize, limits, "Model input"); }
@@ -682,10 +685,11 @@ function estimateRaster(geometry, zoom = 18, options = {}) {
     const spoolBytes = rgbaBytes * (1 + (options.png === false ? 0 : 1.02) + (options.geotiff === false ? 0 : 2.04)) + 1048576;
     if (spoolBytes > (options.maxSpoolBytes ?? 2 * 1024 ** 3)) violations.push({ code: "SPOOL_LIMIT", message: "The native imagery/output estimate exceeds the 2 GiB temporary-storage policy. Split the AOI or select fewer formats." });
     return { ...layout, requestedZoom: zoom, zoomReduced: z !== zoom, maxTiles, concurrency, limits, rgbaBytes, estimatedBytes, spoolBytes,
-      bounded: true, blockSide: TILE, singleBlock, maskVersion: singleBlock ? "canvas-v1" : "area-evenodd-v1", displayWidth, displayHeight, cacheBytes, candidateBytes, allowed: !violations.length, violations };
+      bounded: true, blockSide: TILE, singleBlock, maskVersion: singleBlock ? "canvas-v1" : "area-evenodd-v1", displayWidth, displayHeight, cacheBytes, candidateBytes,
+      nmsScratchBytes: suppressionBytes, allowed: !violations.length, violations };
   }
   if (mode === "clip") {
-    stages.inference = rgbaBytes + (modelSize ? inferenceBytes(layout.width, layout.height, modelSize, options.overlap) : 0);
+    stages.inference = rgbaBytes + (modelSize ? inferenceBytes(layout.width, layout.height, modelSize, options.overlap) + suppressionBytes : 0);
     stages.png = rgbaBytes * 2 + encodedAllowance;
     stages.preview = rgbaBytes + encodedAllowance + previewBytes * 3;
     if (options.geotiff !== false) stages.tiff = rgbaBytes + encodedAllowance + previewBytes + encodedAllowance * 3 + stripBytes * 2;
@@ -795,48 +799,145 @@ function clip(subject, clipPoly) {          // Sutherland–Hodgman, both convex
   return out;
 }
 const interArea = (p, q) => { const c = clip(p, q); return c.length > 2 ? Math.abs(area(c)) : 0; };
-function nms(dets, thr, useMin) {
-  const keep = [], byCls = {};
-  dets.forEach(d => (byCls[d.cls] = byCls[d.cls] || []).push(d));
-  for (const g of Object.values(byCls)) {
-    g.sort((a, b) => b.conf - a.conf);
-    const kept = [];
-    for (const d of g) {
-      let ok = true;
-      for (const k of kept) {
-        if (d.bb[0] > k.bb[2] || k.bb[0] > d.bb[2] || d.bb[1] > k.bb[3] || k.bb[1] > d.bb[3]) continue;
-        const inter = interArea(d.poly, k.poly);
-        const den = useMin ? Math.min(d.area, k.area) : d.area + k.area - inter;
-        if (inter / Math.max(den, 1e-9) > thr) { ok = false; break; }
-      }
-      if (ok) kept.push(d);
-    }
-    keep.push(...kept);
+const suppressionState = { active: 0, activeIndexEstimateBytes: 0, peakIndexEstimateBytes: 0, last: null };
+function broadPhase(kept, count, budget, profile) {
+  const cells = new Map(), overflow = []; let marks = null, matches = null, refs = 0, bytes = 0, epoch = 0, disabled = count < 512 || count > 32768;
+  const changeBytes = value => {
+    suppressionState.activeIndexEstimateBytes += value - bytes; bytes = value;
+    suppressionState.peakIndexEstimateBytes = Math.max(suppressionState.peakIndexEstimateBytes, suppressionState.activeIndexEstimateBytes);
+    profile.peakIndexEstimateBytes = Math.max(profile.peakIndexEstimateBytes, bytes);
+  };
+  const clear = () => { cells.clear(); overflow.length = 0; marks = matches = null; refs = 0; changeBytes(0); };
+  function keys(bb) {
+    if (!bb?.every(Number.isFinite) || bb[2] < bb[0] || bb[3] < bb[1]) return null;
+    const [left, top, right, bottom] = bb.map(v => Math.floor(v / 64)), width = right - left + 1, height = bottom - top + 1;
+    if (![left, top, right, bottom].every(Number.isSafeInteger) || width * height > 64) return null;
+    const result = [];
+    for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) result.push(x + "," + y);
+    return result;
   }
-  return keep;
+  function insert(index) {
+    const boxKeys = keys(kept[index].bb);
+    if (!boxKeys) {
+      overflow.push(index); return;
+    }
+    const added = boxKeys.reduce((n, key) => n + !cells.has(key), 0), next = bytes + added * 256 + boxKeys.length * 24;
+    if (next > budget || cells.size + added > 4096 || refs + boxKeys.length > 32768) { overflow.push(index); return; }
+    for (const key of boxKeys) { let cell = cells.get(key); if (!cell) cells.set(key, cell = []); cell.push(index); }
+    refs += boxKeys.length; changeBytes(next);
+  }
+  return { clear, get matches() { return matches; }, accepted(index) { if (marks) insert(index); },
+    query(d) {
+      if (!disabled && !marks && kept.length >= 64) {
+        if (count * 24 + 4096 > budget) { disabled = true; profile.indexDisables++; }
+        else {
+          marks = new Uint32Array(count); matches = new Uint32Array(count);
+          // Include capacity for every kept box to use the overflow scan. Grid
+          // admission can then stop without discarding the useful existing grid.
+          changeBytes(count * 24 + 4096);
+          for (let i = 0; i < kept.length && marks; i++) insert(i);
+        }
+      }
+      const boxKeys = marks ? keys(d.bb) : null;
+      if (!boxKeys) { profile.linearQueries++; return -1; }
+      const visits = boxKeys.reduce((n, key) => n + (cells.get(key)?.length || 0), overflow.length);
+      // Overlapping long/thin boxes can fill many cells without pruning pairs.
+      // Keep the cheap ordered scan when deduplication would exceed its work.
+      if (visits > kept.length * 2) { profile.denseFallbacks++; profile.linearQueries++; return -1; }
+      profile.indexQueries++; epoch++; let found = 0;
+      for (const index of overflow) matches[found++] = index;
+      for (const key of boxKeys) for (const index of cells.get(key) || []) if (marks[index] !== epoch) {
+        marks[index] = epoch; matches[found++] = index;
+      }
+      return found;
+    },
+  };
+}
+function* suppressionSteps(dets, thr, useMin, options, profile) {
+  const keep = [], byCls = Object.create(null); let work = 0;
+  try {
+    dets.forEach(d => (byCls[d.cls] = byCls[d.cls] || []).push(d));
+    for (const group of Object.values(byCls)) {
+      profile.groups++; group.sort((a, b) => b.conf - a.conf);
+      const kept = [], index = options.mode === "indexed" && group.length >= 512 && group.length <= 32768 ? broadPhase(kept, group.length, options.maxIndexBytes, profile) : null;
+      let bboxTests = 0, polygonTests = 0;
+      try {
+        for (const d of group) {
+          if (++work % 512 === 0) yield;
+          profile.processedCandidates++; let ok = true;
+          const matched = index && kept.length >= 64 ? index.query(d) : (profile.linearQueries++, -1), ids = matched < 0 ? null : index.matches, count = matched < 0 ? kept.length : matched;
+          for (let i = 0; i < count; i++) {
+            const k = kept[matched < 0 ? i : ids[i]];
+            if (++work % 512 === 0) yield;
+            bboxTests++;
+            if (d.bb[0] > k.bb[2] || k.bb[0] > d.bb[2] || d.bb[1] > k.bb[3] || k.bb[1] > d.bb[3]) continue;
+            polygonTests++;
+            const inter = interArea(d.poly, k.poly), den = useMin ? Math.min(d.area, k.area) : d.area + k.area - inter;
+            if (inter / Math.max(den, 1e-9) > thr) { ok = false; break; }
+          }
+          if (ok) { kept.push(d); profile.kept++; index?.accepted(kept.length - 1); }
+        }
+        keep.push(...kept);
+      } finally { profile.bboxTests += bboxTests; profile.polygonTests += polygonTests; index?.clear(); }
+    }
+    return keep;
+  } finally { for (const group of Object.values(byCls)) group.length = 0; }
+}
+function suppressionRun(dets, options = {}) {
+  const mode = options.mode ?? "indexed", maxIndexBytes = options.maxIndexBytes ?? NMS_INDEX_BYTES;
+  if (!["indexed", "scan"].includes(mode) || !Number.isSafeInteger(maxIndexBytes) || maxIndexBytes < 0 || maxIndexBytes > NMS_INDEX_BYTES) throw new Error("Invalid suppression configuration");
+  const profile = { version: 1, mode, inputCandidates: dets.length, processedCandidates: 0, groups: 0, kept: 0, bboxTests: 0, polygonTests: 0,
+    indexQueries: 0, linearQueries: 0, denseFallbacks: 0, indexDisables: 0, peakIndexEstimateBytes: 0, yields: 0, workMs: 0, elapsedMs: 0, status: "running" };
+  const started = now(); let closed = false;
+  suppressionState.active++;
+  return { profile, settings: { mode, maxIndexBytes },
+    close(status) {
+      if (closed) return; closed = true;
+      profile.elapsedMs = now() - started; profile.status = status; suppressionState.active--; suppressionState.last = { ...profile }; if (options.profile) Object.assign(options.profile, profile);
+    } };
+}
+function nms(dets, thr, useMin, options = {}) {
+  const run = suppressionRun(dets, options), profile = run.profile, byCls = Object.create(null), keep = [], started = now(); let status = "error";
+  try {
+    dets.forEach(d => (byCls[d.cls] = byCls[d.cls] || []).push(d));
+    for (const group of Object.values(byCls)) {
+      profile.groups++; group.sort((a, b) => b.conf - a.conf);
+      const kept = [], index = run.settings.mode === "indexed" && group.length >= 512 && group.length <= 32768 ? broadPhase(kept, group.length, run.settings.maxIndexBytes, profile) : null;
+      let bboxTests = 0, polygonTests = 0;
+      try {
+        for (const d of group) {
+          profile.processedCandidates++; let ok = true;
+          const matched = index && kept.length >= 64 ? index.query(d) : (profile.linearQueries++, -1), ids = matched < 0 ? null : index.matches, count = matched < 0 ? kept.length : matched;
+          for (let i = 0; i < count; i++) {
+            const k = kept[matched < 0 ? i : ids[i]]; bboxTests++;
+            if (d.bb[0] > k.bb[2] || k.bb[0] > d.bb[2] || d.bb[1] > k.bb[3] || k.bb[1] > d.bb[3]) continue;
+            polygonTests++;
+            const inter = interArea(d.poly, k.poly), den = useMin ? Math.min(d.area, k.area) : d.area + k.area - inter;
+            if (inter / Math.max(den, 1e-9) > thr) { ok = false; break; }
+          }
+          if (ok) { kept.push(d); profile.kept++; index?.accepted(kept.length - 1); }
+        }
+        keep.push(...kept);
+      } finally { profile.bboxTests += bboxTests; profile.polygonTests += polygonTests; index?.clear(); }
+    }
+    status = "complete"; return keep;
+  } finally { for (const group of Object.values(byCls)) group.length = 0; profile.workMs = now() - started; run.close(status); }
 }
 function mkDet(cls, conf, pts) {
   const poly = ccw(pts), xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
   return { cls, conf, poly, area: Math.abs(area(poly)), bb: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
 }
-async function nmsAsync(dets, thr, useMin, signal) {
-  const keep = [], byCls = {}; let comparisons = 0;
-  dets.forEach(d => (byCls[d.cls] = byCls[d.cls] || []).push(d));
-  for (const group of Object.values(byCls)) {
-    group.sort((a, b) => b.conf - a.conf); const kept = [];
-    for (const d of group) {
-      checkAbort(signal); let ok = true;
-      for (const k of kept) {
-        if (++comparisons % 512 === 0) await yieldTask(signal);
-        if (d.bb[0] > k.bb[2] || k.bb[0] > d.bb[2] || d.bb[1] > k.bb[3] || k.bb[1] > d.bb[3]) continue;
-        const inter = interArea(d.poly, k.poly), den = useMin ? Math.min(d.area, k.area) : d.area + k.area - inter;
-        if (inter / Math.max(den, 1e-9) > thr) { ok = false; break; }
-      }
-      if (ok) kept.push(d);
+async function nmsAsync(dets, thr, useMin, signal, options = {}) {
+  checkAbort(signal); const run = suppressionRun(dets, options), iterator = suppressionSteps(dets, thr, useMin, run.settings, run.profile); let status = "error";
+  try {
+    for (;;) {
+      checkAbort(signal); const started = now(); let step;
+      try { step = iterator.next(); } finally { run.profile.workMs += now() - started; }
+      if (step.done) { status = "complete"; return step.value; }
+      run.profile.yields++; await yieldTask(signal);
     }
-    keep.push(...kept);
-  }
-  checkAbort(signal); return keep;
+  } catch (error) { if (signal?.aborted) status = "cancelled"; throw error; }
+  finally { try { iterator.return(); } finally { run.close(status); } }
 }
 
 // ------------------------------------------------------------------ model
@@ -915,8 +1016,12 @@ function* windowPositions(h, w, size, overlap) {
   for (const y of axis(h)) for (const x of axis(w)) yield [Math.max(x, 0), Math.max(y, 0)];
 }
 /** Decode a YOLO OBB output [1, 4+nc+1, N] (cx, cy, w, h, scores..., angle). Axis-aligned YOLO [1, 4+nc, N] also works. */
-function decode(out, names, conf, wanted, candidatesOnly = false) {
+function decode(out, names, conf, wanted, candidatesOnly = false, profile) {
   const [, C, N] = out.dims, d = out.data, obb = C - 4 > names.length, nc = obb ? C - 5 : C - 4, res = [];
+  if (profile) {
+    const bytes = d.byteLength || 0;
+    profile.selectedOutputBytes += bytes; profile.peakSelectedOutputBytes = Math.max(profile.peakSelectedOutputBytes, bytes); profile.outputAnchors += N;
+  }
   for (let n = 0; n < N; n++) {
     let best = 0, k = -1;
     for (let c = 0; c < nc; c++) { const s = d[(4 + c) * N + n]; if (s > best) { best = s; k = c; } }
@@ -929,58 +1034,109 @@ function decode(out, names, conf, wanted, candidatesOnly = false) {
       [cx - v1[0] - v2[0], cy - v1[1] - v2[1]], [cx - v1[0] + v2[0], cy - v1[1] + v2[1]]]));
   }
   res.sort((a, b) => b.conf - a.conf);
+  if (profile) { profile.decodedCandidates += Math.min(res.length, 3000); profile.topKDiscarded += Math.max(0, res.length - 3000); }
   return candidatesOnly ? res.slice(0, 3000) : nms(res.slice(0, 3000), 0.45, false);
 }
+let activeInferenceProfiles = 0, lastInferenceProfile = null;
+function addSuppressionProfile(total, value) {
+  total.calls = (total.calls || 0) + 1;
+  for (const key of ["inputCandidates", "processedCandidates", "kept", "bboxTests", "polygonTests", "indexQueries", "linearQueries", "denseFallbacks", "indexDisables", "yields", "workMs", "elapsedMs"])
+    total[key] = (total[key] || 0) + (value[key] || 0);
+  total.peakIndexEstimateBytes = Math.max(total.peakIndexEstimateBytes || 0, value.peakIndexEstimateBytes || 0);
+}
 async function detect(r, model, opt = {}) {
+  const started = now(), profile = { version: 1, status: "running", provider: model.provider || "unknown", modelKey: model.key || null,
+    modelFingerprint: model.fingerprint || null, nmsMode: opt.nmsMode ?? "indexed", windows: 0, inferredWindows: 0, skippedWindows: 0,
+    inputBufferBytes: 0, logicalInputBytes: 0, logicalRasterBytes: 0, selectedOutputBytes: 0, peakSelectedOutputBytes: 0,
+    outputAnchors: 0, decodedCandidates: 0, topKDiscarded: 0, globalCandidates: 0, tensorsDisposed: 0, disposalErrors: 0,
+    rasterReadMs: 0, alphaCheckMs: 0, normalizeMs: 0, normalizationYieldMs: 0, windowYieldMs: 0,
+    tensorCreateMs: 0, modelCallMs: 0, decodeMs: 0, chipNmsMs: 0, filterMs: 0, disposeMs: 0, globalNmsMs: 0, totalMs: 0,
+    chipNms: {}, globalNms: {} };
+  activeInferenceProfiles++; let lease, ownLease = false;
+  try {
+  checkAbort(opt.signal);
+  if (!["indexed", "scan"].includes(profile.nmsMode)) throw new Error("Invalid suppression configuration");
   const S = model.imgsz, wanted = opt.classes && opt.classes.length ? new Set(opt.classes) : null;
   const limits = r.allocation?.limits || limitsFor(opt.limits);
+  profile.nmsBudgetBytes = nmsScratchBytes(limits);
   const rasterBytes = r.bounded ? r.workingBytes : dimensions(r.w, r.h, limits, "Detection raster");
   dimensions(S, S, limits, "Model input");
-  const needed = rasterBytes + (r.bounded ? S * S * 16 : inferenceBytes(r.w, r.h, S, opt.overlap));
-  const lease = r.allocation || reserveAllocation("Detection", needed, limits, true), ownLease = !r.allocation;
+  const needed = rasterBytes + (r.bounded ? S * S * 16 : inferenceBytes(r.w, r.h, S, opt.overlap)) + profile.nmsBudgetBytes;
+  lease = r.allocation || reserveAllocation("Detection", needed, limits, true); ownLease = !r.allocation;
   if (lease.estimatedBytes < needed) lease.resize(needed);
-  try {
   lease.check(needed);
   const ctx = r.readPixels ? null : ctx2d(r.canvas), all = [], overlap = opt.overlap ?? 256;
   const countAxis = length => { const step = Math.max(S - overlap, 1), count = Math.floor(Math.max(length - S, 0) / step) + 1; return count + ((count - 1) * step + S < length ? 1 : 0); };
   const count = countAxis(r.w) * countAxis(r.h); let i = 0;
   const buf = new Float32Array(3 * S * S), plane = S * S;
+  profile.inputBufferBytes = buf.byteLength; profile.windows = count;
   for (const [x, y] of windowPositions(r.h, r.w, S, overlap)) {
     if (opt.signal && opt.signal.aborted) throw new DOMException("Cancelled", "AbortError");
+    let stage = now();
     const px = r.readPixels ? await r.readPixels(x, y, S, S) : ctx.getImageData(x, y, S, S).data;
+    profile.rasterReadMs += now() - stage; profile.logicalRasterBytes += px.byteLength;
     checkAbort(opt.signal);
+    stage = now();
     let cover = 0; for (let j = 3; j < px.length; j += 64) if (px[j]) cover++;
+    profile.alphaCheckMs += now() - stage;
     if (cover / (px.length / 64) >= 0.02) {
+      stage = now(); const previousYields = profile.normalizationYieldMs;
       for (let j = 0, p = 0; j < plane; j++, p += 4) {
-        if (j && j % (S * 64) === 0) await yieldTask(opt.signal);
+        if (j && j % (S * 64) === 0) { const t = now(); await yieldTask(opt.signal); profile.normalizationYieldMs += now() - t; }
         buf[j] = px[p] / 255; buf[plane + j] = px[p + 1] / 255; buf[2 * plane + j] = px[p + 2] / 255;
       }
+      profile.normalizeMs += Math.max(0, now() - stage - (profile.normalizationYieldMs - previousYields));
       checkAbort(opt.signal);
+      stage = now();
       const input = new ort.Tensor("float32", buf, [1, 3, S, S]); let outputs;
+      profile.tensorCreateMs += now() - stage; profile.logicalInputBytes += buf.byteLength; profile.inferredWindows++;
       lifecycleStats.tensors++;
       try {
       lifecycleStats.inference++;
+      stage = now();
       try { outputs = await model.session.run({ [model.session.inputNames[0]]: input }); }
-      finally { lifecycleStats.inference--; }
+      finally { lifecycleStats.inference--; profile.modelCallMs += now() - stage; }
       checkAbort(opt.signal);
-      const candidates = decode(outputs[model.session.outputNames[0]], model.names, opt.conf ?? 0.3, wanted, true);
-      for (const d of await nmsAsync(candidates, 0.45, false, opt.signal)) {
+      stage = now();
+      const candidates = decode(outputs[model.session.outputNames[0]], model.names, opt.conf ?? 0.3, wanted, true, profile);
+      profile.decodeMs += now() - stage;
+      const chip = {}; let kept;
+      stage = now();
+      try { kept = await nmsAsync(candidates, 0.45, false, opt.signal, { mode: profile.nmsMode, maxIndexBytes: profile.nmsBudgetBytes, profile: chip }); }
+      finally { profile.chipNmsMs += now() - stage; addSuppressionProfile(profile.chipNms, chip); }
+      stage = now();
+      for (const d of kept) {
         const pts = d.poly.map(([a, b]) => [a + x, b + y]);
         const cx = pts.reduce((s, p) => s + p[0], 0) / 4, cy = pts.reduce((s, p) => s + p[1], 0) / 4;
         if (cx < 0 || cy < 0 || cx >= r.w || cy >= r.h || !pointInRings(r.rings, cx, cy) || d.area < 4) continue;
         all.push(mkDet(d.cls, d.conf, pts));
         if (r.bounded && all.length * 2048 > r.candidateBytes) throw new AllocationError("CANDIDATE_LIMIT", "Candidate metadata exceeds the bounded working budget. Split this dense AOI; detections have not been silently truncated.");
       }
+      profile.filterMs += now() - stage;
       } finally {
-        for (const tensor of new Set([input, ...Object.values(outputs || {})])) { try { tensor?.dispose?.(); } catch { lifecycleStats.tensorCleanupFailures = (lifecycleStats.tensorCleanupFailures || 0) + 1; } }
+        stage = now();
+        for (const tensor of new Set([input, ...Object.values(outputs || {})])) {
+          try { if (typeof tensor?.dispose === "function") { profile.tensorsDisposed++; tensor.dispose(); } }
+          catch { profile.disposalErrors++; lifecycleStats.tensorCleanupFailures = (lifecycleStats.tensorCleanupFailures || 0) + 1; }
+        }
+        profile.disposeMs += now() - stage;
         lifecycleStats.tensors--;
       }
-    }
+    } else profile.skippedWindows++;
     checkAbort(opt.signal); if (opt.onProgress) opt.onProgress(++i / count);
-    await yieldTask(opt.signal);
+    stage = now(); await yieldTask(opt.signal); profile.windowYieldMs += now() - stage;
   }
-  return await nmsAsync(all, 0.45, true, opt.signal); // Identical confidence/tie and IoMin suppression rules.
-  } finally { if (ownLease) lease.release(); }
+  profile.globalCandidates = all.length;
+  const stage = now(); let result;
+  try { result = await nmsAsync(all, 0.45, true, opt.signal, { mode: profile.nmsMode, maxIndexBytes: profile.nmsBudgetBytes, profile: profile.globalNms }); }
+  finally { profile.globalNmsMs = now() - stage; }
+  profile.status = "complete"; return result;
+  } catch (error) { profile.status = opt.signal?.aborted ? "cancelled" : "error"; throw error; }
+  finally {
+    if (ownLease) lease?.release(); profile.totalMs = now() - started; activeInferenceProfiles--;
+    lastInferenceProfile = JSON.parse(JSON.stringify(profile));
+    if (opt.profile) Object.assign(opt.profile, profile);
+  }
 }
 function toFeatures(dets, r, props) {
   return dets.slice().sort((a, b) => b.conf - a.conf).map((d, i) => {
@@ -1066,7 +1222,7 @@ async function buildTiledRaster(geometry, release, zoom, opt) {
     // A scene which fits one fixed 2048-side block keeps the original Canvas
     // mask verbatim. It still uses row writers, bounded output and cancellation.
     const r = await buildRaster(geometry, release, zoom, { ...opt, maskVersion: "canvas-v1" });
-    return { ...r, bounded: true, singleBlock: true, candidateBytes: plan.candidateBytes, workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16,
+    return { ...r, bounded: true, singleBlock: true, candidateBytes: plan.candidateBytes, workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16 - plan.nmsScratchBytes,
       readPixels: async (x, y, width, height) => { checkAbort(opt.signal); return ctx2d(r.canvas).getImageData(x, y, width, height).data; },
       diagnostics: () => ({ cachedBytes: 0, peakCachedBytes: 0, cacheLimit: plan.cacheBytes, singleBlock: true }),
       release: async () => r.release() };
@@ -1126,7 +1282,7 @@ async function buildTiledRaster(geometry, release, zoom, opt) {
     }
     return { w, h, x0, y0, gx0, gy0, res, zoom: plan.zoom, requestedZoom: plan.requestedZoom, rings, coverage, missing, tiles: plan.tiles,
       canvas: display, allocation: lease, bounded: true, candidateBytes: plan.candidateBytes,
-      workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16,
+      workingBytes: plan.estimatedBytes - plan.candidateBytes - (opt.modelSize || 0) ** 2 * 16 - plan.nmsScratchBytes,
       diagnostics: () => ({ cachedBytes, peakCachedBytes, cacheLimit: plan.cacheBytes }),
       async readPixels(x, y, width, height) {
         checkAbort(opt.signal);
@@ -1195,7 +1351,9 @@ async function processClipBounded(aoi, rel, opt) {
     const name = aoi.properties.name, aoi_id = slug(name), [, clat] = pixelToLonLat(raster, raster.w / 2, raster.h / 2);
     const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: raster.zoom, gsd_m: +groundRes(raster, clat).toFixed(3),
       source: "Esri Wayback", imagery_coverage: raster.coverage.status, missing_tiles: raster.missing };
-    const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
+    const inference = {};
+    const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
+    timings.inference = opt.model ? inference : null;
     mark("detectionMs");
     owner.check(); const features = await identity.predictions(toFeatures(dets, raster, props), props, owner.signal), counts = {}; for (const feature of features) counts[feature.properties.class] = (counts[feature.properties.class] || 0) + 1;
     mark("identityMs");
@@ -1216,7 +1374,7 @@ async function processClipBounded(aoi, rel, opt) {
       tiles: raster.tiles, missing: raster.missing, coverage: raster.coverage, size: [raster.w, raster.h], requestedZoom: plan.requestedZoom,
       displaySize: [raster.canvas.width, raster.canvas.height], maskVersion: plan.maskVersion, artifactSpool: spool.persistent ? spool.id : undefined,
       timings,
-      allocation: { estimatedBytes: plan.estimatedBytes, rgbaBytes: plan.rgbaBytes, bounded: true, blockSide: TILE, limits: plan.limits, cache: raster.diagnostics() },
+      allocation: { estimatedBytes: plan.estimatedBytes, rgbaBytes: plan.rgbaBytes, bounded: true, blockSide: TILE, nmsScratchBytes: plan.nmsScratchBytes, limits: plan.limits, cache: raster.diagnostics() },
       aoiFeature: aoi, fc: { type: "FeatureCollection", features, properties: { ...props, image_bounds: bounds } }, blobs };
     mark("displayMs"); await raster.release(); raster = null; mark("cleanupMs"); timings.totalMs = now() - started; owner.check(); opt.onProgress?.(1); owner.check();
     if (!blobs.png && !blobs.tif) { await spool.dispose(); spool = null; delete result.artifactSpool; }
@@ -1244,7 +1402,8 @@ async function processClip(aoi, rel, opt = {}) {
     const [, clat] = pixelToLonLat(r, r.w / 2, r.h / 2);
     const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
     let dets = [];
-    if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
+    const inference = {};
+    if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
     const feats = await identity.predictions(toFeatures(dets, r, props), props, opt.signal), counts = {};
     feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
     const bounds = rasterBounds(r);
@@ -1256,7 +1415,7 @@ async function processClip(aoi, rel, opt = {}) {
     opt.onProgress && opt.onProgress(1);
     return { identity: props, aoi: name, aoi_id, release: rel.release, date: rel.date, zoom: r.zoom, bounds, counts, total: feats.length,
       tiles: r.tiles, missing: r.missing, coverage: r.coverage, size: [r.w, r.h], requestedZoom: estimate.requestedZoom, allocation: { estimatedBytes: estimate.estimatedBytes, rgbaBytes: estimate.rgbaBytes, limits: estimate.limits }, aoiFeature: aoi,
-      fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
+      timings: { inference: opt.model ? inference : null }, fc: { type: "FeatureCollection", features: feats, properties: { ...props, image_bounds: bounds } }, blobs };
   } finally { r?.release(); lease.release(); }
 }
 const slug = s => String(s).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "aoi";
@@ -1527,11 +1686,15 @@ const allocationDiagnostics = () => ({ ...allocationStats, reservedBytes: [...al
 const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDefaults }), configure(values) { allocationDefaults = limitsFor({ ...DEFAULT_LIMITS, ...values }); return { ...allocationDefaults }; },
   dimensions, pngDimensions, reserve: reserveAllocation, acquire: acquireAllocation, download: (bytes, limits) => reserveAllocation("Download", Math.max(65536, bytes * 3), limits, false, "download"), makeCanvas, releaseCanvas, requireRaster, diagnostics: allocationDiagnostics };
 const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
+const suppressionDiagnostics = () => ({ ...suppressionState, last: suppressionState.last ? { ...suppressionState.last } : null });
+const inferenceDiagnostics = () => ({ active: activeInferenceProfiles, last: lastInferenceProfile ? JSON.parse(JSON.stringify(lastInferenceProfile)) : null });
 global.GVEngine = { identity, getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+  suppression: { run: nms, runAsync: nmsAsync, scratchBytes: nmsScratchBytes, diagnostics: suppressionDiagnostics }, inference: { diagnostics: inferenceDiagnostics },
   models: { acquire: acquireModel, diagnostics: () => ({ leased: modelLeases.size, legacyCached: _sessions.size }) },
   mapSearch: { parseCoordinates: parseMapCoordinates, suggest: suggestMapPlaces, find: findMapPlace, currentLocation: currentMapLocation },
   operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },
-  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),
+  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(),
+    suppression: suppressionDiagnostics(), inference: inferenceDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),
   buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset, exportCSV, exportPart,
   writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };
 })(typeof window !== "undefined" ? window : globalThis);

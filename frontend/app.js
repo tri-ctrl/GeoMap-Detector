@@ -1080,6 +1080,10 @@ async function runBrowser(job) {
           if (S.clip?.source !== r) delete r.draftFC;
         }, job.id, [snapshot]);
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
+        if (r.timings?.inference) {
+          const p = r.timings.inference, duration = ms => ms < 1000 ? ms.toFixed(1) + "ms" : (ms / 1000).toFixed(2) + "s";
+          jlog(job, `    Detection timing: model call ${duration(p.modelCallMs)} · pixels/normalization ${duration(p.rasterReadMs + p.normalizeMs)} · decode ${duration(p.decodeMs)} · suppression ${duration(p.chipNmsMs + p.globalNmsMs)}`);
+        }
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
         if (syncResultMemory().overBudgetBytes) {
           try { resultMemory.ensure(1, "Further detection"); } catch (error) { memoryPressure = error; queuePaused = true; if (i + 1 < plan.length) throw error; }

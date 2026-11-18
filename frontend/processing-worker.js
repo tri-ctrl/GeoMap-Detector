@@ -35,7 +35,8 @@ function storage(owner) {
     };
   } };
 }
-function diagnostics() { return { models: E.models.diagnostics(), allocations: E.allocations.diagnostics(), operations: E.operations.diagnostics(), streaming: self.GVStreaming.diagnostics(), pendingStorage: reads.size }; }
+function diagnostics() { return { models: E.models.diagnostics(), allocations: E.allocations.diagnostics(), operations: E.operations.diagnostics(),
+  suppression: E.suppression.diagnostics(), inference: E.inference.diagnostics(), streaming: self.GVStreaming.diagnostics(), pendingStorage: reads.size }; }
 self.onmessage = async ({ data: message }) => {
   if (message?.v !== VERSION) return;
   if (message.type === "storage-result") {

@@ -86,11 +86,16 @@ def job(job_id: str):
     if job_id in pipeline.JOBS:
         j = pipeline.JOBS[job_id]
         return {**{k: j[k] for k in ("id", "status", "progress", "log", "results")},
+                "diagnostics": pipeline.job_diagnostics(j),
                 "params": {k: v for k, v in j.get("params", {}).items() if k != "aois"}}
     s = pipeline.OUT_DIR / job_id / "summary.json"
     if s.exists():
         d = json.loads(s.read_text())
-        return {"id": job_id, "status": "done", "progress": 1, "log": [], "results": d["results"], "params": d.get("params", {})}
+        try:
+            diagnostics = json.loads((s.parent / "diagnostics.json").read_text())
+        except (OSError, ValueError):
+            diagnostics = None
+        return {"id": job_id, "status": "done", "progress": 1, "log": [], "results": d["results"], "params": d.get("params", {}), "diagnostics": diagnostics}
     raise HTTPException(404, "Job not found")
 
 

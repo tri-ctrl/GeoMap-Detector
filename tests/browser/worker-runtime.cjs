@@ -89,6 +89,8 @@ const server = http.createServer(async (request, response) => {
       for (const run of results.runs) { assert.match(run.modelFingerprint,/^sha256:[a-f0-9]{64}$/); assert.equal(run.predictions,true); assert.equal(run.world,true); assert.equal(run.provider,forceWasm||failGpu?'wasm':'webgpu'); if(liveImagery)assert.ok(run.total>0,'Live fixture must exercise nonempty predictions'); }
       results.cleanup = await evaluate('GVProcessing.diagnostics()');
       assert.equal(results.cleanup.active,0); assert.equal(results.cleanup.created,results.cleanup.terminated); assert.equal(results.cleanup.pendingStorage,0); assert.equal(results.cleanup.last.models.leased,0);
+      assert.equal(results.cleanup.last.runtime.configuredVersion,'1.20.1'); assert.equal(results.cleanup.last.runtime.loaded,true);
+      assert.equal(results.cleanup.last.telemetry.active,0);
       assert.deepEqual(errors,[]);
     });
     const out=process.argv.indexOf('--output');if(out>=0)fs.writeFileSync(path.resolve(process.argv[out+1]),JSON.stringify(results,null,2)+'\n');

@@ -8,6 +8,9 @@ const path = require('node:path');
 const http = require('node:http');
 const { createHash } = require('node:crypto');
 const { withChrome } = require('./chrome.cjs');
+const { stampEngine } = require('../../scripts/write_build_info.cjs');
+const diagnosticMode = process.argv.includes('--diagnostics'), diagnosticRevision = 'a'.repeat(40);
+let diagnosticEngineHash = null;
 const root = path.resolve(__dirname, '../..'), names = ['index.html', 'engine.js', 'map-view.js', 'comparison.js', 'storage.js', 'streaming.js', 'processing.js', 'processing-worker.js', 'app.js'];
 const sources = Object.fromEntries(names.map(name => [name, fs.readFileSync(path.join(root, 'frontend', name), 'utf8')]));
 const samples = JSON.parse(fs.readFileSync(path.join(root, 'frontend/sample_aois/uae_airports_ports.geojson'), 'utf8')).features;
@@ -61,15 +64,16 @@ const server = http.createServer((request, response) => {
     body = fs.readFileSync(asset);
   }
   else if (file === 'engine.js') {
-    const workerMode = process.argv.includes('--worker');
+    const workerMode = process.argv.includes('--worker') || diagnosticMode;
     const shared = fixture.replace('window.Worker=undefined;', workerMode || process.argv.includes('--scene') ? '' : 'window.Worker=undefined;').replaceAll('window.', 'globalThis.').replace('.bind(window)', '.bind(globalThis)').replace("localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));", "if(globalThis.localStorage)localStorage.setItem('gv_aois',JSON.stringify([__feature(__shape())]));");
     body = sources[file].replace('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js', 'fflate.js')
       .replace('https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/Cesium.js', 'vendor/Cesium/Cesium.js')
       .replace('https://cdn.jsdelivr.net/npm/proj4@2.22.0/dist/proj4.js', 'proj4.js')
       .replace('https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js', 'leaflet-draw.js') + '\n' + shared + (workerMode || process.argv.includes('--scene') ? `
-      GVEngine.loadModel=async spec=>({...__model,key:spec.key,provider:'fixture',names:spec.names,session:{...__model.session,release:async()=>{}}});
+      GVEngine.loadModel=async spec=>({...__model,key:spec.key,provider:'fixture',fingerprint:'sha256:'+'f'.repeat(64),names:spec.names,session:{...__model.session,release:async()=>{}}});
       const run=__model.session.run;__model.session.run=async feeds=>{const end=performance.now()+60;while(performance.now()<end){}return run(feeds)};
     ` : '');
+    if (diagnosticMode) { body = stampEngine(body, diagnosticRevision); diagnosticEngineHash = createHash('sha256').update(body).digest('hex'); }
   }
   else if (file === 'storage.js') body = sources[file] + '\nconst createRepo=GVStorage.create;GVStorage.create=options=>{const repo=createRepo(options);window.__repo=repo;return repo};';
   else if (file === 'map-view.js' && process.argv.includes('--scene')) body = sources[file].replace('"https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/"', 'location.origin+"/vendor/Cesium/"');
@@ -77,6 +81,8 @@ const server = http.createServer((request, response) => {
   else if (sources[file]) body = sources[file] + (file === 'processing-worker.js' && request.url.includes('crash=1')
     ? "\naddEventListener('message',event=>{if(event.data.type==='clip')setTimeout(()=>{throw Error('Injected worker crash')},20)});" : '');
   else if (file === 'models/models.json') { type = 'application/json'; body = JSON.stringify([{ file: 'nano.onnx', label: 'Fixture', names: ['plane'], imgsz: 1024 }]); }
+  else if (file === 'build-info.json' && diagnosticMode) { type = 'application/json'; body = JSON.stringify({ version: 1, revision: diagnosticRevision, builtAt: '2026-11-21T00:00:00.000Z',
+    runtime: { name: 'onnxruntime-web', version: '1.20.1' }, files: { 'engine.js': diagnosticEngineHash }, models: [{ file: 'nano.onnx', bytes: 1024, imgsz: 1024, classes: 1, sha256: 'f'.repeat(64) }] }); }
   else { response.writeHead(404); response.end(); return; }
   response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }); response.end(body);
 });
@@ -89,6 +95,9 @@ const server = http.createServer((request, response) => {
       await page('Page.navigate', { url: 'http://127.0.0.1:' + server.address().port + '/' });
       await until("window.GVApp&&document.querySelector('#storageStatus').textContent.startsWith('Saved')&&document.querySelector('#model').options.length===1");
       result.browser = await evaluate('navigator.userAgent');
+      if (diagnosticMode) {
+        await require('./diagnostics-cases.cjs')({ evaluate, page, until, errors, result, benchmark: process.argv.includes('--benchmark') }); return;
+      }
       if (process.argv.includes('--suppression')) {
         await require('./suppression-cases.cjs')({ evaluate, errors, result }); return;
       }

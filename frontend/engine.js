@@ -7,6 +7,7 @@
  */
 (function (global) {
 "use strict";
+const BUILD_REVISION = "development"; // GMD_BUILD_REVISION
 const ORIGIN = 20037508.342789244, TILE = 256;
 const NMS_INDEX_BYTES = 2 * 1048576;
 const nmsScratchBytes = limits => Math.min(NMS_INDEX_BYTES, Math.floor(limits.maxEstimatedBytes / 32));
@@ -36,9 +37,133 @@ const libraries = {
 };
 const libraryLoads = new Map(), startup = {}, dependencyTimings = {};
 const now = () => global.performance?.now() ?? Date.now();
+// Scalar-only local telemetry. A terminal event is self-contained when its
+// start has aged out of the ring. No features, pixels, URLs or errors are kept.
+function createTelemetry({ clock = now, limit = 256, activeLimit = 64, enabled = true,
+  contextId = global.crypto?.randomUUID?.() || "ctx-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
+  kind = global.document ? "window" : "worker", timeOrigin = global.performance?.timeOrigin ?? null } = {}) {
+  if (!Number.isSafeInteger(limit) || limit < 8 || limit > 1024 || !Number.isSafeInteger(activeLimit) || activeLimit < 1 || activeLimit > 128) throw new Error("Invalid telemetry limits");
+  if (typeof clock !== "function" || typeof contextId !== "string" || !contextId.length || contextId.length > 100 || !["window", "worker"].includes(kind)
+    || timeOrigin !== null && !Number.isFinite(timeOrigin)) throw new Error("Invalid telemetry context");
+  const ring = new Array(limit), active = new Map(), contexts = new Map(); let head = 0, size = 0, sequence = 0, ids = 0, dropped = 0, omittedActive = 0, lastClock = 0;
+  const counters = Object.create(null), names = new Set(["job", "model.load", "model.download", "model.session", "clip", "imagery", "inference", "export.zip", "export.dataset", "export.output", "worker.load", "worker.clip", "worker.close", "worker.startup", "build.info", "server.poll", "startup"]);
+  const fields = new Set(["jobId", "clipId", "parentId", "provider", "modelKey", "modelFingerprint", "source", "stage", "status", "errorName", "errorCode", "revision", "requestedZoom", "zoom", "width", "height", "tiles", "missing", "objects", "bytes", "inputBytes", "outputBytes", "estimatedBytes", "workMs", "aggregate"]);
+  const clean = value => {
+    const result = {};
+    if (!value || typeof value !== "object") return result;
+    for (const key of fields) {
+      const v = value[key];
+      if (typeof v === "string") result[key] = v.slice(0, 160);
+      else if (typeof v === "number" && Number.isFinite(v)) result[key] = v;
+      else if (typeof v === "boolean") result[key] = v;
+    }
+    return result;
+  };
+  const stamp = () => { const value = clock(); if (Number.isFinite(value)) lastClock = Math.max(lastClock, value); return lastClock; };
+  const put = event => { if (size === limit) { dropped++; ring[head] = event; head = (head + 1) % limit; } else { ring[(head + size) % limit] = event; size++; } };
+  const emit = event => put({ contextId, contextKind: kind, timeOrigin, sequence: ++sequence, ...event });
+  const outcome = error => error?.name === "AbortError" ? "cancelled" : "error";
+  const noop = Object.freeze({ id: null, end() {}, annotate() {} });
+  const api = {
+    enabled: () => enabled,
+    setEnabled(value) { enabled = Boolean(value); },
+    start(name, tags) {
+      if (!enabled) return noop;
+      if (!names.has(name)) throw new Error("Unknown diagnostic operation");
+      const id = contextId + ":" + ++ids, startMs = stamp(), data = clean(tags); let closed = false;
+      const tracked = active.size < activeLimit;
+      if (tracked) active.set(id, { id, name, startMs, ...data }); else omittedActive++;
+      emit({ type: "start", id, name, atMs: startMs, ...data });
+      return { id, annotate(tags) { if (!closed) { Object.assign(data, clean(tags)); if (tracked) Object.assign(active.get(id), data); } },
+        end(status = "ok", error, tags) {
+          if (closed) return; closed = true; if (tracked) active.delete(id); else omittedActive--;
+          const endMs = stamp(); emit({ type: "end", id, name, startMs, atMs: endMs, durationMs: endMs - startMs,
+            ...data, ...clean(tags), status: ["ok", "error", "cancelled", "partial"].includes(status) ? status : "error",
+            ...clean(error ? { errorName: error.name, errorCode: error.code } : null) });
+        } };
+    },
+    async run(name, tags, fn) {
+      const span = api.start(name, tags);
+      try { const result = await fn(span); span.end(); return result; }
+      catch (error) { span.end(outcome(error), error); throw error; }
+    },
+    metric(stage, workMs, tags) {
+      if (enabled && Number.isFinite(workMs) && workMs >= 0) emit({ type: "metric", atMs: stamp(), ...clean(tags), stage: String(stage).slice(0, 48), workMs, aggregate: true });
+    },
+    count(name, value = 1) {
+      if (enabled && typeof name === "string" && name.length <= 48 && /^(model|tile|export)\.[A-Za-z]+$/.test(name) && Number.isFinite(value) && value >= 0 && (Object.hasOwn(counters, name) || Object.keys(counters).length < 32)) counters[name] = Math.min(Number.MAX_SAFE_INTEGER, (counters[name] || 0) + value);
+    },
+    ingest(snapshot, contextKind = "worker") {
+      if (!["worker", "backend"].includes(contextKind)) return;
+      if (!enabled || !snapshot || snapshot.version !== 1 || typeof snapshot.context?.id !== "string" || snapshot.context.id === contextId || !Array.isArray(snapshot.events)) return;
+      const id = snapshot.context.id.slice(0, 100); let cursor = contexts.get(id) || 0;
+      for (const event of snapshot.events.slice(-limit)) {
+        if (event.contextId !== snapshot.context.id || !Number.isSafeInteger(event.sequence) || event.sequence <= cursor || !["start", "end", "metric"].includes(event.type) || !Number.isFinite(event.atMs)) continue;
+        const copy = { ...clean(event), type: event.type, atMs: event.atMs, sequence: event.sequence, contextId: id, contextKind, timeOrigin: Number.isFinite(snapshot.context.timeOrigin) ? snapshot.context.timeOrigin : null };
+        if (typeof event.id === "string") copy.id = event.id.slice(0, 120);
+        if (names.has(event.name)) copy.name = event.name;
+        if (Number.isFinite(event.startMs)) copy.startMs = event.startMs;
+        if (Number.isFinite(event.durationMs) && event.durationMs >= 0) copy.durationMs = event.durationMs;
+        put(copy); cursor = event.sequence;
+      }
+      if (!contexts.has(id) && contexts.size === 16) contexts.delete(contexts.keys().next().value);
+      contexts.set(id, cursor);
+    },
+    clear() { ring.fill(undefined); head = size = dropped = 0; },
+    snapshot() { return { version: 1, enabled, context: { id: contextId, kind, timeOrigin, revision: BUILD_REVISION }, limit, activeLimit, droppedEvents: dropped,
+      omittedActive, active: [...active.values()].map(value => ({ ...value })), counters: { ...counters },
+      importedContexts: contexts.size, events: Array.from({ length: size }, (_, i) => ({ ...ring[(head + i) % limit] })) }; },
+  };
+  return api;
+}
+const telemetry = createTelemetry();
+let buildLoad = null, buildState = { status: BUILD_REVISION === "development" ? "development" : "pending", executingRevision: BUILD_REVISION, artifact: null };
+const buildInfo = () => JSON.parse(JSON.stringify(buildState));
+function validateBuildInfo(info) {
+  if (info?.version !== 1 || !/^[a-f0-9]{40}$/.test(info.revision) || typeof info.builtAt !== "string" || !Number.isFinite(Date.parse(info.builtAt))
+    || info.runtime?.name !== "onnxruntime-web" || info.runtime?.version !== "1.20.1" || !Array.isArray(info.models) || !info.models.length || info.models.length > 64
+    || !info.files || typeof info.files !== "object" || Object.keys(info.files).length > 32 || !/^[a-f0-9]{64}$/.test(info.files["engine.js"])) throw new Error("Invalid build information");
+  const models = info.models.map(model => {
+    if (!model || typeof model.file !== "string" || !/^[\w.-]+\.onnx$/.test(model.file) || !/^[a-f0-9]{64}$/.test(model.sha256)
+      || !Number.isSafeInteger(model.bytes) || model.bytes < 1 || !Number.isSafeInteger(model.imgsz) || model.imgsz < 1 || !Number.isSafeInteger(model.classes) || model.classes < 1) throw new Error("Invalid build model");
+    return { file: model.file, sha256: model.sha256, bytes: model.bytes, imgsz: model.imgsz, classes: model.classes };
+  });
+  const files = {};
+  for (const [file, digest] of Object.entries(info.files)) {
+    if (!/^(?:[\w.-]+|models\/models\.json|sample_aois\/[\w.-]+)$/.test(file) || !/^[a-f0-9]{64}$/.test(digest)) throw new Error("Invalid build source");
+    files[file] = digest;
+  }
+  return { version: 1, revision: info.revision, builtAt: info.builtAt, runtime: { name: "onnxruntime-web", version: "1.20.1" }, files, models };
+}
+function cancelBuildInfo() { const load = buildLoad; buildLoad = null; load?.abort(); }
+function loadBuildInfo({ refresh = false } = {}) {
+  if (buildLoad) return buildLoad.promise;
+  if (!refresh && buildState.artifact) return Promise.resolve(buildInfo());
+  const owner = operation("Build information", { timeoutMs: 5000 }), span = telemetry.start("build.info");
+  const load = { abort: owner.abort, promise: null }; buildLoad = load;
+  load.promise = (async () => {
+    try {
+      owner.check();
+      const response = await fetch("build-info.json", { signal: owner.signal, cache: "no-cache" }); owner.check();
+      if (!response.ok) throw Object.assign(new Error("Build information unavailable"), { code: "BUILD_HTTP" });
+      const text = await response.text(); owner.check();
+      if (text.length > 131072) throw new Error("Build information is too large");
+      const artifact = validateBuildInfo(JSON.parse(text));
+      if (buildLoad === load) buildState = { status: BUILD_REVISION === "development" ? "development" : artifact.revision === BUILD_REVISION ? "matched" : "mismatch", executingRevision: BUILD_REVISION, artifact };
+      span.end("ok", null, { revision: artifact.revision });
+    } catch (error) {
+      try { owner.check(); } catch (reason) { error = reason; }
+      span.end(error.name === "AbortError" ? "cancelled" : "error", error);
+      if (buildLoad === load) buildState = { ...buildState, status: BUILD_REVISION === "development" ? "development" : "unavailable" };
+    } finally { owner.close(); if (buildLoad === load) buildLoad = null; }
+    return buildInfo();
+  })();
+  return load.promise;
+}
 function markStartup(name) {
   if (startup[name] != null) return;
   startup[name] = now(); global.performance?.mark?.("gmd:" + name);
+  telemetry.metric("startup." + name, startup[name]);
 }
 function configureOrt() {
   if (!global.ort?.env?.wasm) return;
@@ -568,6 +693,7 @@ async function fetchTile(release, z, x, y, signal) {
     checkAbort(signal); _tileCache = cache;
   }
   let cached = _tileCache ? await ownedRead(_tileCache.match(url).catch(() => null), signal) : null;
+  telemetry.count(cached ? "tile.cacheHits" : "tile.cacheMisses");
   checkAbort(signal);
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController(), abort = () => controller.abort();
@@ -575,17 +701,24 @@ async function fetchTile(release, z, x, y, signal) {
     signal?.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { timedOut = true; abort(); }, 10000);
     lifecycleStats.tileAttempts++;
+    telemetry.count("tile.attempts");
+    if (attempt) telemetry.count("tile.retries");
     try {
       checkAbort(signal);
+      if (!cached) telemetry.count("tile.networkRequests");
       const response = cached || await fetch(url, { signal: controller.signal, mode: "cors" });
       cached = null;
       if (!response.ok) throw new ImageryError(response.status === 404 ? "TILE_UNAVAILABLE" : "TILE_HTTP", `Imagery request returned HTTP ${response.status}`, { httpStatus: response.status });
       const copy = !fromCache && _tileCache ? response.clone() : null;
       const blob = await response.blob();
+      telemetry.count("tile.encodedBytes", blob.size);
+      if (!fromCache) telemetry.count("tile.networkBodyBytes", blob.size);
       checkAbort(signal);
       if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
+      const decodeStarted = now();
       try { bitmap = await createImageBitmap(blob); }
       catch { throw new ImageryError("TILE_DECODE", "Imagery response could not be decoded"); }
+      finally { telemetry.count("tile.decodeMs", now() - decodeStarted); }
       checkAbort(signal);
       if (timedOut) throw new ImageryError("TILE_TIMEOUT", "Imagery request timed out");
       if (copy) { lifecycleStats.cacheWrites++; try { await _tileCache.put(url, copy).catch(() => {}); } finally { lifecycleStats.cacheWrites--; } checkAbort(signal); }
@@ -595,6 +728,7 @@ async function fetchTile(release, z, x, y, signal) {
       bitmap?.close(); checkAbort(signal);
       if (fromCache) await _tileCache.delete(url).catch(() => {});
       const code = timedOut ? "TILE_TIMEOUT" : error.code || "TILE_NETWORK";
+      telemetry.count("tile.failedAttempts");
       const retry = fromCache || code === "TILE_TIMEOUT" || code === "TILE_NETWORK" || (code === "TILE_HTTP" && (error.httpStatus >= 500 || [408, 429].includes(error.httpStatus)));
       if (attempt === 0 && retry) continue;
       return { failure: { code, url, httpStatus: error.httpStatus || null } };
@@ -951,9 +1085,10 @@ async function loadModel(spec) {
 }
 async function loadModelOwned(spec, owner) {
   // spec: {key, url | buffer, names[], imgsz, signal}
-  if (spec.cache !== false && _sessions.has(spec.key)) return _sessions.get(spec.key);
+  if (spec.cache !== false && _sessions.has(spec.key)) { telemetry.count("model.cacheHits"); return _sessions.get(spec.key); }
   let src = spec.buffer;
   if (!src) {
+    src = await telemetry.run("model.download", { parentId: spec.traceParent, modelKey: spec.key, source: "network" }, async span => {
     if (!spec.url) throw new Error("No ONNX model file was specified");
     // Fetch once before choosing a provider. ORT reports a missing model URL as
     // "failed to load external data file", hiding the HTTP status and remedy.
@@ -967,19 +1102,23 @@ async function loadModelOwned(spec, owner) {
     if (!response.ok) throw new Error(`Could not download ONNX model ${spec.url} (HTTP ${response.status}). ${help}`);
     if ((response.headers.get("content-type") || "").toLowerCase().includes("text/html"))
       throw new Error(`The server returned an HTML page instead of ONNX model ${spec.url}. ${help}`);
-    src = new Uint8Array(await response.arrayBuffer()); owner.check();
-    if (!src.byteLength) throw new Error(`ONNX model ${spec.url} is empty. ${help}`);
-  }
+    const bytes = new Uint8Array(await response.arrayBuffer()); owner.check();
+    if (!bytes.byteLength) throw new Error(`ONNX model ${spec.url} is empty. ${help}`);
+    telemetry.count("model.networkBytes", bytes.byteLength); telemetry.count("model.downloads"); span.annotate({ bytes: bytes.byteLength }); return bytes;
+    });
+  } else telemetry.count("model.bufferBytes", src.byteLength);
   const fingerprint = global.crypto?.subtle ? "sha256:" + [...new Uint8Array(await global.crypto.subtle.digest("SHA-256", src))].map(b => b.toString(16).padStart(2, "0")).join("") : null;
   owner.check();
   await ensureLibrary("ort", { signal: spec.signal }); owner.check();
   let session = null, provider = "wasm";
+  const createSession = executionProvider => telemetry.run("model.session", { parentId: spec.traceParent, modelKey: spec.key, provider: executionProvider },
+    () => ort.InferenceSession.create(src, { executionProviders: [executionProvider], graphOptimizationLevel: "all" }));
   try {
     if (global.navigator && navigator.gpu) {
-      try { session = await ort.InferenceSession.create(src, { executionProviders: ["webgpu"], graphOptimizationLevel: "all" }); provider = "webgpu"; } catch (e) { owner.check(); }
+      try { session = await createSession("webgpu"); provider = "webgpu"; } catch (e) { owner.check(); }
     }
     owner.check();
-    if (!session) session = await ort.InferenceSession.create(src, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+    if (!session) session = await createSession("wasm");
     owner.check();
   } catch (error) { if (session?.release) await session.release(); throw error; }
   const dims = (session.inputMetadata && session.inputMetadata[0] && session.inputMetadata[0].dimensions) || null;
@@ -1336,7 +1475,7 @@ async function renderDisplay(r, signal) {
 async function processClipBounded(aoi, rel, opt) {
   const owner = operation("Clip processing", { signal: opt.signal, timeoutMs: opt.timeoutMs ?? 1800000 });
   const started = now(), timings = {}; let stage = started;
-  const mark = name => { timings[name] = now() - stage; stage = now(); };
+  const mark = name => { timings[name] = now() - stage; stage = now(); telemetry.metric("clip." + name, timings[name], { parentId: opt.traceParent, jobId: opt.jobId, clipId: opt.clipId }); };
   let raster, spool, lease, complete = false, failure;
   try {
     owner.check();
@@ -1352,7 +1491,7 @@ async function processClipBounded(aoi, rel, opt) {
     const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: raster.zoom, gsd_m: +groundRes(raster, clat).toFixed(3),
       source: "Esri Wayback", imagery_coverage: raster.coverage.status, missing_tiles: raster.missing };
     const inference = {};
-    const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
+    const dets = opt.model ? await detect(raster, opt.model, { classes: opt.classes, conf: opt.conf, signal: owner.signal, traceParent: opt.traceParent, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress?.(0.4 + f * 0.4) }) : [];
     timings.inference = opt.model ? inference : null;
     mark("detectionMs");
     owner.check(); const features = await identity.predictions(toFeatures(dets, raster, props), props, owner.signal), counts = {}; for (const feature of features) counts[feature.properties.class] = (counts[feature.properties.class] || 0) + 1;
@@ -1403,7 +1542,7 @@ async function processClip(aoi, rel, opt = {}) {
     const props = { ...await identity.context(aoi, rel, opt), aoi_id, aoi_name: name, release: rel.release, imagery_date: rel.date, zoom: r.zoom, gsd_m: +groundRes(r, clat).toFixed(3), source: "Esri Wayback", imagery_coverage: r.coverage.status, missing_tiles: r.missing };
     let dets = [];
     const inference = {};
-    if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
+    if (opt.model) dets = await detect(r, opt.model, { classes: opt.classes, conf: opt.conf, signal: opt.signal, traceParent: opt.traceParent, nmsMode: opt.nmsMode, profile: inference, onProgress: f => opt.onProgress && opt.onProgress(0.45 + 0.45 * f) });
     const feats = await identity.predictions(toFeatures(dets, r, props), props, opt.signal), counts = {};
     feats.forEach(f => counts[f.properties.class] = (counts[f.properties.class] || 0) + 1);
     const bounds = rasterBounds(r);
@@ -1688,12 +1827,53 @@ const allocations = { defaults: DEFAULT_LIMITS, limits: () => ({ ...allocationDe
 const operationDiagnostics = () => ({ ...lifecycleStats, active: [...activeOperations.values()].map(({ id, label, signal }) => ({ id, label, aborted: signal.aborted })) });
 const suppressionDiagnostics = () => ({ ...suppressionState, last: suppressionState.last ? { ...suppressionState.last } : null });
 const inferenceDiagnostics = () => ({ active: activeInferenceProfiles, last: lastInferenceProfile ? JSON.parse(JSON.stringify(lastInferenceProfile)) : null });
+// Instrument coarse operation boundaries, outside pixel/anchor/pair loops.
+// Explicit parent IDs cross contexts; timestamps never get subtracted across them.
+function observed(name, fn, optionIndex, describe, finish, inject = true) {
+  return async (...args) => {
+    if (!telemetry.enabled()) return fn(...args);
+    const options = args[optionIndex] || {}, span = telemetry.start(name, { parentId: options.traceParent, jobId: options.jobId, clipId: options.clipId, ...describe?.(...args) });
+    if (inject) args[optionIndex] = { ...options, traceParent: span.id };
+    try { const result = await fn(...args); span.annotate(finish?.(result, args)); span.end(); return result; }
+    catch (error) { span.end(error?.name === "AbortError" ? "cancelled" : "error", error); throw error; }
+  };
+}
+const rasterTags = result => ({ zoom: result.zoom, width: result.w, height: result.h, tiles: result.tiles, missing: result.missing });
+const outputBytes = result => result?.size ?? result?.bytes ?? result?.blob?.size ?? result?.blob?.bytes ?? 0;
+loadModel = observed("model.load", loadModel, 0, spec => ({ modelKey: spec?.key, source: spec?.buffer ? "buffer" : "url" }),
+  result => ({ modelKey: result.key, modelFingerprint: result.fingerprint, provider: result.provider, width: result.imgsz }));
+buildRaster = observed("imagery", buildRaster, 3, (_geometry, _release, zoom) => ({ requestedZoom: zoom }), rasterTags);
+buildTiledRaster = observed("imagery", buildTiledRaster, 3, (_geometry, _release, zoom) => ({ requestedZoom: zoom }), rasterTags);
+const detectOwned = detect;
+detect = async (raster, model, options = {}) => {
+  if (!telemetry.enabled()) return detectOwned(raster, model, options);
+  return telemetry.run("inference", { parentId: options.traceParent, provider: model?.provider, modelKey: model?.key, modelFingerprint: model?.fingerprint, width: raster?.w, height: raster?.h }, async span => {
+  const profile = options.profile || {}; let result;
+  try { result = await detectOwned(raster, model, { ...options, profile }); return result; }
+  finally {
+    for (const stage of ["rasterReadMs", "alphaCheckMs", "normalizeMs", "normalizationYieldMs", "windowYieldMs", "tensorCreateMs", "modelCallMs", "decodeMs", "chipNmsMs", "globalNmsMs", "disposeMs"])
+      telemetry.metric("inference." + stage, profile[stage], { parentId: span.id, provider: model?.provider });
+    span.annotate({ objects: result?.length, inputBytes: profile.logicalInputBytes, outputBytes: profile.selectedOutputBytes });
+  }
+  });
+};
+processClip = observed("clip", processClip, 2, (_aoi, _release, options) => ({ requestedZoom: options?.zoom }), result => ({ zoom: result.zoom, width: result.size[0], height: result.size[1], tiles: result.tiles, missing: result.missing, objects: result.total, estimatedBytes: result.allocation?.estimatedBytes }));
+exportOutput = observed("export.output", exportOutput, 1, () => ({}), result => { const bytes = outputBytes(result); telemetry.count("export.outputBytes", bytes); return { outputBytes: bytes }; });
+exportJobZip = observed("export.zip", exportJobZip, 1, job => ({ jobId: job.id }), (result, args) => {
+  const bytes = outputBytes(result); if (!args[1]?.streaming) telemetry.count("export.outputBytes", bytes); return { outputBytes: bytes };
+}, false);
+exportDataset = observed("export.dataset", exportDataset, 1, () => ({}), (result, args) => {
+  const bytes = outputBytes(result); if (!args[1]?.streaming) telemetry.count("export.outputBytes", bytes); return { outputBytes: bytes };
+}, false);
 global.GVEngine = { identity, getReleases, localChanges, releaseCacheInfo, cancelReleaseRefresh, requestJSON, ensureLibrary, markStartup, estimateRaster, allocations,
+  telemetry, createTelemetry, build: { revision: BUILD_REVISION, info: buildInfo, load: loadBuildInfo, cancel: cancelBuildInfo, validate: validateBuildInfo },
   suppression: { run: nms, runAsync: nmsAsync, scratchBytes: nmsScratchBytes, diagnostics: suppressionDiagnostics }, inference: { diagnostics: inferenceDiagnostics },
   models: { acquire: acquireModel, diagnostics: () => ({ leased: modelLeases.size, legacyCached: _sessions.size }) },
   mapSearch: { parseCoordinates: parseMapCoordinates, suggest: suggestMapPlaces, find: findMapPlace, currentLocation: currentMapLocation },
   operations: { open: operation, check: checkAbort, yield: yieldTask, read: ownedRead, diagnostics: operationDiagnostics },
-  diagnostics: () => ({ startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(),
+  diagnostics: () => ({ build: buildInfo(), runtime: { name: "onnxruntime-web", configuredVersion: "1.20.1", reportedVersion: typeof global.ort?.env?.versions?.web === "string" ? global.ort.env.versions.web : null,
+    loaded: Boolean(global.ort?.InferenceSession), crossOriginIsolated: Boolean(global.crossOriginIsolated), wasmThreads: global.ort?.env?.wasm?.numThreads ?? null },
+    telemetry: telemetry.snapshot(), startup: { ...startup }, dependencies: JSON.parse(JSON.stringify(dependencyTimings)), metadata: releaseCacheInfo(), allocations: allocationDiagnostics(), operations: operationDiagnostics(),
     suppression: suppressionDiagnostics(), inference: inferenceDiagnostics(), streaming: global.GVStreaming?.diagnostics() || null }),
   buildRaster, checkCoverage, loadModel, detect, toFeatures, processClip, exportJobZip, exportDataset, exportCSV, exportPart,
   writeGeoTIFF, decode, nms, minRect, windows, slug, merc, unmerc, lonlatToPixel, uniqueAois, DOTA_NAMES, LABELS, WKT_3857, TILE_URL };

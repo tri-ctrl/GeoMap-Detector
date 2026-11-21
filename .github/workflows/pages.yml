@@ -34,6 +34,8 @@ jobs:
         run: node tests/browser/allocation.cjs --worker
       - name: Test exact indexed suppression, bounded scratch and cleanup in Chromium
         run: node tests/browser/allocation.cjs --suppression
+      - name: Test bounded local diagnostics, worker clocks and build provenance in Chromium
+        run: node tests/browser/allocation.cjs --diagnostics
       - name: Test Esri basemaps, coordinate CRS and native 3D view cleanup
         run: node tests/browser/allocation.cjs --scene
       - name: Test map search, location permissions and mobile layout in Chromium
@@ -63,6 +65,8 @@ jobs:
       # Always validate, including cache hits that skip the export and ML install.
       - name: Verify exported or cached model files before publishing
         run: python scripts/export_onnx.py --check
+      - name: Write public build revision and model fingerprints
+        run: node scripts/write_build_info.cjs --revision "$GITHUB_SHA"
       - name: Upload models for local use
         uses: actions/upload-artifact@v4
         with:

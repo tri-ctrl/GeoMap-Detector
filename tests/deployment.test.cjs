@@ -3,12 +3,15 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const { createHash } = require("node:crypto");
+const { stampEngine } = require("../scripts/write_build_info.cjs");
 const { verifyDeployment, SOURCE_FILES } = require("../scripts/check_deployment.cjs");
 
 async function fixture(t, change = () => {}) {
   const sourceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "geomap-deploy-test-"));
   t.after(() => fs.rm(sourceRoot, { recursive: true, force: true }));
-  const bodies = new Map(SOURCE_FILES.map(file => [file, "source: " + file]));
+  const revision = "a".repeat(40), digest = data => createHash("sha256").update(data).digest("hex");
+  const bodies = new Map(SOURCE_FILES.map(file => [file, file === "engine.js" ? 'const BUILD_REVISION = "development"; // GMD_BUILD_REVISION\n' : "source: " + file]));
   await Promise.all([...bodies].map(async ([file, body]) => {
     await fs.mkdir(path.dirname(path.join(sourceRoot, file)), { recursive: true });
     await fs.writeFile(path.join(sourceRoot, file), body);
@@ -19,7 +22,11 @@ async function fixture(t, change = () => {}) {
   const manifest = ["yolo11n-obb.onnx", "yolo11s-obb.onnx"].map(file => ({
     file, names: ["plane", "ship"], imgsz: 1024, size_mb: 11,
   }));
-  const state = { bodies, manifest, status: 200, contentType: "application/octet-stream", bytes: "11003776", calls: [] };
+  bodies.set("engine.js", stampEngine(bodies.get("engine.js"), revision));
+  const build = { version: 1, revision, builtAt: new Date().toISOString(), runtime: { name: "onnxruntime-web", version: "1.20.1" },
+    files: { ...Object.fromEntries([...bodies].map(([file, body]) => [file, digest(body)])), "models/models.json": digest(JSON.stringify(manifest)) },
+    models: manifest.map(model => ({ file: model.file, sha256: "b".repeat(64), bytes: 11003776, imgsz: 1024, classes: 2 })) };
+  const state = { bodies, manifest, build, status: 200, contentType: "application/octet-stream", bytes: "11003776", calls: [] };
   change(state);
   const fetchImpl = async (url, options) => {
     assert.ok(url.href.startsWith("https://example.test/GeoMap-Detector/"));
@@ -28,19 +35,20 @@ async function fixture(t, change = () => {}) {
     assert.equal(options.headers["Accept-Encoding"], "identity");
     state.calls.push({ file, method: options.method });
     if (file === "models/models.json") return new Response(JSON.stringify(state.manifest));
+    if (file === "build-info.json") return state.build === null ? new Response('', { status: 404 }) : new Response(JSON.stringify(state.build));
     if (options.method === "HEAD") return new Response(null, { status: state.status, headers: {
       "Content-Type": state.contentType, "Content-Length": state.bytes,
     } });
     assert.ok(state.bodies.has(file), "Unexpected asset: " + file);
     return new Response(state.bodies.get(file));
   };
-  return { options: { url: "https://example.test/GeoMap-Detector/", sourceRoot, revision: "test-sha", fetchImpl }, state };
+  return { options: { url: "https://example.test/GeoMap-Detector/", sourceRoot, revision, fetchImpl }, state };
 }
 
 test("published source matches and both generated models are checked under the project path", async t => {
   const { options, state } = await fixture(t);
   const result = await verifyDeployment(options);
-  assert.equal(result.revision, "test-sha"); assert.equal(result.files.length, SOURCE_FILES.length); assert.equal(result.models.length, 2);
+  assert.equal(result.revision, "a".repeat(40)); assert.equal(result.files.length, SOURCE_FILES.length); assert.equal(result.models.length, 2);
   assert.deepEqual(state.calls.filter(call => call.method === "HEAD").map(call => call.file).sort(),
     ["models/yolo11n-obb.onnx", "models/yolo11s-obb.onnx"]);
 });
@@ -73,4 +81,29 @@ test("empty models and manifest size mismatches fail", async t => {
 test("model paths cannot escape the published models directory", async t => {
   const { options } = await fixture(t, state => state.manifest.push({ file: "../weights.onnx", names: ["plane"], imgsz: 1024 }));
   await assert.rejects(verifyDeployment(options), /invalid model filename/);
+});
+test("a build manifest for another revision or mismatched source cannot pass deployment verification", async t => {
+  for (const mutate of [state => { state.build.revision = "b".repeat(40); }, state => { state.build.files["app.js"] = "c".repeat(64); }]) {
+    const { options } = await fixture(t, mutate);
+    await assert.rejects(verifyDeployment(options), /build-info\.json:.*revision|build-info\.json:.*digest/);
+  }
+});
+test("invalid runtime or model provenance cannot pass despite healthy binary URLs", async t => {
+  for (const mutate of [state => { state.build.runtime.version = "other"; }, state => { state.build.models[0].sha256 = "invalid"; }, state => { state.build.models[0].bytes++; }]) {
+    const { options } = await fixture(t, mutate);
+    await assert.rejects(verifyDeployment(options), /build-info\.json/);
+  }
+});
+test("checking without an explicit revision uses the selected public artifact and still verifies source bytes", async t => {
+  const { options } = await fixture(t); options.revision = null;
+  assert.equal((await verifyDeployment(options)).revision, "a".repeat(40));
+});
+test("legacy unstamped artifacts remain checkable without a build manifest when no revision is requested", async t => {
+  const { options, state } = await fixture(t); options.revision = null; state.build = null;
+  state.bodies.set('engine.js', await fs.readFile(path.join(options.sourceRoot,'engine.js'),'utf8'));
+  const result = await verifyDeployment(options); assert.equal(result.revision,null); assert.equal(result.build,null);
+});
+test("an invalid public artifact revision cannot silently downgrade to an unstamped source check", async t => {
+  const { options } = await fixture(t,state=>{state.build.revision='invalid'}); options.revision = null;
+  await assert.rejects(verifyDeployment(options),/invalid artifact revision/);
 });

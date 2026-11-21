@@ -376,6 +376,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
         <button class="btn ghost" id="clearResultCache">Release unused cached results</button>
         <p class="hint">Cache and protected results use this budget; processing buffers, model sessions and browser rendering use additional memory. Active views, unsaved clips and edits are kept. Display size applies to newly opened views; native exports keep their original pixels.</p>
       </details>
+      <details class="sec" id="diagnosticsPanel"><summary>Diagnostics</summary>
+        <p class="hint" id="buildStatus" style="overflow-wrap:anywhere" role="status" aria-live="polite">Build information loads after the first map tile.</p>
+        <div class="row"><button class="btn" id="downloadDiagnostics">Download diagnostics</button><button class="btn ghost" id="clearDiagnostics">Clear trace</button></div>
+        <p class="hint">Local timing, model and resource information for troubleshooting. The report excludes imagery, object geometries, reviews and job logs.</p>
+      </details>
       <div class="sec" id="compareControls" hidden>
         <div class="sec" id="compareKindRow"><label class="label" for="compareKind">Compare by</label>
         <select id="compareKind"><option value="dates">Dates · same AOI and model</option><option value="models">Models · same AOI and date</option></select></div>

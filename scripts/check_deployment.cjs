@@ -2,8 +2,8 @@
 const { readFile } = require("node:fs/promises");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
+const { SOURCE_FILES, stampEngine } = require("./write_build_info.cjs");
 
-const SOURCE_FILES = ["index.html", "app.js", "engine.js", "map-view.js", "processing.js", "processing-worker.js", "comparison.js", "storage.js", "streaming.js", "sample_aois/uae_airports_ports.geojson"];
 const DEFAULT_MODELS = ["yolo11n-obb.onnx", "yolo11s-obb.onnx"];
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -22,8 +22,18 @@ async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../
     if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
     return response;
   }
+  let build = null;
+  if (!revision) {
+    try {
+      build = await (await request("build-info.json")).json();
+      if (!/^[a-f0-9]{40}$/.test(build?.revision)) throw new Error("build-info.json: invalid artifact revision");
+      revision = build.revision;
+    }
+    catch (error) { if (error.message !== "build-info.json: HTTP 404") throw error; }
+  }
   const files = await Promise.all(SOURCE_FILES.map(async file => {
-    const expected = await readFile(path.join(sourceRoot, file));
+    let expected = await readFile(path.join(sourceRoot, file));
+    if (revision && file === "engine.js") expected = Buffer.from(stampEngine(expected.toString("utf8"), revision));
     const response = await request(file);
     const actual = new Uint8Array(await response.arrayBuffer());
     if (digest(actual) !== digest(expected)) throw new Error(`${file}: deployed content differs from the checked-out source`);
@@ -31,7 +41,8 @@ async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../
   }));
   // This manifest is generated/restored during the build; the checked-in placeholder
   // is intentionally not used for a byte comparison or as the list of shipped models.
-  const manifest = await (await request("models/models.json")).json();
+  const manifestResponse = await request("models/models.json"), manifestBytes = new Uint8Array(await manifestResponse.arrayBuffer());
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
   if (!Array.isArray(manifest) || !manifest.length) throw new Error("The published model manifest is empty or invalid");
   for (const file of DEFAULT_MODELS) {
     if (!manifest.some(entry => entry && entry.file === file)) throw new Error(`The published model manifest is missing ${file}`);
@@ -51,7 +62,20 @@ async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../
       throw new Error(`${entry.file}: downloaded size ${bytes} bytes differs from the published ${entry.size_mb} MB`);
     return { file: entry.file, bytes, imgsz: entry.imgsz, classes: entry.names.length };
   }));
-  return { checkedAt: new Date().toISOString(), url: base.href, revision, files, models };
+  if (revision) {
+    build ||= await (await request("build-info.json")).json();
+    if (build?.version !== 1 || build.revision !== revision || typeof build.builtAt !== "string" || !Number.isFinite(Date.parse(build.builtAt))
+      || build.runtime?.name !== "onnxruntime-web" || build.runtime.version !== "1.20.1" || !Array.isArray(build.models) || build.models.length !== models.length)
+      throw new Error("build-info.json: revision/runtime/model provenance differs from the selected artifact");
+    for (const file of files) if (build.files?.[file.file] !== file.sha256) throw new Error(`build-info.json: ${file.file} digest differs from published source`);
+    if (build.files?.["models/models.json"] !== digest(manifestBytes)) throw new Error("build-info.json: model manifest digest differs");
+    for (const model of models) {
+      const recorded = build.models.find(entry => entry.file === model.file);
+      if (!recorded || recorded.bytes !== model.bytes || recorded.imgsz !== model.imgsz || recorded.classes !== model.classes || !/^[a-f0-9]{64}$/.test(recorded.sha256))
+        throw new Error(`build-info.json: ${model.file} provenance differs`);
+    }
+  }
+  return { checkedAt: new Date().toISOString(), url: base.href, revision, files, models, build };
 }
 
 async function main() {

@@ -118,7 +118,7 @@ class IdentityTests(unittest.TestCase):
             (directory / "image.png").write_bytes(b"fixture pixels")
             return {"png": "image.png"}
         wayback.save_raster = save_raster
-        return {"identity": identity, "wayback": wayback, "shapely": types.ModuleType("shapely"), "shapely.geometry": geometry, "numpy": types.ModuleType("numpy")}
+        return {"identity": identity, "telemetry": load("gmd_backend_telemetry", "telemetry.py"), "wayback": wayback, "shapely": types.ModuleType("shapely"), "shapely.geometry": geometry, "numpy": types.ModuleType("numpy")}
 
     def test_real_pipeline_isolates_colliding_names_and_exports_alias_manifest(self):
         modules = self.dependencies()

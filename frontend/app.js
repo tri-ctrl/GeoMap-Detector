@@ -152,6 +152,41 @@ const saveBlob = (name, blob, onRelease) => {
   finally { a.remove(); }
 };
 const download = (name, text, type = "application/geo+json") => { try { return saveBlob(name, new Blob([text], { type })); } catch (error) { toast(error.message, 5000); } };
+let buildInfoRequested = false, serverDiagnostic = null, lastBrowserInference = null;
+function renderBuildStatus() {
+  const build = E.build.info(), processing = window.GVProcessing.diagnostics(), inference = lastBrowserInference || processing.last?.inference?.last || E.inference.diagnostics().last;
+  const workerRevision = processing.last?.telemetry?.context?.revision;
+  const mismatch = workerRevision && workerRevision !== E.build.revision;
+  const expectedModel = build.artifact?.models.find(model => inference?.modelKey === "url:" + model.file);
+  const modelMismatch = expectedModel && inference?.modelFingerprint && inference.modelFingerprint !== "sha256:" + expectedModel.sha256;
+  $("#buildStatus").textContent = (build.executingRevision === "development" ? "Development checkout" : "Build " + build.executingRevision.slice(0, 12))
+    + (build.status === "matched" ? " · artifact manifest matched" : build.status === "mismatch" ? " · page and artifact revisions differ; reload to update" : build.status === "unavailable" ? " · artifact manifest unavailable" : "")
+    + (mismatch ? " · worker revision differs" : "")
+    + (modelMismatch ? " · model fingerprint differs from the artifact" : "")
+    + (inference ? ` · last inference: ${inference.provider} · ${inference.modelKey || "custom model"}` : "") + " · ORT 1.20.1";
+}
+function refreshBuildInfo(refresh = false) {
+  if (!pageActive || buildInfoRequested) return;
+  buildInfoRequested = true;
+  E.build.load({ refresh }).then(() => { if (pageActive) renderBuildStatus(); });
+}
+function diagnosticReport() {
+  const engine = E.diagnostics(), app = window.GVApp.diagnostics();
+  const { scope, ...views } = app.views;
+  const { activeOperations, ...allocations } = engine.allocations;
+  return { version: 1, capturedAt: new Date().toISOString(), build: engine.build, runtime: engine.runtime,
+    environment: { browser: window.navigator?.userAgent || "unknown", online: window.navigator?.onLine ?? null },
+    telemetry: engine.telemetry, startup: engine.startup, dependencies: engine.dependencies,
+    metadata: { source: engine.metadata.source, fetchedAt: engine.metadata.fetchedAt, refreshing: engine.metadata.refreshing, failed: Boolean(engine.metadata.error) },
+    resources: { allocations, operations: { ...engine.operations, active: engine.operations.active.map(({ id, aborted }) => ({ id, aborted })) },
+      models: E.models.diagnostics(), suppression: engine.suppression, streaming: engine.streaming,
+      views, drafts: app.drafts, downloads: app.downloadLeases, queue: { waiting: app.queue.waiting, paused: app.queue.paused },
+      resultMemory: { limitBytes: app.memory.limitBytes, totalBytes: app.memory.totalBytes, pinnedBytes: app.memory.pinnedBytes, inactiveBytes: app.memory.inactiveBytes } },
+    inference: engine.inference, lastBrowserInference, processing: app.processing, server: serverDiagnostic,
+    byteMeaning: "Logical body/input/output bytes and owned estimates; excludes physical browser/native/GPU memory. Clocks are per context. No remote telemetry." };
+}
+$("#downloadDiagnostics").onclick = () => { renderBuildStatus(); download("geomap-diagnostics.json", JSON.stringify(diagnosticReport(), null, 2), "application/json"); };
+$("#clearDiagnostics").onclick = () => { E.telemetry.clear(); renderBuildStatus(); };
 const postJSON = (p, body, signal) => E.requestJSON(api(p), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
 
 // ---------------------------------------------------------------- theme
@@ -213,7 +248,7 @@ function renderBasemap() {
       map.attributionControl?.addAttribution(item.credit); wbLayer.setUrl(item.url);
     } else {
       wbLayer = L.tileLayer(item.url, { maxZoom: 21, maxNativeZoom: item.maxLevel, attribution: item.credit }).addTo(map);
-      wbLayer.bringToBack(); wbLayer.on("tileload", () => E.markStartup("mapFirstTile"));
+      wbLayer.bringToBack(); wbLayer.on("tileload", () => { E.markStartup("mapFirstTile"); refreshBuildInfo(); });
     }
     basemapKey = item.key;
   }
@@ -991,9 +1026,10 @@ async function enqueueBrowser(mode, aois) {
 }
 async function runBrowser(job) {
   const { params, modelSpec, releaseSource, controller } = job, signal = controller.signal;
-  let processing;
+  const trace = E.telemetry.start("job", { jobId: job.id, modelKey: params.model_key });
+  let processing, traceError;
   try {
-    processing = await window.GVProcessing.create({ jobId: job.id, signal, store: durable ? DB : null,
+    processing = await window.GVProcessing.create({ jobId: job.id, signal, store: durable ? DB : null, traceParent: trace.id,
       onFallback: reason => jlog(job, "Worker unavailable; using browser compatibility processing. " + reason) });
     jlog(job, processing.context === "worker" ? "Processing in a dedicated worker." : "Using browser compatibility processing.");
     let model = null;
@@ -1045,7 +1081,7 @@ async function runBrowser(job) {
       outcome.status = "running";
       jlog(job, `[${i + 1}/${plan.length}] ${aoi.properties.name} · ${rel.date}`);
       try {
-        const r = await processing.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal,
+        const r = await processing.processClip(aoi, rel, { zoom: params.zoom, model, classes: params.classes, conf: params.conf, signal, traceParent: trace.id,
           maxTiles: params.maxTiles, geotiff: params.geotiff, limits: params.allocationLimits,
           bounded: params.bounded !== false, png: params.png !== false, store: durable ? DB : null, jobId: job.id, clipId: job.plan[i].clipId,
           onWaiting: () => jlog(job, "    Waiting for browser image/export resources to be released…"),
@@ -1082,6 +1118,7 @@ async function runBrowser(job) {
         jlog(job, `    z${r.zoom} · ${r.size[0]}×${r.size[1]} px${r.missing ? ` · ${r.missing} tiles missing` : ""} · ${r.total} objects ${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(" ")}`);
         if (r.timings?.inference) {
           const p = r.timings.inference, duration = ms => ms < 1000 ? ms.toFixed(1) + "ms" : (ms / 1000).toFixed(2) + "s";
+          lastBrowserInference = { provider: p.provider, modelKey: p.modelKey, modelFingerprint: p.modelFingerprint };
           jlog(job, `    Detection timing: model call ${duration(p.modelCallMs)} · pixels/normalization ${duration(p.rasterReadMs + p.normalizeMs)} · decode ${duration(p.decodeMs)} · suppression ${duration(p.chipNmsMs + p.globalNmsMs)}`);
         }
         if (r.missing) jlog(job, "    WARNING: Incomplete imagery; these counts cover only the available tiles.");
@@ -1110,13 +1147,16 @@ async function runBrowser(job) {
     jlog(job, `Finished${job.status === "partial" ? " (partial)" : job.status === "error" ? " (no completed clips)" : ""}: ${tot} objects across ${job.results.length} AOI/date clips${incomplete ? `; ${job.outcomes.filter(o => o.status === "unavailable").length} unavailable, ${job.outcomes.filter(o => o.status === "failed").length} failed, ${job.outcomes.filter(o => o.status === "partial").length} with incomplete imagery` : ""}. ${durable ? "Saved on this device. Export a zip for a separate backup." : "Export the zip before closing this tab."}`);
     if (pageActive) toast(job.status === "done" ? `${GVCompare.modelName(params)}: job finished` : `${GVCompare.modelName(params)}: job finished with clip issues. See Results.`);
   } catch (e) {
+    traceError = e;
     if (e.code === "RESULT_MEMORY_LIMIT") { memoryPressure = e; queuePaused = true; }
     job.status = job.suspending || storageError || e.code === "RESULT_MEMORY_LIMIT" ? "interrupted" : signal.aborted || e.name === "AbortError" ? "cancelled" : "error";
     job.outcomes.forEach(outcome => { if (["pending", "running"].includes(outcome.status)) { outcome.status = outcome.status === "running" ? job.status : "not_run"; outcome.message = e.message; } });
     jlog(job, job.status === "interrupted" ? "Paused. Saved clips are kept; resume the unfinished clips when ready." : job.status === "cancelled" ? "Cancelled. Clips finished so far are kept." : "ERROR: " + e.message);
   } finally {
     try { await processing?.close(); }
-    catch (error) { jlog(job, "Processing cleanup failed: " + error.message); }
+    catch (error) { traceError ||= error; jlog(job, "Processing cleanup failed: " + error.message); }
+    trace.end(traceError ? signal.aborted || traceError.name === "AbortError" ? "cancelled" : "error" : job.status === "done" ? "ok" : job.status === "partial" ? "partial" : "error", traceError);
+    renderBuildStatus();
   }
 }
 async function runServer(mode, aois) {
@@ -1136,6 +1176,11 @@ function pollJob(id, base, owner = E.operations.open("Server job", { timeoutMs: 
       const j = await E.requestJSON(base + "/api/jobs/" + encodeURIComponent(id), { signal: owner.signal });
       owner.check(); if (!pageActive || serverPoll !== owner) return;
       failures = 0;
+      if (j.diagnostics?.version === 1 && j.diagnostics.context?.kind === "backend") {
+        E.telemetry.ingest(j.diagnostics, "backend");
+        serverDiagnostic = { contextId: String(j.diagnostics.context.id).slice(0, 100), revision: String(j.diagnostics.context.revision || "unknown").slice(0, 160),
+          status: String(j.status).slice(0, 24) };
+      }
     if (!selectedBrowserJobId) {
       $("#prog").style.width = (j.progress * 100).toFixed(1) + "%";
       logEl.textContent = j.log.join("\n") || j.status; logEl.scrollTop = logEl.scrollHeight;
@@ -2346,6 +2391,7 @@ $("#deleteJob").onclick = async () => {
   finally { job.deleting = false; renderStorage(); drainBrowserQueue(); }
 };
 window.addEventListener("pagehide", () => {
+  E.build.cancel(); buildInfoRequested = false;
   setMapMode("2d", { restoreEdit: false, restoreCamera: false }); coordinateOwner?.abort(); closeMapOptions();
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); cancelReleaseLoad(); E.cancelReleaseRefresh(); closeLegacyReviews({ force: true });
   closePlaceSearch({ removeMarker: true });
@@ -2377,6 +2423,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", async event => {
   if (!event.persisted) return;
   pageActive = true; loadReleases({ revalidate: true });
+  if (E.diagnostics().startup.mapFirstTile != null) refreshBuildInfo(true);
   if (S.online && S.jobId && !BJOBS[S.jobId]) { setServerRunning(true); pollJob(S.jobId, S.api); }
   if (durable) {
     persistenceReady = false; renderStorage(); updateRunSelection();
@@ -2395,7 +2442,7 @@ window.addEventListener("pageshow", async event => {
     } else if (!clipView) await $("#openLiveDraft").onclick();
   }
 });
-window.GVApp = { diagnostics: () => ({ views: { ...viewMetrics, active: clipView && !clipView.disposed ? 1 : 0,
+window.GVApp = { diagnosticReport, diagnostics: () => ({ views: { ...viewMetrics, active: clipView && !clipView.disposed ? 1 : 0,
   loading: Boolean(clipView?.loading), imageLeases: clipView?.url ? 1 : 0, imageLayers: clipView?.image ? 1 : 0,
   selected: Boolean(S.sel), editing: Boolean(S.editing), scope: clipView?.scope || null },
   identity: { version: 1, legacyRows: legacyEntries.length, legacyOperation: Boolean(legacyOwner), linking: legacyLinking },

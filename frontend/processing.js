@@ -20,14 +20,15 @@ function estimateRaster(geometry, zoom, options, worker = capable()) {
     violations.push({ code: "MEMORY_LIMIT", message: `Worker processing including transfer buffers needs an estimated ${(estimatedBytes / 1048576).toFixed(1)} MiB. Reduce the AOI/preview or adjust Browser limits.` });
   return { ...plan, estimatedBytes, workerTransferBytes, allowed: !violations.length, violations };
 }
-async function create({ jobId, signal, store, onFallback } = {}) {
+async function create({ jobId, signal, store, onFallback, traceParent } = {}) {
   E.operations.check(signal);
   if (typeof jobId !== "string" || !jobId) throw failure("INVALID_PROTOCOL", "A processing job ID is required.");
   if (activeJob) throw failure("RESOURCE_BUSY", "Another browser processing job owns the worker.");
   activeJob = jobId; stats.active++;
   let worker, command, sequence = 0, dead = false, closed = false, lease, model, closing, loading = false, initialized = false;
   const spools = new Map(), writes = new Set();
-  const send = (type, id, payload, transfer = []) => { if (!dead) worker.postMessage({ v: VERSION, jobId, id, type, payload }, transfer); };
+  const send = (type, id, payload, transfer = []) => { if (!dead) worker.postMessage({ v: VERSION, jobId, id, type, payload,
+    traceParent: command?.traceId, diagnosticsEnabled: E.telemetry.enabled() }, transfer); };
   const track = task => { writes.add(task); stats.pendingStorage++; task.finally(() => { writes.delete(task); stats.pendingStorage--; }).catch(() => {}); return task; };
   const drain = async () => { while (writes.size) await Promise.allSettled([...writes]); };
   async function discard(keep) {
@@ -88,6 +89,7 @@ async function create({ jobId, signal, store, onFallback } = {}) {
     if (command) return Promise.reject(failure("RESOURCE_BUSY", "Processing commands must run sequentially."));
     return new Promise((resolve, reject) => {
       const id = ++sequence;
+      const span = E.telemetry.start("worker." + type, { parentId: traceParent, jobId, clipId });
       let cancelTimer;
       const timeout = setTimeout(() => crash(failure("WORKER_TIMEOUT", "Processing worker timed out. Retry the unfinished clip.")), timeoutMs);
       const abort = () => {
@@ -96,9 +98,10 @@ async function create({ jobId, signal, store, onFallback } = {}) {
         // a hung context is terminated before the page releases its write lock.
         cancelTimer ??= setTimeout(() => { stats.forcedStops++; crash(failure("WORKER_CANCEL_TIMEOUT", "The worker did not acknowledge cancellation; its context was stopped.")); }, 30000);
       };
-      command = { id, clipId, callbacks, finish(error, value) {
+      command = { id, clipId, traceId: span.id, callbacks, finish(error, value) {
         if (command?.id !== id) return;
         clearTimeout(timeout); clearTimeout(cancelTimer); signal?.removeEventListener("abort", abort); command = null;
+        span.end(error ? signal?.aborted || error.name === "AbortError" ? "cancelled" : "error" : "ok", error);
         error ? reject(error) : resolve(value);
       } };
       try { send(type, id, payload); if (cancellable) { if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true }); } }
@@ -134,6 +137,12 @@ async function create({ jobId, signal, store, onFallback } = {}) {
           }
           if (!["result", "error"].includes(message.type)) return;
           stats.last = message.payload?.diagnostics;
+          if (stats.last?.telemetry) {
+            E.telemetry.ingest(stats.last.telemetry);
+            // One bounded merged ring on the page; keep only worker summary here.
+            const { events, active, ...summary } = stats.last.telemetry;
+            stats.last.telemetry = { ...summary, active: active?.length || 0, eventCount: events?.length || 0 };
+          }
           command.finish(message.type === "error" ? restoreError(message.payload.error) : null, message.payload?.result);
         };
         if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
@@ -141,7 +150,7 @@ async function create({ jobId, signal, store, onFallback } = {}) {
     });
   }
   let supported = false;
-  try { supported = await boot(); }
+  try { supported = await E.telemetry.run("worker.startup", { jobId, parentId: traceParent }, boot); }
   catch (error) { if (signal?.aborted) { terminate(); stats.active--; activeJob = null; throw error; } onFallback?.(error.message); }
   if (!supported) { terminate(); stats.fallbacks++; }
   const runner = { context: supported ? "worker" : "main", async loadModel(spec) {
@@ -149,7 +158,7 @@ async function create({ jobId, signal, store, onFallback } = {}) {
     E.operations.check(signal); loading = true;
     try {
       if (!supported) {
-        if (spec) { lease = await E.models.acquire({ ...spec, signal }); model = { ...lease.model, names: spec.names?.slice() || lease.model.names }; }
+        if (spec) { lease = await E.models.acquire({ ...spec, signal, traceParent }); model = { ...lease.model, names: spec.names?.slice() || lease.model.names }; }
       } else {
         const source = spec ? { ...spec } : null;
         // Clone a recoverable source; never detach imported weights on the page.

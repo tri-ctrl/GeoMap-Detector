@@ -35,8 +35,10 @@ function storage(owner) {
     };
   } };
 }
-function diagnostics() { return { models: E.models.diagnostics(), allocations: E.allocations.diagnostics(), operations: E.operations.diagnostics(),
-  suppression: E.suppression.diagnostics(), inference: E.inference.diagnostics(), streaming: self.GVStreaming.diagnostics(), pendingStorage: reads.size }; }
+function diagnostics() {
+  const { runtime, allocations, operations, suppression, inference, telemetry, streaming } = E.diagnostics();
+  return { models: E.models.diagnostics(), runtime, allocations, operations, suppression, inference, telemetry, streaming, pendingStorage: reads.size };
+}
 self.onmessage = async ({ data: message }) => {
   if (message?.v !== VERSION) return;
   if (message.type === "storage-result") {
@@ -54,11 +56,12 @@ self.onmessage = async ({ data: message }) => {
   if (!jobId && ["load", "close"].includes(message.type)) jobId = message.jobId;
   if (message.jobId !== jobId || active || !["load", "clip", "close"].includes(message.type)) return;
   const owner = active = { id: message.id, controller: new AbortController() };
+  E.telemetry.setEnabled(message.diagnosticsEnabled !== false);
   try {
     let result;
     if (message.type === "load") {
       if (lease) throw new Error("This worker already owns a model");
-      if (message.payload.spec) lease = await E.models.acquire({ ...message.payload.spec, signal: owner.controller.signal });
+      if (message.payload.spec) lease = await E.models.acquire({ ...message.payload.spec, signal: owner.controller.signal, traceParent: message.traceParent });
       result = lease ? { provider: lease.model.provider, imgsz: lease.model.imgsz, key: lease.model.key, fingerprint: lease.model.fingerprint } : null;
     } else if (message.type === "clip") {
       let lastProgress = -Infinity;
@@ -70,7 +73,7 @@ self.onmessage = async ({ data: message }) => {
       const options = message.payload.options;
       result = await E.processClip(message.payload.aoi, message.payload.release, { ...options,
         model: lease ? { ...lease.model, names: options.names || lease.model.names } : null,
-        signal: owner.controller.signal, store: storage(owner),
+        signal: owner.controller.signal, store: storage(owner), traceParent: message.traceParent,
         onProgress: value => progress("onProgress", value), onEstimate: value => progress("onEstimate", value),
         onCoverage: value => progress("onCoverage", value), onWaiting: () => progress("onWaiting"),
       });

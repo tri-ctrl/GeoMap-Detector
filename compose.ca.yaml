@@ -1,0 +1,25 @@
+# Optional build-only trust bundle for corporate TLS proxies; certificate verification stays enabled.
+x-ca-build: &ca-build
+  secrets: [custom_ca]
+services:
+  minio:
+    build: *ca-build
+  upload-api:
+    build: *ca-build
+  infrastructure-init:
+    build: *ca-build
+  ingestion-worker:
+    build: *ca-build
+  ingestion-image:
+    build: *ca-build
+  airflow-init:
+    build: *ca-build
+  airflow-webserver:
+    build: *ca-build
+  airflow-scheduler:
+    build: *ca-build
+  airflow-bridge:
+    build: *ca-build
+secrets:
+  custom_ca:
+    file: ${BUILD_CA_BUNDLE:?Set BUILD_CA_BUNDLE to your PEM certificate bundle}

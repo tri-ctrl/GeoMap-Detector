@@ -201,8 +201,26 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   res:["Results","Counts and clipped imagery per AOI and imagery date."],
   ann:["Annotate","Review predictions, fix classes and shapes, draw what the model missed."],
   trn:["Train","Turn reviewed objects into a training set and a better model."],
-  exp:["Export","GeoJSON and AOI-clipped images for every location and date."] };
+  exp:["Export","GeoJSON and AOI-clipped images for every location and date."],
+  files:["Uploaded files","Upload geospatial data, follow processing and view the resulting layers."] };
+let filesController = null, filesLoading = null;
+async function openFiles() {
+  if (!filesLoading) filesLoading = new Promise((resolve, reject) => {
+    if (window.GVUploads) return resolve();
+    const script = document.createElement("script"); script.src = new URL("uploads.js", document.baseURI).href;
+    const timer = setTimeout(() => { script.remove(); reject(new Error("File tools took too long to load. Open Files to retry.")); }, 15000);
+    script.onload = () => { clearTimeout(timer); resolve(); };
+    script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error("Could not load file tools. Open Files to retry.")); };
+    document.head.appendChild(script);
+  }).catch(error => { filesLoading = null; throw error; });
+  await filesLoading;
+  if (!filesController) filesController = window.GVUploads.create({ root: $("#tab-files"), map, L,
+    beforeShow: () => setMapMode("2d"), notify: toast,
+    addAois: fc => addAois(normalizeFeatures(fc)) });
+  if ($("#tab-files").classList.contains("on")) filesController.show();
+}
 function showTab(id) {
+  if (!TITLES[id]) id = "aoi";
   ++viewEpoch;
   if (id !== "ann") closeLegacyReviews();
   if (id !== "res" && comparing()) exitComparison();
@@ -211,6 +229,8 @@ function showTab(id) {
   $$(".tab").forEach(t => t.classList.toggle("on", t.id === "tab-" + id));
   $("#panelTitle").textContent = TITLES[id][0]; $("#panelSub").textContent = TITLES[id][1];
   if (id === "res") loadJobs(); if (id === "trn") loadAnnStats();
+  if (id === "files") openFiles().catch(error => { $("#filesStatus").textContent = error.message; });
+  else filesController?.hide();
   store.set("tab", id);
 }
 $$(".rail [data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -2391,6 +2411,7 @@ $("#deleteJob").onclick = async () => {
   finally { job.deleting = false; renderStorage(); drainBrowserQueue(); }
 };
 window.addEventListener("pagehide", () => {
+  filesController?.suspend();
   E.build.cancel(); buildInfoRequested = false;
   setMapMode("2d", { restoreEdit: false, restoreCamera: false }); coordinateOwner?.abort(); closeMapOptions();
   pageActive = false; ++drawRequest; drawTool?.disable(); invalidateLocalChanges(true); cancelReleaseLoad(); E.cancelReleaseRefresh(); closeLegacyReviews({ force: true });
@@ -2423,6 +2444,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", async event => {
   if (!event.persisted) return;
   pageActive = true; loadReleases({ revalidate: true });
+  if ($("#tab-files").classList.contains("on")) openFiles().catch(error => toast(error.message));
   if (E.diagnostics().startup.mapFirstTile != null) refreshBuildInfo(true);
   if (S.online && S.jobId && !BJOBS[S.jobId]) { setServerRunning(true); pollJob(S.jobId, S.api); }
   if (durable) {

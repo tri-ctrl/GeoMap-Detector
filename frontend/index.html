@@ -139,6 +139,9 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 #cancelBtn[hidden],#namesRow[hidden],#customRow[hidden]{display:none}
 .queue-job.selected{border-color:var(--accent)}
 .queue-model{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}
+#uploadPause[hidden]{display:none}
+#uploadProgress{accent-color:var(--accent)}
+.uploaded-file{display:flex;flex-direction:column;gap:7px;padding:12px;border:1px solid var(--line);border-radius:10px}
 .queue-job .btn{padding:5px 8px;font-size:11px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-size:11.5px}
@@ -229,6 +232,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
     <button role="tab" data-tab="ann"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>Annotate</button>
     <button role="tab" data-tab="trn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18c4 0 4-12 8-12s4 12 8 12"/><circle cx="12" cy="6" r="2"/></svg>Train</button>
     <button role="tab" data-tab="exp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Export</button>
+    <button role="tab" data-tab="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m-4 4 4-4 4 4M4 14v6h16v-6"/></svg>Files</button>
     <div class="spacer"></div>
     <button id="themeBtn" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z"/></svg>Theme</button>
   </nav>
@@ -260,6 +264,28 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
           <button class="btn ghost" id="clearAoi">Clear all</button></div>
         <div class="list" id="aoiList"></div>
         <p class="hint">Drawing, importing and selecting AOIs keep the map view. Use Zoom to navigate to an AOI.</p>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-files" role="tabpanel">
+      <div class="sec">
+        <label class="label" for="filesApi">File processing server</label>
+        <div class="row"><input type="text" id="filesApi" placeholder="Same server, or http://localhost:8095" style="flex:1"><button class="btn" id="filesConnect">Connect</button></div>
+        <p class="hint" id="filesStatus" role="status" aria-live="polite">Open Files to connect to the upload service.</p>
+      </div>
+      <div class="sec">
+        <label class="label" for="uploadFile">Upload geospatial file</label>
+        <input type="file" id="uploadFile" accept=".geojson,.json,.csv,.kml,.zip,.gpkg,.tif,.tiff">
+        <p class="hint">GeoJSON, CSV (lat,lon), KML, zipped Shapefile, GeoPackage or georeferenced GeoTIFF. Reselect an interrupted file to resume its uploaded chunks.</p>
+        <div class="row"><button class="btn primary" id="uploadStart" disabled>Upload and process</button><button class="btn" id="uploadPause" hidden>Pause upload</button></div>
+        <progress id="uploadProgress" max="100" value="0" style="width:100%" aria-label="File upload progress"></progress>
+        <p class="hint" id="uploadStatus" role="status" aria-live="polite">Choose a file to begin.</p>
+      </div>
+      <div class="sec">
+        <div class="row"><span class="label" style="flex:1">Processed files</span><button class="btn" id="filesRefresh">Refresh</button><button class="btn" id="filesClearMap">Clear preview</button></div>
+        <p class="hint">Processing continues on the server after this page closes. Map previews show one processed layer at a time.</p>
+        <div id="uploadedFiles" class="sec"></div>
+        <div class="row"><button class="btn" id="filesPrevious" disabled>Previous</button><button class="btn" id="filesNext" disabled>Next</button></div>
       </div>
     </section>
 

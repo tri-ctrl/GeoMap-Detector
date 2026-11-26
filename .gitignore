@@ -8,3 +8,4 @@ __pycache__/
 frontend/models/*.onnx
 frontend/build-info.json
 node_modules/
+.env

@@ -103,6 +103,11 @@ add `--wasm` to verify the WASM provider.
 
 ## Optional Python server (large jobs, GPU training)
 
+For file uploads through **MinIO → Kafka → Airflow → Docker ingestion**, use the
+new [file processing stack](docs/upload-ingestion.md). Run `docker compose up -d --build`
+and open **http://localhost:8095 → Files**. Ports are configurable and separate
+from the optional detection server below. [Implementation tasks](docs/upload-ingestion-tasks.md).
+
 ```bash
 ./run.sh            # Linux / macOS   (Windows: run.bat)
 # open http://localhost:8000, or connect the Pages portal to it in Export → Processing

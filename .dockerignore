@@ -1,0 +1,10 @@
+.git
+.idea
+.venv
+node_modules
+**/__pycache__
+cache
+outputs
+data
+*.pt
+.env

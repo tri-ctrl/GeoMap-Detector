@@ -1,0 +1,170 @@
+{
+  "task": "GMD-035",
+  "verified_at": "2026-11-26T12:05:34.739306+00:00",
+  "status": "complete; locally verified",
+  "test_results": {
+    "javascript": 344,
+    "python_baseline": 24,
+    "python_upload_contract_bootstrap": 6,
+    "python_postgres_delivery": 3,
+    "python_processor": 6,
+    "python_total": 39
+  },
+  "startup": {
+    "cold_pairs": 5,
+    "warm_pairs": 5,
+    "initial_scripts": 7,
+    "passed": true
+  },
+  "browser": {
+    "ok": true,
+    "file": "native-browser-1795694590667.geojson",
+    "lazy": true,
+    "upload": true,
+    "catalog": true,
+    "previewCount": 1,
+    "aois": true,
+    "rasterPreview": true,
+    "narrowViewport": {
+      "width": 390,
+      "scroll": 390
+    },
+    "runtimeErrors": []
+  },
+  "recovery": {
+    "ok": true,
+    "upload_id": "f038a6da-5b7d-47dd-ab24-30ddb8bfb4a2",
+    "dead_letter_consumers": 2,
+    "queued_while_worker_stopped": true,
+    "completed_after_restart": true
+  },
+  "end_to_end": {
+    "multipart_upload": "211278b3-691c-4aa4-b6ef-a0adf70c9448",
+    "multipart_bytes": 16777217,
+    "expected_parts": 2,
+    "completed": true,
+    "failed_upload": "e64d255e-ffed-461e-b2be-d31b51c99434",
+    "retry_attempt": 2,
+    "error": "Invalid latitude or longitude on CSV row 2",
+    "checks": [
+      "real MinIO multipart PUT",
+      "persisted part resumption",
+      "premature completion rejected",
+      "CORS exposes ETag",
+      "idempotent completion",
+      "Kafka request",
+      "Airflow DockerOperator container",
+      "Kafka result",
+      "processed artifact download",
+      "invalid input",
+      "processing retry",
+      "cancellation",
+      "source-built MinIO restart preserves artifacts"
+    ]
+  },
+  "services": {
+    "airflow-bridge": {
+      "state": "running",
+      "health": "not configured",
+      "image": "sha256:dc7db53049ee18cc8ca01fdd93cca02ce526df1769aeaa3318b7b4bf6970495e"
+    },
+    "airflow-scheduler": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:dc7db53049ee18cc8ca01fdd93cca02ce526df1769aeaa3318b7b4bf6970495e"
+    },
+    "airflow-webserver": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:dc7db53049ee18cc8ca01fdd93cca02ce526df1769aeaa3318b7b4bf6970495e"
+    },
+    "ingestion-worker": {
+      "state": "running",
+      "health": "not configured",
+      "image": "sha256:7f03ca64bf0442e9098ce5986d4029e2ad208d2da92cf38f476e32ace04adb84"
+    },
+    "kafka": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:8f7e9e4c1422baaa1a5e2a6c6c668cfe05442cb3cb476542c7dff61725e6fe31"
+    },
+    "minio": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:f4024ea9f51c241a283547f1088a1aa64de2905961ca757bbeede54762ee0b64"
+    },
+    "postgres": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7"
+    },
+    "upload-api": {
+      "state": "running",
+      "health": "healthy",
+      "image": "sha256:7f03ca64bf0442e9098ce5986d4029e2ad208d2da92cf38f476e32ace04adb84"
+    },
+    "web": {
+      "state": "running",
+      "health": "not configured",
+      "image": "sha256:82fae98622aac74e2fe1fd9480900fe92b07b97bc1f24065d2729c444c42acea"
+    }
+  },
+  "ports": {
+    "portal": 8095,
+    "airflow": 8096,
+    "s3": 9010,
+    "minio_console": 9011
+  },
+  "build": {
+    "all_compose_images_built": true,
+    "minio_source_ref": "RELEASE.2025-10-15T17-29-55Z",
+    "tls_verification": true,
+    "environment_notes": [
+      "Corporate root CA supplied as build secret; not embedded in images.",
+      "Organization mirror repaired an incomplete official Airflow layer in local cache.",
+      "Direct Go module fetching bypassed truncated proxy responses; full default build then passed with cached dependencies."
+    ]
+  },
+  "source_sha256": {
+    ".env.example": "bb781b841d77e040254ea2a569cca40b3cff0060088ba8215315fab943b307f5",
+    "compose.ca.yaml": "2c1b9d838fd85d775c2e09ef2ddf7e8d77b75cc37cce5af610206e65f82be769",
+    "compose.yaml": "00644f189764bed37013b5082d768008f41cdd9e494b25aafad87f679b8b7f56",
+    "frontend/app.js": "b0093de7ae236062d77458dbba4be28dcf8271c5d7b0426e14ec607165248cf2",
+    "frontend/index.html": "adc0ddb9c7676bf440c6352a376e9612c913e74ba05631385f5f851562a05581",
+    "frontend/uploads.js": "9cbc95bfe918db176cc7a81d91c4fc58057ca867fbe25dad4388fa823cda21ab",
+    "scripts/check_ingestion_recovery.py": "73f57c79a7c2544d0e1a5f11ae257fa03ed5cec383cb7b246855305aaa45e644",
+    "scripts/smoke_ingestion.py": "b224457cd4026aa537d79b0e370c0303736a86c8c8f5b77f9175ab4bc565fd42",
+    "services/airflow/Dockerfile": "235a0d96e40df80be1e67a0ff5c2274267677f250b48c1e4557dd220acc58810",
+    "services/airflow/bridge.py": "473803eac34017be521f7bceab2b795295378266c994dba333f80763a59909f4",
+    "services/airflow/dags/ingest_file.py": "5295d64f62bc916fc2d5742c568a072f74036f49286542ac80833b92de3b6459",
+    "services/common/ingestion_common/__init__.py": "73d1cecf86a7e61ac8e90e4a6eedd93adeefab4145efea9810b828e5ce7d2e72",
+    "services/common/ingestion_common/config.py": "0e0186eae32d36f6e3b86a92286db9bc2837546f94a9d6c9fea55341fa2d0516",
+    "services/common/ingestion_common/contracts.py": "d2866e18899b26e7e04e58eb00ac34a6b900ba5f95ae2e9777ba1b69eedac819",
+    "services/common/ingestion_common/messaging.py": "faa158ff5355a989a78b4223bf9271381406105c6afe8f542edba769cb212280",
+    "services/common/ingestion_common/storage.py": "c08341d4453a1e00e645f61684173b91f105f7919837ba756b4d23ae381d4cd8",
+    "services/common/requirements.txt": "b2e9aff6ba208b3867acc1864f18ac244d41dd24f229b4b3aea10e21c9f2013b",
+    "services/ingestion/Dockerfile": "71ae46c3a91890152ee9c2bacb84c0bc23609cb44e5607c071564743dee333e6",
+    "services/ingestion/processor/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/ingestion/processor/main.py": "f77d8f9a7f5b69ee27c31e929d0e57310e6933c2ace7768b9af9172094fbb472",
+    "services/ingestion/processor/rasters.py": "90bbde862cf79de5268b2592041f81344bcd3492e7f3098e805d0ec3939569ec",
+    "services/ingestion/processor/vectors.py": "6338ac4b514e87fe707109402c302eaf57649a14980c7f0fc83dab7b6c61d6f9",
+    "services/ingestion/requirements.txt": "5355cd18250963c894669ba851c3c3659ddd11f19d0ff2fa03ea70d9ab0194a4",
+    "services/minio/Dockerfile": "5a9e58840dbb9755446b3e9c9bbd80bc43909a828b7bfab151335576fd4eadc0",
+    "services/upload-api/Dockerfile": "dce5e98a6a8e2f9d1ab2e58e40e82cdb4f761f7e256214422710cc7b904352f4",
+    "services/upload-api/requirements.txt": "e21645e18857bd90a13a815bc31dbfe4a7681e3d0c39ac058cd0717be36e1090",
+    "services/upload-api/upload_api/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "services/upload-api/upload_api/app.py": "df665625798201700000ee59f6461358001bfdb3b3c80e0bc30fb7883112abf4",
+    "services/upload-api/upload_api/bootstrap.py": "4591978972908ef97c8ce02822e38bc3d055fd955237138feae0ee3e42a792c9",
+    "services/upload-api/upload_api/db.py": "8b3fa7c649440aa0088bce6a86e115bdae0b4448c6399c40d6ff92757f9cfcb4",
+    "services/upload-api/upload_api/schema.sql": "9679c1bcb894776da33422755fb6fce9b76fd884a869d4f27082cb8ae3114b27",
+    "services/upload-api/upload_api/uploads.py": "5ccdd660ec1823e7da785720635898cc862364d65a4655aa4948ecee5e87cfe1",
+    "services/upload-api/upload_api/worker.py": "83b60880785d83b5987669a1a7506a3039786a2fb9ecf86217ae29ffd5d1bd13",
+    "services/web/Dockerfile": "10ed83db39a331c909ba3d1fd29898185bf93484aecc825b7cd9be69e6395f45",
+    "services/web/nginx.conf": "6ff33aa65e45472238a39c74d3cd1918daa31d615c8b1887c24b356823768433"
+  },
+  "limits": [
+    "Local single-workspace deployment; multi-user authorization and production hardening are separate.",
+    "Uploaded rasters are processed to COG and preview; YOLO inference on them is not included.",
+    "Generated browser ONNX model assets follow the existing export workflow."
+  ]
+}

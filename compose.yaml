@@ -1,0 +1,205 @@
+name: ${COMPOSE_PROJECT_NAME:-geomap-detector}
+
+x-storage-env: &storage-env
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9010}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-geomap-local}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-geomap-local-secret}
+  S3_BUCKET: geomap-files
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10737418240}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+x-api: &api
+  image: ${COMPOSE_PROJECT_NAME:-geomap-detector}-upload-api:local
+  build:
+    context: .
+    dockerfile: services/upload-api/Dockerfile
+  environment:
+    <<: *storage-env
+    DATABASE_URL: postgresql://geomap:${POSTGRES_PASSWORD:-geomap-local-db}@postgres/geomap
+  networks: [ingestion]
+
+x-airflow: &airflow
+  image: ${COMPOSE_PROJECT_NAME:-geomap-detector}-airflow:local
+  build:
+    context: .
+    dockerfile: services/airflow/Dockerfile
+    args:
+      AIRFLOW_BASE_IMAGE: ${AIRFLOW_BASE_IMAGE:-apache/airflow:2.11.1-python3.12}
+  environment: &airflow-env
+    <<: *storage-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://geomap:${POSTGRES_PASSWORD:-geomap-local-db}@postgres/geomap
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__PARALLELISM: '4'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-geomap-local-airflow-secret}
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: '10'
+    AIRFLOW__WEBSERVER__WORKERS: '2'
+    INGESTION_DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion
+    INGESTION_IMAGE: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion:local
+    AIRFLOW_API_URL: http://airflow-webserver:8080
+    AIRFLOW_API_USER: ${AIRFLOW_USER:-geomap}
+    AIRFLOW_API_PASSWORD: ${AIRFLOW_PASSWORD:-geomap-local-airflow}
+  volumes:
+    - airflow-logs:/opt/airflow/logs
+  networks: [ingestion]
+
+services:
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_USER: geomap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-geomap-local-db}
+      POSTGRES_DB: geomap
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U geomap -d geomap']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [ingestion]
+    restart: unless-stopped
+
+  minio:
+    image: ${COMPOSE_PROJECT_NAME:-geomap-detector}-minio:local
+    build:
+      context: .
+      dockerfile: services/minio/Dockerfile
+      args:
+        GOPROXY: ${GO_MODULE_PROXY:-https://proxy.golang.org,direct}
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-geomap-local}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-geomap-local-secret}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${UPLOAD_CORS_ORIGIN:-http://localhost:8095}
+      MINIO_API_STALE_UPLOADS_EXPIRY: 24h
+      MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL: 1h
+    ports:
+      - '127.0.0.1:${MINIO_PORT:-9010}:9000'
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9011}:9001'
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:9000/minio/health/live]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [ingestion]
+    restart: unless-stopped
+
+  kafka:
+    image: redpandadata/redpanda:v25.1.9
+    command: [redpanda, start, --mode, dev-container, --smp, '1', --memory, 768M,
+              --reserve-memory, 0M, --overprovisioned, --node-id, '0',
+              --kafka-addr, 0.0.0.0:9092, --advertise-kafka-addr, kafka:9092]
+    volumes: [kafka-data:/var/lib/redpanda/data]
+    healthcheck:
+      test: [CMD, rpk, cluster, health, --exit-when-healthy]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    networks: [ingestion]
+    restart: unless-stopped
+
+  ingestion-image:
+    image: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion:local
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    entrypoint: [python, -c, 'print("Ingestion image ready for Airflow")']
+    networks: [ingestion]
+
+  infrastructure-init:
+    <<: *api
+    command: [python, -m, upload_api.bootstrap]
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+
+  upload-api:
+    <<: *api
+    depends_on:
+      infrastructure-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ingestion/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  ingestion-worker:
+    <<: *api
+    command: [python, -m, upload_api.worker]
+    depends_on:
+      infrastructure-init: {condition: service_completed_successfully}
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow
+    command: [bash, -c, 'airflow db migrate && airflow users create --username "$${AIRFLOW_API_USER}" --password "$${AIRFLOW_API_PASSWORD}" --firstname Geo --lastname Map --role Admin --email local@example.invalid']
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  airflow-webserver:
+    <<: *airflow
+    command: webserver
+    ports: ['127.0.0.1:${AIRFLOW_PORT:-8096}:8080']
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, curl, --fail, http://localhost:8080/health]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow
+    command: scheduler
+    volumes:
+      - airflow-logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+      infrastructure-init: {condition: service_completed_successfully}
+      ingestion-image: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, curl, --fail, http://localhost:8974/health]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  airflow-bridge:
+    <<: *airflow
+    command: [python, /opt/geomap/bridge.py]
+    depends_on:
+      airflow-webserver: {condition: service_healthy}
+      infrastructure-init: {condition: service_completed_successfully}
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    ports: ['127.0.0.1:${WEB_PORT:-8095}:80']
+    depends_on:
+      upload-api: {condition: service_healthy}
+    networks: [ingestion]
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
+  kafka-data:
+  airflow-logs:
+
+networks:
+  ingestion:
+    name: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion

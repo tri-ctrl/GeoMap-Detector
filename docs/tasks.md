@@ -1,5 +1,14 @@
 GeoMap-Detector issue tracker and implementation plan
 
+**GMD-035 (2026-11-26) — Complete and locally verified:** multipart file uploads,
+MinIO storage, Kafka dispatch/results, Airflow Docker ingestion and processed-file
+map/catalog UI. Compose builds and runs on independent ports; actual multipart,
+vector/raster processing, failure/retry, worker recovery and native browser checks
+pass. **344 JavaScript / 39 Python checks pass.**
+[Reference analysis, tasks and acceptance](upload-ingestion-tasks.md) ·
+[Architecture and operations](upload-ingestion.md) ·
+[Verification](gmd-035-verification.json). Existing task history below is preserved.
+
 Updated: 2026-11-21. Findings and baseline measurements are recorded in [the performance review](./performance-review.md). This file is the persistent record of scope, dependencies, acceptance checks, and progress. The [per-task fix plan](./gmd-fix-plan.md) supplies current source evidence, reviewable steps, compatibility/cleanup contracts, acceptance gates, test plans and remaining uncertainty for every task.
 
 **GMD-020 (2026-11-21) — Ready for CI.** Added bounded local operation traces, scalar timing/byte/resource diagnostics, worker/backend clock contexts, public build/model provenance and **Results → Diagnostics → Download diagnostics**. **333 JavaScript / 24 Python checks**, native bounds/privacy/build recovery, five cold/warm startup pairs, worker, native exports, saved editing/queue and suppression regressions pass. Actual nano/small WebGPU/WASM worker/main predictions and world files match; both report loaded ORT 1.20.1. The controlled full-clip fixture measures **0.42% median added time** (71.0 → 71.3 ms), within the declared 5% local gate; no device-independent throughput or leak claim. [Usage/schema/ownership](./diagnostics.md) · [verification](./gmd-020-verification.json). The exporter/cache/check flow, seven-script map startup, numeric detection settings and saved schema remain compatible. Public artifact generation and source guard fixtures pass for fresh/cache paths; actual new Pages CI/deployed parity remains pending. Earlier evidence and broader GMD-021 status are preserved.

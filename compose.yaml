@@ -41,6 +41,7 @@ x-airflow: &airflow
     AIRFLOW__WEBSERVER__WORKERS: '2'
     INGESTION_DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion
     INGESTION_IMAGE: ${INGESTION_IMAGE:-${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion:local}
+    INGESTION_EXECUTOR: docker
     AIRFLOW_API_URL: http://airflow-webserver:8080
     AIRFLOW_API_USER: ${AIRFLOW_USER:-geomap}
     AIRFLOW_API_PASSWORD: ${AIRFLOW_PASSWORD:-geomap-local-airflow}

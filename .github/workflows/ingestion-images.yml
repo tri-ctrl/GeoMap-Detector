@@ -1,9 +1,7 @@
 name: Build ingestion service images
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ["services/**", "frontend/**", "compose*.yaml", ".github/workflows/ingestion-images.yml"]
+# Native ingestion is the default CI path. Container publishing stays opt-in.
 permissions:
   contents: read
   packages: write

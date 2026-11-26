@@ -1,0 +1,158 @@
+{
+  "task": "GMD-038",
+  "verified_at": "2026-11-26T16:50:00.011632+00:00",
+  "status": "implemented; verified natively without invoking Docker",
+  "base_commit": "44e57c591cca5a8d83fb27f61b60f699fc9c8dd6",
+  "runtime": {
+    "platform": "darwin",
+    "python": "3.12.11",
+    "processor": {
+      "rasterio": "1.5.2",
+      "fiona": "1.10.1",
+      "numpy": "2.2.6",
+      "pydantic": "2.11.7"
+    },
+    "services": {
+      "airflow": "2.11.1",
+      "docker_sdk_installed": false,
+      "docker_provider_installed": false
+    }
+  },
+  "test_results": {
+    "local_cli_and_execution": 8,
+    "gis_processor": 6,
+    "additional_formats": 8,
+    "native_launcher": 3,
+    "native_airflow": 3,
+    "python_baseline": 24,
+    "python_total": 52,
+    "javascript": 353
+  },
+  "native_flow": {
+    "airflow_tasks_executed": true,
+    "separate_native_processor": true,
+    "object_transfers": "HTTP S3 against isolated Moto test server",
+    "success_events": [
+      "processing",
+      "completed"
+    ],
+    "invalid_input_events": [
+      "processing",
+      "failed"
+    ],
+    "invalid_input_dag_state": "failed",
+    "kafka_publication": "captured in tests; live native broker not exercised",
+    "metadata_database": "isolated SQLite for tests",
+    "subprocess_guards": [
+      "64 KiB JSON stdin request",
+      "no shell interpolation",
+      "timeout",
+      "nonzero exit",
+      "cancellation",
+      "decoder descendant retirement",
+      "stdin close",
+      "scratch directory cleanup"
+    ],
+    "local_output_guards": [
+      "relative durable artifacts",
+      "existing output preserved",
+      "partial bundle cleanup",
+      "manifest published last",
+      "move generated artifacts without extra disk copy"
+    ]
+  },
+  "reference_fixture": {
+    "source": "/Users/le.tri/G42/space/ingestion-processor/src/test/dataset/hfa/hfa.img",
+    "source_sha256": "a65c0b7dd2513140367e16cd8e6861b9b4f5db94909e79b2526a7833f969653a",
+    "bundle": "outputs/native-reference-hfa-verified",
+    "manifest": {
+      "version": 1,
+      "status": "completed",
+      "source": {
+        "name": "hfa.img",
+        "size": 14402
+      },
+      "processed_files": [
+        {
+          "id": "layer-0",
+          "name": "hfa.img",
+          "kind": "raster",
+          "bbox": [
+            -93.02273984765819,
+            45.84200310182599,
+            -93.01937638594842,
+            45.847674126084
+          ],
+          "message": null,
+          "feature_count": null,
+          "artifacts": [
+            {
+              "role": "data",
+              "key": "layer-0/data.tif",
+              "media_type": "image/tiff",
+              "size": 4301
+            },
+            {
+              "role": "preview",
+              "key": "layer-0/preview.png",
+              "media_type": "image/png",
+              "size": 22235
+            },
+            {
+              "role": "metadata",
+              "key": "layer-0/metadata.json",
+              "media_type": "application/json",
+              "size": 218
+            }
+          ]
+        }
+      ]
+    },
+    "cog_layout": "COG",
+    "crs_preserved": true,
+    "values_preserved": true
+  },
+  "configuration_checks": {
+    "native_setup_completed": true,
+    "native_dependency_checks_passed": true,
+    "workflow_yaml_and_bash_valid": true,
+    "devcontainer_json_valid": true,
+    "native_frontend_serves_deployment_config": true,
+    "tracked_frontend_config_preserved": true
+  },
+  "source_sha256": {
+    ".devcontainer/devcontainer.json": "e90522d7cc5136ad961864633b3d5cfc49475dc6d7a4d5d5371a4d1b17192d75",
+    ".devcontainer/docker/devcontainer.json": "e2fe7c8f7de17e79a78ac716b7e46fa6a439432123bd3a7f67e411a03d115606",
+    ".env.native.example": "1c3bea0e2e90f9a63db864616718c8a7a8d53eebc8ba20e6948003bab6853d71",
+    ".github/workflows/ingestion-images.yml": "63e896df0ab025ccec10803dd48b7ef876cd92dde389767a70c3d660254e8e0e",
+    ".github/workflows/native-ingestion.yml": "205af45597700f1d4ce9b0b77fd9e78b29f47661b6fea38c4e714cf8c4bba46d",
+    ".gitignore": "f4a2e3b4457d002f339f0e741f30f889dd0d435db144aa1782453796f3e14c37",
+    "compose.yaml": "951cb2f5f1f6318eea118b3fc8a0a9bc66c6b80f45d4c9ca5cf55b91483b4cc1",
+    "scripts/native_services.py": "882b6d476475a71f28d5f82837fdf04626d332cd26d4e57daf222e73f2affba8",
+    "scripts/setup_native_ingestion.py": "d91be37849a40b7c446025e2c2db847b4b2e4e10ad553427eb090811c89a4d8a",
+    "services/airflow/dags/ingest_file.py": "5d2f1c317d880179b7bbaa3f40660ed86f764b6bcfec38750143b389d4888fd5",
+    "services/airflow/requirements-native.txt": "6922cc957655bb5e0df8768500ba4d10536268f005049e07263b7dee5e854c45",
+    "services/common/ingestion_common/contracts.py": "fc6adbd25cc705fd5a11eec0cf185d556af101e4c1d3ecac24edf0180e3c47cd",
+    "services/common/ingestion_common/execution.py": "d3a1c6f449659719ce17354975219a4aa76d3a66c06c441f4eeb2e2acaa0c5bc",
+    "services/ingestion/processor/__init__.py": "064975b51ccb7f004970087aa8e9edbc486b27e41c230b1f4adfd162d5262d61",
+    "services/ingestion/processor/local.py": "402499321f9fe7588c921cbe9ff768ba2db8c979bb435aecbe7997e9a2b986d5",
+    "services/ingestion/processor/main.py": "2d2eb9008d2f142b4b6aa8d140aab6f8018bf0cc436858578b51c2042ef8f057",
+    "services/ingestion/processor/outputs.py": "6ee00626f4604caa5bdfef0c7a3be2f105baf5b83c738584f8b86856c60d9161",
+    "tests/ingestion/requirements-native.txt": "d4537012a248b8d6cd4d6cabcc0d4b59c926699836f56825485420f6ef173267",
+    "tests/ingestion/test_native.py": "02ee7ac286460e24c429c9f99a8466088f55b2e0dc8d595f4906bb3deb4a3beb",
+    "tests/ingestion/test_native_airflow.py": "36605ee7ee108f0d01b73ad4e31d9533e7b4a959c6a8e7c7487e77719d2b5806",
+    "tests/ingestion/test_native_launcher.py": "447e566652396f3ddc1f231c0058d42ff388083557745b5d2c23751971bb2b5d"
+  },
+  "limitations": [
+    "Full native PostgreSQL/Kafka/MinIO deployment and remote public frontend verification were not provisioned or run.",
+    "Native/managed infrastructure must be supplied for the service-backed upload UI; the standalone CLI has no infrastructure requirement.",
+    "Host GDAL/FFmpeg/Poppler/LibreDWG tools supply additional formats; ECW still requires a licensed decoder.",
+    "Native processes use host account isolation and process-manager resource limits.",
+    "No remote backend was deployed; GitHub Pages continues to host only the frontend.",
+    "This is functional verification, not a production throughput or memory benchmark."
+  ],
+  "environment_notes": [
+    "Corporate download proxy returned damaged archives; verified official Python/GDAL wheel hashes before using repaired downloads.",
+    "Native runtime and generated fixture output stay under ignored .runtime/ and outputs/ directories."
+  ]
+}

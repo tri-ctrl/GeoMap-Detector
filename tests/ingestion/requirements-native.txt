@@ -1,0 +1,3 @@
+# HTTP object-storage emulator for isolated native Airflow integration tests only.
+moto[s3]==5.1.12
+Flask-Cors==5.0.1

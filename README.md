@@ -7,6 +7,9 @@ imagery dates, with export of GeoJSON and AOI-clipped images.
 Known issues, the implementation plan, and verification status are maintained in
 [the task tracker](docs/tasks.md), with findings in [the performance review](docs/performance-review.md).
 
+Ingestion can run as native Python without Docker: [standalone file conversion
+and native Airflow services](docs/native-ingestion.md).
+
 ```
 AOIs (GeoJSON/KML/SHP/CSV)  ─┐
 Wayback releases (latest /   ├─► mosaic tiles ─► clip to AOI ─► YOLO-OBB detection ─► GeoJSON + GeoTIFF/PNG ─► zip

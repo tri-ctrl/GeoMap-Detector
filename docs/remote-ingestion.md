@@ -24,7 +24,8 @@ ghcr.io/tri-ctrl/geomap-detector/minio:<commit-sha>
 ghcr.io/tri-ctrl/geomap-detector/web:<commit-sha>
 ```
 
-The workflow runs on relevant main-branch pushes or manual dispatch. These are
+The optional container workflow runs by manual dispatch. Native ingestion has its
+own automatic test workflow; see [native execution](native-ingestion.md). These are
 configured destinations, not a claim that images have already been published.
 The default GitHub runner builds Linux amd64 images; native local builds also
 support ARM. Package visibility/access follows the repository/registry settings.
@@ -101,7 +102,9 @@ configured. It does not silently try the visitor's localhost.
 
 ## Full stack inside GitHub Codespaces for retesting
 
-`.devcontainer/devcontainer.json` and `scripts/start_codespaces.sh` provide a
+The default `.devcontainer/devcontainer.json` now installs native Python ingestion;
+see [native execution](native-ingestion.md). For the optional container stack,
+`.devcontainer/docker/devcontainer.json` and `scripts/start_codespaces.sh` provide a
 Docker-in-Docker environment. Create a Codespace from the branch containing these
 changes. The setup builds and starts all services, sets the S3 signing origin to
 the forwarded HTTPS portal host, and forwards 8095 (portal), 8096 (Airflow), and

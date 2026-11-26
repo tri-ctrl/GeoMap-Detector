@@ -1,18 +1,17 @@
 {
-  "name": "GeoMap full-stack development",
+  "name": "GeoMap native Python ingestion",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
     "ghcr.io/devcontainers/features/node:1": { "version": "24" }
   },
   "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "64gb" },
-  "forwardPorts": [8095, 8096, 9011],
+  "forwardPorts": [8098, 8097, 8099],
   "portsAttributes": {
-    "8095": { "label": "GeoMap portal", "onAutoForward": "openBrowser" },
-    "8096": { "label": "Airflow" },
-    "9011": { "label": "MinIO administration" }
+    "8098": { "label": "GeoMap native portal", "onAutoForward": "openBrowser" },
+    "8097": { "label": "Native upload API" },
+    "8099": { "label": "Native Airflow" }
   },
-  "postCreateCommand": "bash scripts/start_codespaces.sh",
-  "postStartCommand": "docker compose up -d",
+  "postCreateCommand": "python3.12 scripts/setup_native_ingestion.py",
   "remoteUser": "vscode"
 }

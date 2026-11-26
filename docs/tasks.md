@@ -1,5 +1,13 @@
 GeoMap-Detector issue tracker and implementation plan
 
+**GMD-038 — Implemented and natively verified:** ingestion runs as standalone
+Python or native Airflow subprocesses. Shared raster/vector outputs and upload
+manifests are preserved. Native setup, service launcher, default Codespaces and
+CI are provided. **52 Python / 353 JavaScript checks pass** in this verification;
+Airflow tests use HTTP S3 emulation and captured Kafka publication. Live native
+infrastructure and remote hosting remain unprovisioned.
+[Plan and verification](native-ingestion-tasks.md) · [Native usage](native-ingestion.md).
+
 **GMD-036 — Implemented and locally verified:** user's clarified **Directory Files** workflow: durable
 file directories and independent raster/vector globe layers, replacing GMD-035's
 AOI-import/single-preview interaction. **353 JavaScript / 55 Python checks pass.**

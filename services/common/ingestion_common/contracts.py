@@ -89,7 +89,7 @@ class IngestionResult(Contract):
 
 
 def validate_source(request: IngestionRequest, bucket: str):
-    """Only backend-owned object paths can be passed to a processor container."""
+    """Only backend-owned object paths can be passed to a processor."""
     if request.source.bucket != bucket or not request.source.key.startswith(
         f"uploads/{request.upload_id}/"
     ):

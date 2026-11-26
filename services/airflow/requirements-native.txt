@@ -1,0 +1,5 @@
+# Native Airflow uses its own environment, separate from GDAL/NumPy processors.
+apache-airflow[postgres]==2.11.1
+requests==2.32.5
+python-dotenv==1.1.1
+-r ../upload-api/requirements.txt

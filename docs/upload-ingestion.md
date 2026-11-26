@@ -117,6 +117,13 @@ Native fallback conversion has a conservative 16 GiB decoded-size estimate and a
 two runs can be active. Docker needs enough disk space for downloaded sources and
 intermediate raster files.
 
+## Native Python execution
+
+Ingestion also runs without Docker: a standalone file-to-directory CLI or the
+same upload/Kafka/Airflow workflow using a separate Python processor environment.
+See [native setup and execution](native-ingestion.md). Compose explicitly selects
+Docker execution; the native DAG defaults to Python.
+
 ## Service boundaries and recovery
 
 `services/common` defines typed events, format registry, storage and messaging

@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -11,11 +12,11 @@ from ingestion_common.contracts import (
     Artifact,
     IngestionRequest,
     IngestionResult,
-    ProcessedFile,
     validate_source,
 )
 from ingestion_common.storage import TRANSFER, put_json, s3
 from .dispatch import process
+from .outputs import artifacts as layer_artifacts, metadata, processed_file
 
 log = logging.getLogger(__name__)
 
@@ -40,23 +41,7 @@ def run(request):
         for index, layer in enumerate(layers):
             file_id = f"layer-{index}"
             artifacts = []
-            for role, file, media_type in [
-                (
-                    "data",
-                    layer["path"],
-                    layer.get(
-                        "media_type",
-                        (
-                            "image/tiff"
-                            if layer["kind"] == "raster"
-                            else "application/geo+json"
-                        ),
-                    ),
-                ),
-                ("preview", layer.get("preview"), "image/png"),
-            ]:
-                if file is None:
-                    continue
+            for role, file, media_type in layer_artifacts(layer):
                 key = request.prefix + file_id + "/" + file.name
                 if file.resolve() == source.resolve():
                     client.copy(
@@ -85,21 +70,10 @@ def run(request):
                         size=file.stat().st_size,
                     )
                 )
-            metadata = {
-                "name": layer["name"],
-                "kind": layer["kind"],
-                "bbox": layer["bbox"],
-                "feature_count": layer.get("feature_count"),
-                "source": request.source.model_dump(),
-                "message": layer.get("message"),
-                "preview_crs": (
-                    "EPSG:3857"
-                    if layer["kind"] == "raster"
-                    else "EPSG:4326" if layer["bbox"] else None
-                ),
-            }
             metadata_key = request.prefix + file_id + "/metadata.json"
-            metadata_size = put_json(client, metadata_key, metadata)
+            metadata_size = put_json(
+                client, metadata_key, metadata(layer, request.source.model_dump())
+            )
             artifacts.append(
                 Artifact(
                     role="metadata",
@@ -108,17 +82,7 @@ def run(request):
                     size=metadata_size,
                 )
             )
-            files.append(
-                ProcessedFile(
-                    id=file_id,
-                    name=layer["name"],
-                    kind=layer["kind"],
-                    bbox=layer["bbox"],
-                    message=layer.get("message"),
-                    feature_count=layer.get("feature_count"),
-                    artifacts=artifacts,
-                )
-            )
+            files.append(processed_file(layer, file_id, artifacts))
         result = IngestionResult(
             upload_id=request.upload_id,
             attempt=request.attempt,
@@ -133,7 +97,15 @@ def run(request):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    request = IngestionRequest.model_validate_json(os.environ["INGESTION_REQUEST"])
+    if sys.argv[1:] == ["--request-stdin"]:
+        payload = sys.stdin.buffer.read(65537)
+        if len(payload) > 65536:
+            raise ValueError("Processor request exceeds the 64 KiB handoff limit")
+    elif not sys.argv[1:]:
+        payload = os.environ["INGESTION_REQUEST"]
+    else:
+        raise SystemExit("Usage: python -m processor.main [--request-stdin]")
+    request = IngestionRequest.model_validate_json(payload)
     validate_source(request, settings.bucket)
     try:
         result = run(request)

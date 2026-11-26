@@ -1,0 +1,34 @@
+name: Test native ingestion without Docker
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["services/**", "scripts/*native*", "tests/ingestion/**", ".github/workflows/native-ingestion.yml"]
+  pull_request:
+    paths: ["services/**", "scripts/*native*", "tests/ingestion/**", ".github/workflows/native-ingestion.yml"]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install native environments
+        run: python scripts/setup_native_ingestion.py
+      - name: Test standalone conversions and subprocess cleanup
+        run: |
+          .runtime/venvs/processor/bin/python -m unittest discover -s tests/ingestion -p test_native.py -v
+          .runtime/venvs/processor/bin/python -m unittest discover -s tests/ingestion -p test_processor.py -v
+      - name: Install isolated HTTP object storage for tests
+        run: .runtime/venvs/services/bin/python -m pip install -r tests/ingestion/requirements-native.txt
+      - name: Test actual Airflow tasks and native processing
+        env:
+          INGESTION_TEST_NATIVE: "1"
+          AIRFLOW_HOME: ${{ runner.temp }}/geomap-airflow-tests
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:///${{ runner.temp }}/geomap-airflow-tests/airflow.db
+        run: |
+          .runtime/venvs/services/bin/python -m unittest discover -s tests/ingestion -p test_native_launcher.py -v
+          .runtime/venvs/services/bin/python -m unittest discover -s tests/ingestion -p test_native_airflow.py -v

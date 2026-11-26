@@ -142,6 +142,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 #uploadPause[hidden]{display:none}
 #uploadProgress{accent-color:var(--accent)}
 .uploaded-file{display:flex;flex-direction:column;gap:7px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.directory-folder{display:flex;gap:8px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--panel-2);color:var(--fg);font:600 13px var(--f-ui);cursor:pointer}
+.directory-layer,.directory-result{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid var(--line);border-radius:8px}
+#directoryPath{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+#directoryPath .btn{padding:4px}
+#directoryActive:empty{display:none}
 .queue-job .btn{padding:5px 8px;font-size:11px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);font-size:11.5px}
@@ -269,21 +274,28 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
 
     <section class="tab" id="tab-files" role="tabpanel">
       <div class="sec">
-        <label class="label" for="filesApi">File processing server</label>
-        <div class="row"><input type="text" id="filesApi" placeholder="Same server, or http://localhost:8095" style="flex:1"><button class="btn" id="filesConnect">Connect</button></div>
-        <p class="hint" id="filesStatus" role="status" aria-live="polite">Open Files to connect to the upload service.</p>
+        <div class="row"><span class="label" style="flex:1">Directory Files</span><button class="btn" id="filesRefresh">Refresh</button></div>
+        <p class="hint" id="filesStatus" role="status" aria-live="polite">Loading file directory…</p>
+        <nav id="directoryPath" aria-label="File directory"></nav>
+        <div class="row"><input type="text" id="directoryName" aria-label="New directory name" placeholder="New folder name" maxlength="80" style="flex:1"><button class="btn" id="directoryNew">New folder</button></div>
+        <div id="directoryChildren" class="sec"></div>
+        <input type="search" id="directorySearch" aria-label="Search files in this directory" placeholder="Search files in this directory">
       </div>
       <div class="sec">
-        <label class="label" for="uploadFile">Upload geospatial file</label>
-        <input type="file" id="uploadFile" accept=".geojson,.json,.csv,.kml,.zip,.gpkg,.tif,.tiff">
-        <p class="hint">GeoJSON, CSV (lat,lon), KML, zipped Shapefile, GeoPackage or georeferenced GeoTIFF. Reselect an interrupted file to resume its uploaded chunks.</p>
+        <label class="label" id="uploadDirectory" for="uploadFile">Upload into /</label>
+        <input type="file" id="uploadFile">
+        <details class="hint"><summary>Supported files</summary><p id="uploadFormats">Loading supported file types…</p></details>
         <div class="row"><button class="btn primary" id="uploadStart" disabled>Upload and process</button><button class="btn" id="uploadPause" hidden>Pause upload</button></div>
         <progress id="uploadProgress" max="100" value="0" style="width:100%" aria-label="File upload progress"></progress>
         <p class="hint" id="uploadStatus" role="status" aria-live="polite">Choose a file to begin.</p>
       </div>
       <div class="sec">
-        <div class="row"><span class="label" style="flex:1">Processed files</span><button class="btn" id="filesRefresh">Refresh</button><button class="btn" id="filesClearMap">Clear preview</button></div>
-        <p class="hint">Processing continues on the server after this page closes. Map previews show one processed layer at a time.</p>
+        <div class="row"><span class="label" style="flex:1">Globe layers · <span id="directoryLayerCount">0 visible</span></span><button class="btn" id="filesClearMap">Remove all layers</button></div>
+        <div id="directoryActive" class="sec"></div>
+      </div>
+      <div class="sec">
+        <span class="label">Files and processed layers</span>
+        <p class="hint">Uploads are processed on the server. Spatial outputs can be displayed together on the globe; files without coordinates remain in the directory.</p>
         <div id="uploadedFiles" class="sec"></div>
         <div class="row"><button class="btn" id="filesPrevious" disabled>Previous</button><button class="btn" id="filesNext" disabled>Next</button></div>
       </div>

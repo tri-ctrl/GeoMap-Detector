@@ -56,6 +56,14 @@ test("stale JavaScript fails the source comparison", async t => {
   const { options } = await fixture(t, state => state.bodies.set("app.js", "old app"));
   await assert.rejects(verifyDeployment(options), /app\.js: deployed content differs/);
 });
+test("Pages publishing verifies the configured remote ingestion API", async t => {
+  const {options,state}=await fixture(t);
+  options.ingestionApiUrl="https://files.example.test";
+  state.bodies.set("ingestion-config.json",JSON.stringify({api_url:options.ingestionApiUrl}));
+  assert.equal((await verifyDeployment(options)).ingestion.api_url,options.ingestionApiUrl);
+  state.bodies.set("ingestion-config.json",JSON.stringify({api_url:""}));
+  await assert.rejects(verifyDeployment(options),/remote API differs/);
+});
 test("a stale processing worker cannot pass the published source guard", async t => {
   const { options } = await fixture(t, state => state.bodies.set("processing-worker.js", "old worker"));
   await assert.rejects(verifyDeployment(options), /processing-worker\.js: deployed content differs/);

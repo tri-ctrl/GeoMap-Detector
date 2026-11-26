@@ -1,0 +1,242 @@
+{
+  "task": "GMD-036",
+  "verified_at": "2026-11-26T16:08:36.078677+00:00",
+  "status": "Directory Files implemented and locally verified; remote runtime not provisioned",
+  "test_results": {
+    "javascript": 353,
+    "python_baseline": 24,
+    "python_upload_contract_bootstrap": 6,
+    "python_postgres_delivery": 3,
+    "python_processor": 6,
+    "python_directories": 4,
+    "python_formats": 12,
+    "python_total": 55
+  },
+  "startup": {
+    "cold_pairs": 5,
+    "warm_pairs": 5,
+    "initial_scripts": 7,
+    "passed": true,
+    "note": "Controlled tiles/metadata isolate app startup from provider latency."
+  },
+  "browser": {
+    "ok": true,
+    "directory": "a0cebc04-ab3c-42ec-b2aa-b818902249d7",
+    "vectorFile": "native-vector-1795709076641.geojson",
+    "raster": true,
+    "unlocatedImage": true,
+    "noConnectControl": true,
+    "aoiCountUnchanged": true,
+    "lazy": true,
+    "multipleLayers": 2,
+    "globeEntities": 3,
+    "gpuFilePick": true,
+    "mercatorPreview": true,
+    "hideOpacityAndModeSwitch": true,
+    "cleanResources": true,
+    "runtimeErrors": []
+  },
+  "browser_notes": [
+    "Disposable Chromium profile with real Cesium WebGL2 and native GPU picking.",
+    "Controlled base tiles; actual uploaded geometry/raster, MinIO transfers, Kafka, Airflow and Docker processing.",
+    "Desktop and 390px mobile screenshots inspected; no runtime exceptions.",
+    "Rapid repeated Files activation shares one lazy controller."
+  ],
+  "end_to_end": {
+    "ok": true,
+    "multipart_upload": "9b80de9b-9085-4dd8-9b34-60473f6dc7c7",
+    "failed_and_retried": "e930c5a8-4bd4-4018-840b-f51eaf632fb2",
+    "cancelled": "54c0479a-abd5-4d82-84ab-cdf038d4508c",
+    "checks": [
+      "multipart boundary",
+      "resume",
+      "CORS ETag",
+      "completion deduplication",
+      "Airflow Docker Kafka round trip",
+      "processed download",
+      "failure",
+      "retry",
+      "cancel"
+    ]
+  },
+  "formats": {
+    "reference_count": 36,
+    "accepted_count": 39,
+    "reference_extensions": [
+      ".zip",
+      ".tar",
+      ".tif",
+      ".tiff",
+      ".ntf",
+      ".ecw",
+      ".jp2",
+      ".geojson",
+      ".mp4",
+      ".mpg",
+      ".mpeg",
+      ".kml",
+      ".kmz",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".pdf",
+      ".csv",
+      ".grb",
+      ".grb2",
+      ".grib",
+      ".grib2",
+      ".nc",
+      ".czml",
+      ".nitf",
+      ".las",
+      ".laz",
+      ".gpx",
+      ".mbtiles",
+      ".giq",
+      ".giqreport",
+      ".giqdrawing",
+      ".giqcategories",
+      ".dwg",
+      ".xlsx",
+      ".img"
+    ],
+    "additional_extensions": [
+      ".gpkg",
+      ".json",
+      ".shp"
+    ]
+  },
+  "services": {
+    "airflow-bridge": {
+      "state": "running",
+      "health": "not configured",
+      "image": "geomap-detector-airflow:local"
+    },
+    "airflow-scheduler": {
+      "state": "running",
+      "health": "healthy",
+      "image": "geomap-detector-airflow:local"
+    },
+    "airflow-webserver": {
+      "state": "running",
+      "health": "healthy",
+      "image": "geomap-detector-airflow:local"
+    },
+    "ingestion-worker": {
+      "state": "running",
+      "health": "not configured",
+      "image": "geomap-detector-upload-api:local"
+    },
+    "kafka": {
+      "state": "running",
+      "health": "healthy",
+      "image": "redpandadata/redpanda:v25.1.9"
+    },
+    "minio": {
+      "state": "running",
+      "health": "healthy",
+      "image": "geomap-detector-minio:local"
+    },
+    "postgres": {
+      "state": "running",
+      "health": "healthy",
+      "image": "postgres:16.9-alpine"
+    },
+    "upload-api": {
+      "state": "running",
+      "health": "healthy",
+      "image": "geomap-detector-upload-api:local"
+    },
+    "web": {
+      "state": "running",
+      "health": "not configured",
+      "image": "geomap-detector-web"
+    }
+  },
+  "build": {
+    "compose_build_passed": true,
+    "compose_up_wait_passed": true,
+    "libredwg_version": "0.14",
+    "libredwg_sha256": "cb6ee0b078c6d9e0f09d66f1feac33ba6342df88ae544e9f9335fab475218351",
+    "tls_verification": true,
+    "note": "Local corporate CA supplied via existing build secret override, not embedded in images."
+  },
+  "remote_deployment": {
+    "task": "GMD-037",
+    "live": false,
+    "frontend": "https://tri-ctrl.github.io/GeoMap-Detector/",
+    "prepared": [
+      "Pages HTTPS API configuration and parity guard",
+      "GHCR image build/publish workflow",
+      "Registry Compose image overrides",
+      "Manual Actions deployment over SSH to remote Docker",
+      "Codespaces devcontainer and gateway setup"
+    ],
+    "validated": [
+      "Workflow YAML and embedded bash syntax",
+      "Devcontainer JSON and setup shell syntax",
+      "Effective registry Compose configuration and processor image selection",
+      "Runtime credential/origin validation",
+      "Compose readiness with --wait on local engine"
+    ],
+    "pending": [
+      "Runtime target and access",
+      "Run image publishing/deployment on GitHub",
+      "Configure actual INGESTION_API_URL",
+      "Verify upload and globe rendering from public Pages"
+    ],
+    "observed_blockers": [
+      "No backend URL variable or deployment secrets configured in the repository.",
+      "Current CLI token lacks codespace scope; Codespaces API returns HTTP 403."
+    ]
+  },
+  "limits": [
+    "GitHub Pages is a static frontend; it does not run the service containers.",
+    "Accepting an extension does not supply every proprietary codec: ECW needs a licensed GDAL decoder.",
+    "Nonspatial documents, video, images and GIQ packages remain directory assets without invented locations.",
+    "CZML uses a static geographic snapshot; LAS/LAZ uses a bounded point sample, not a full 3D point-cloud renderer.",
+    "DWG/local coordinates require a valid geographic CRS; no arbitrary CRS assignment UI is included.",
+    "Single-workspace catalog; uploaded-raster YOLO inference and production throughput claims are outside this change."
+  ],
+  "source_sha256": {
+    ".devcontainer/devcontainer.json": "90dad912c5c20b482ebbeff784ccb80a4c6b68c52a4ba13d81705a8ef78019a2",
+    ".env.example": "498969e1dfd54edff6ea29f823538cd7e4f02cfd40fcf92e36018811e86bb25b",
+    ".github/workflows/deploy-ingestion.yml": "c5e5d527b08a5bf8dfc10f9a315817e7cc5b0ed082e4d8a4bdf2606c9ebd2241",
+    ".github/workflows/ingestion-images.yml": "32034f5c1f5b5efff0be51e853c356d8b145e9bbafc3c25a722dd0e79e8e3d34",
+    ".github/workflows/pages.yml": "c58194496ae4a908e3831e71bd827d13f6fd2a124915164ec572a5bd5b723a3d",
+    "compose.registry.yaml": "8970fc71a8e4c6ccea22041c7377f0819285a4b7377bd3046190e1b90fcd0f73",
+    "compose.yaml": "699e507d565edbababe74576a798388d7541dadbf7f3e97df9458b13cd970906",
+    "frontend/app.js": "44722cc344e123eb5195dee83227573d0bf55d138dbd1053426aea1fd9fc5ecf",
+    "frontend/index.html": "81dacee640178b1b7799ca950d28cdc071d4cb96701f7d84e84a5d4e1802941d",
+    "frontend/ingestion-config.json": "cbfaeaa6a5415a40d3074c80bee07c882a81fc5e308deecd238159ca3a1ab8f7",
+    "frontend/map-view.js": "361d2e57ded2e90f8cedfa1c996aee574f39ee9293646dfb58b8349895c34f66",
+    "frontend/uploads.js": "091b1b083341baca145e6152aec327527ef977af78dff170928568396ffe1044",
+    "scripts/check_deployment.cjs": "1122177252d5428f2e4a4b8b9b0c4ef4c7be3b6d6bfe23c7624fb09f20badd91",
+    "scripts/check_ingestion_runtime.cjs": "442e14636c76de44716ad6127f71712f73b373cd16b89d4c36801969083eb6e4",
+    "scripts/start_codespaces.sh": "e6b94a622f6e8c285ed0bbd3b5145121a335e507898ac9b7d5d463b831cf94ee",
+    "scripts/write_build_info.cjs": "b8ad4c137327332c42d0ecb6eba99b5cf676d3db6ec599ee8e6905ef3bc9b3b5",
+    "scripts/write_ingestion_config.cjs": "9832a885aea4a2afd0c5c3c6c36a97e1da17e70d7c406589b122c8630a2426a8",
+    "services/common/ingestion_common/contracts.py": "7ecab391533fc3fcec018376f35bea68f8d8daf18825e141c1f535a2bfe3a5ea",
+    "services/common/ingestion_common/formats.py": "831f5d7f6d588557108ef63c81f565a6030647549456324b3ef63885209922a3",
+    "services/ingestion/Dockerfile": "bd4b7eb705e9b90f7bd34120ed869eae62bb7be9bc37dcb9b18e5f0c443a981f",
+    "services/ingestion/processor/archives.py": "41ddadec4cca7eaaf3c38b7f1005bc5d2b6794fbc2d898fd358f5062fad6d26f",
+    "services/ingestion/processor/assets.py": "5a0b1bcc44ae7bbaead740b3314ffe002918ed6f785db539523436a28fc2aec1",
+    "services/ingestion/processor/dispatch.py": "9c24f36b0636ecb8cd5de902eb37b85d2b7884a40bfb987602b8936cf825a306",
+    "services/ingestion/processor/main.py": "19adcbb7d514521e2f7d0e44c330350ac018cb555ecb188bbcdb03a4ff9b8886",
+    "services/ingestion/processor/rasters.py": "5eb3953055961df4adbc585f2d029e84c9d43b45a57c0a9fcd80234afae146d6",
+    "services/ingestion/processor/vectors.py": "ab329d8293e4e8f8cecce73103f15e5dd899587548b86780ae7dc1962f4bc618",
+    "services/ingestion/requirements.txt": "c664f4a67abfb4ec46a091a1e7fa56697d75afd02276091d302e3c6dd369cbbf",
+    "services/upload-api/upload_api/app.py": "7649af5bb4823874c29b9c77dce4a77a482fb7f1ef257f34eee8b67e5ab6d13e",
+    "services/upload-api/upload_api/db.py": "5640d730f254e99c59101ac33a1d6c69766b3057a4a028957bf8297a64c15cf5",
+    "services/upload-api/upload_api/schema.sql": "770eea4c7dc9c12af8d43a6a2d1174ae63b9efec94769d067746ccf59a91064b",
+    "services/web/Dockerfile": "63d4de16b47c8fcb731c429afc5f11b029b31732692ac314039ff477c6fc5ea3",
+    "services/web/nginx.conf": "1b1dac927b6cf67e1c3d532f28cf975c7312952300dcf5b7e86b88cfee29ff63",
+    "tests/browser/uploads.cjs": "448567d4946044717733d15571b012392b61c4dd65734a43cdd07f0cce94708b",
+    "tests/deployment.test.cjs": "41a37554342e25877341bb83a5cfc84888711c7d9225337bd0f3bc85c18bc3cc",
+    "tests/directory_layers.test.cjs": "3902e93a79c8bd0ef5cfb766c8c3491b23eb6f9780bc398d04dccf1920cccd9c",
+    "tests/ingestion/test_directories.py": "f564afc46bb73fb5ceb12706ca99dac7f90ec5360d07245d6839dec9d1eb6afc",
+    "tests/ingestion/test_formats.py": "0c2b7b72113eed5720dafebf7b538358de955cf8e1084f196b9b8e023eb28f52",
+    "tests/ingestion_config.test.cjs": "394749250d0aaa852103ba06e35514517b628542c9ef47566e61cd6dd70d0ff6",
+    "tests/ingestion_runtime.test.cjs": "2a97c6665e3af4fd989119ab2711599d6a397b5d6053489c9e95482dea8eb5f6"
+  }
+}

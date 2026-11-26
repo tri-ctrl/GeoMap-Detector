@@ -1,0 +1,30 @@
+# Run prebuilt GitHub Container Registry images on the selected Docker host.
+# GitHub stores these images; the Docker host supplies the running services.
+x-api-image: &api-image ${REGISTRY_PREFIX:?Set REGISTRY_PREFIX}/${IMAGE_API_NAME:-upload-api}:${IMAGE_TAG:?Set IMAGE_TAG to the published commit SHA}
+x-airflow-image: &airflow-image ${REGISTRY_PREFIX}/${IMAGE_AIRFLOW_NAME:-airflow}:${IMAGE_TAG}
+services:
+  upload-api:
+    image: *api-image
+  infrastructure-init:
+    image: *api-image
+  ingestion-worker:
+    image: *api-image
+  airflow-init:
+    image: *airflow-image
+    environment: &ingestion-image-env
+      INGESTION_IMAGE: ${REGISTRY_PREFIX}/ingestion:${IMAGE_TAG}
+  airflow-scheduler:
+    image: *airflow-image
+    environment: *ingestion-image-env
+  airflow-webserver:
+    image: *airflow-image
+    environment: *ingestion-image-env
+  airflow-bridge:
+    image: *airflow-image
+    environment: *ingestion-image-env
+  ingestion-image:
+    image: ${REGISTRY_PREFIX}/ingestion:${IMAGE_TAG}
+  minio:
+    image: ${REGISTRY_PREFIX}/minio:${IMAGE_TAG}
+  web:
+    image: ${REGISTRY_PREFIX}/web:${IMAGE_TAG}

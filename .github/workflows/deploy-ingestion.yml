@@ -1,0 +1,84 @@
+name: Deploy ingestion services to remote Docker
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Published image commit SHA (from Build ingestion service images)
+        required: true
+        type: string
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: ingestion-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ingestion
+    env:
+      INGESTION_API_URL: ${{ vars.INGESTION_API_URL }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - name: Configure the remote Docker connection
+        env:
+          SSH_HOST: ${{ secrets.INGESTION_SSH_HOST }}
+          SSH_USER: ${{ secrets.INGESTION_SSH_USER }}
+          SSH_PORT: ${{ vars.INGESTION_SSH_PORT || '22' }}
+          SSH_KEY: ${{ secrets.INGESTION_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.INGESTION_SSH_KNOWN_HOSTS }}
+          APP_ENV_FILE: ${{ secrets.INGESTION_ENV_FILE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use a published 40-character commit SHA'; exit 1; }
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'Configure INGESTION_SSH_HOST'; exit 1; }
+          [[ "$SSH_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || { echo 'Configure INGESTION_SSH_USER'; exit 1; }
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] || exit 1
+          [[ -n "$SSH_KEY" && -n "$SSH_KNOWN_HOSTS" && -n "$APP_ENV_FILE" ]] || { echo 'Configure the SSH and runtime environment secrets'; exit 1; }
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ingestion-ssh-key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ingestion-known-hosts"
+          printf '%s\n' "$APP_ENV_FILE" > "$RUNNER_TEMP/ingestion.env"
+          cat > "$HOME/.ssh/config" <<EOF
+          Host geomap-runtime
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port $SSH_PORT
+            IdentityFile $RUNNER_TEMP/ingestion-ssh-key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile $RUNNER_TEMP/ingestion-known-hosts
+          EOF
+          echo 'DOCKER_HOST=ssh://geomap-runtime' >> "$GITHUB_ENV"
+      - name: Pull and start the remote services
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export REGISTRY_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
+          export S3_PUBLIC_ENDPOINT="$(node -e 'process.stdout.write(require("./scripts/write_ingestion_config.cjs").deploymentConfig(process.env.INGESTION_API_URL).api_url)')"
+          export S3_PROXY_HOST="$(node -e 'process.stdout.write(new URL(process.env.S3_PUBLIC_ENDPOINT).host)')"
+          export UPLOAD_CORS_ORIGIN="https://tri-ctrl.github.io,$S3_PUBLIC_ENDPOINT"
+          compose=(docker compose --env-file "$RUNNER_TEMP/ingestion.env" -f compose.yaml -f compose.registry.yaml)
+          "${compose[@]}" config --format json | node scripts/check_ingestion_runtime.cjs
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          "${compose[@]}" pull
+          "${compose[@]}" up -d --no-build --wait --wait-timeout 600
+          curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors "$S3_PUBLIC_ENDPOINT/api/ingestion/health" > "$RUNNER_TEMP/ingestion-health.json"
+          node -e 'const h=require(process.env.RUNNER_TEMP+"/ingestion-health.json");if(h.ok!==true)throw Error("Remote API health check failed");console.log("Remote ingestion API is healthy")'
+          echo 'Runtime deployed. Publish Pages with the same INGESTION_API_URL repository variable.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove runner credentials
+        if: always()
+        shell: bash
+        run: |
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP/ingestion-ssh-key" "$RUNNER_TEMP/ingestion-known-hosts" "$RUNNER_TEMP/ingestion.env" "$HOME/.ssh/config"

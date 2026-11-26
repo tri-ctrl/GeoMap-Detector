@@ -1,5 +1,14 @@
 GeoMap-Detector issue tracker and implementation plan
 
+**GMD-036 — Implemented and locally verified:** user's clarified **Directory Files** workflow: durable
+file directories and independent raster/vector globe layers, replacing GMD-035's
+AOI-import/single-preview interaction. **353 JavaScript / 55 Python checks pass.**
+All reference ingestion extensions are accepted, with explicit decoder/location
+limits. **GMD-037 remote hosting:** Pages remote-API config, GHCR publishing,
+Actions deployment to remote Docker and Codespaces setup are ready; actual remote provisioning and verification need a
+runtime target/access. [Plan and acceptance](directory-files-tasks.md) ·
+[Remote deployment](remote-ingestion.md).
+
 **GMD-035 (2026-11-26) — Complete and locally verified:** multipart file uploads,
 MinIO storage, Kafka dispatch/results, Airflow Docker ingestion and processed-file
 map/catalog UI. Compose builds and runs on independent ports; actual multipart,

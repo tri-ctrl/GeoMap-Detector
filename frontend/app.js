@@ -202,8 +202,8 @@ const TITLES = { aoi:["Areas of interest","Import airports, ports and bases, or 
   ann:["Annotate","Review predictions, fix classes and shapes, draw what the model missed."],
   trn:["Train","Turn reviewed objects into a training set and a better model."],
   exp:["Export","GeoJSON and AOI-clipped images for every location and date."],
-  files:["Uploaded files","Upload geospatial data, follow processing and view the resulting layers."] };
-let filesController = null, filesLoading = null;
+  files:["Directory Files","Browse files and display processed raster and vector layers on the globe."] };
+let filesController = null, filesLoading = null, filesOpening = null;
 async function openFiles() {
   if (!filesLoading) filesLoading = new Promise((resolve, reject) => {
     if (window.GVUploads) return resolve();
@@ -214,10 +214,21 @@ async function openFiles() {
     document.head.appendChild(script);
   }).catch(error => { filesLoading = null; throw error; });
   await filesLoading;
-  if (!filesController) filesController = window.GVUploads.create({ root: $("#tab-files"), map, L,
-    beforeShow: () => setMapMode("2d"), notify: toast,
-    addAois: fc => addAois(normalizeFeatures(fc)) });
-  if ($("#tab-files").classList.contains("on")) filesController.show();
+  if (!filesController) {
+    if (!filesOpening) filesOpening = (async () => {
+    const config = await E.requestJSON(new URL("ingestion-config.json", document.baseURI).href, { timeoutMs:10000 });
+    if (!config.api_url && location.hostname.endsWith(".github.io")) throw new Error("File services have not been deployed for this site yet.");
+    filesController = window.GVUploads.create({ root: $("#tab-files"), apiBase: config.api_url || "", map, L,
+    changed: () => syncScene(), showLayer: async bounds => {
+      if (mapMode === "loading") throw new Error("The globe is opening. Use Zoom when it is ready.");
+      if (mapMode !== "3d") await setMapMode("3d");
+      if (mapMode === "3d") scene.fitBounds(bounds);
+      else { const [w,s,e,n] = bounds; map.fitBounds([[s,w],[n,e]], { maxZoom:17,padding:[24,24] }); }
+    } });
+    })().catch(error => { filesOpening = null; throw error; });
+    await filesOpening;
+  }
+  if (pageActive && $("#tab-files").classList.contains("on")) filesController.show();
 }
 function showTab(id) {
   if (!TITLES[id]) id = "aoi";
@@ -247,11 +258,12 @@ let coordinateCRS = GVMapView.COORDINATES.some(item => item.id === savedMapDispl
 let basemapKey = null, mapMode = "2d", mapModeGeneration = 0, sceneEditing = null, coordinateOwner = null;
 let lastPointer = map.getCenter();
 const scene = GVMapView.createScene({ container: $("#map3d"),
-  onPick: (kind, index) => { if (kind === "aoi") selectAoi(index); else { const layer = detLayer.getLayers()[index]; if (layer) select(layer); } },
+  onPick: (kind, index, layerId) => { if (kind === "file") { showTab("files"); filesController?.select(layerId,index); }
+    else if (kind === "aoi") selectAoi(index); else { const layer = detLayer.getLayers()[index]; if (layer) select(layer); } },
   onCoordinates: updateCoordinates, onStatus: message => { $("#mapModeStatus").textContent = message; },
   onTerrainChange: enabled => { $("#mapTerrain").value = enabled ? "esri" : "ellipsoid"; },
   onFailure: error => { setMapMode("2d"); $("#mapModeStatus").textContent = "3D rendering stopped. Continue in 2D or try 3D again. " + error.message; },
-  reserveImage: bytes => { syncResultMemory(); return resultMemory.reserve("display:3d-image", bytes); },
+  reserveImage: bytes => { syncResultMemory(); return resultMemory.reserve("display:3d-image:" + ++displaySequence, bytes); },
   reserveVectors: bytes => { syncResultMemory(); return resultMemory.reserve("3d-vectors:" + ++displaySequence, bytes); } });
 $("#mapBasemap").innerHTML = GVMapView.BASEMAPS.map(item => `<option value="${item.id}">${item.label}</option>`).join("");
 $("#mapCoordinateCRS").innerHTML = GVMapView.COORDINATES.map(item => `<option value="${item.id}">${item.label}</option>`).join("");
@@ -297,6 +309,7 @@ function updateCoordinates(point) {
 function sceneData() {
   const r = clipView?.ready ? clipView.clip : null, blob = $("#showImg").checked && (r?.blobs?.display || r?.blobs?.png);
   return { basemap: displayBasemap(), aois: S.aois, detections: S.annFC,
+    fileLayers: filesController?.layers() || [],
     image: blob && !blob.gmdArtifact ? { blob, bounds: r.bounds, size: r.displaySize || r.size } : null,
     color: (feature, kind, index) => kind === "aoi" ? index === S.activeAoi ? "#f2a516" : "#ffffff" : STYLE(feature).color };
 }
@@ -2480,6 +2493,7 @@ window.GVApp = { diagnosticReport, diagnostics: () => ({ views: { ...viewMetrics
   mapSearch: { open: !placePopup.hidden, request: Boolean(placeOwner), scheduled: placeTimer != null, marker: Boolean(placeMarker) },
   queue: browserQueueState(),
   mapDisplay: { mode: mapMode, basemap: basemapId, coordinateCRS, projection: "EPSG:3857", scene: scene.diagnostics() },
+  directory: filesController?.diagnostics() || { loaded:0, pending:0, visible:0, urls:0 },
   processing: window.GVProcessing.diagnostics(),
   downloadLeases: downloadURLs.size }) };
 })();

@@ -14,6 +14,38 @@ const BASEMAPS = Object.freeze([
 ]);
 const CESIUM_BASE = "https://cdn.jsdelivr.net/npm/cesium@1.147.0/Build/Cesium/";
 const TERRAIN = "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer";
+// File geometry has its own identities and never becomes AOI/detection state.
+function fileGeometries(geometry, output = []) {
+  if (!geometry) return output;
+  if (geometry.type === "GeometryCollection") geometry.geometries.forEach(g => fileGeometries(g, output));
+  else if (geometry.type.startsWith("Multi")) geometry.coordinates.forEach(coordinates => output.push({ type: geometry.type.slice(5), coordinates }));
+  else output.push(geometry);
+  return output;
+}
+function fileVectorSize(fc) {
+  let vertices = 0;
+  const visit = coordinates => { if (typeof coordinates[0] === "number") vertices++; else coordinates.forEach(visit); };
+  for (const feature of fc.features || []) for (const geometry of fileGeometries(feature.geometry)) visit(geometry.coordinates);
+  return { features: (fc.features || []).length, vertices };
+}
+function fileEntities(C, layer) {
+  const result = [], color = C.Color.fromCssColorString(layer.color || "#20b5cd").withAlpha(layer.opacity ?? 1);
+  const positions = coordinates => C.Cartesian3.fromDegreesArray(coordinates.flatMap(point => point.slice(0, 2)));
+  for (const [index, feature] of layer.fc.features.entries()) for (const [part, geometry] of fileGeometries(feature.geometry).entries()) {
+    const record = { id: `file:${layer.id}:${index}:${part}`, name: String(feature.properties?.name || layer.name), properties: { kind: "file", layerId: layer.id, index } };
+    if (geometry.type === "Point") {
+      record.position = C.Cartesian3.fromDegrees(...geometry.coordinates.slice(0, 2));
+      record.point = { pixelSize: 7, color, outlineColor: C.Color.WHITE, outlineWidth: 1, heightReference: C.HeightReference.CLAMP_TO_GROUND, disableDepthTestDistance: Infinity };
+    } else if (geometry.type === "LineString") record.polyline = { positions: positions(geometry.coordinates), width: 2.5, material: color, clampToGround: true };
+    else if (geometry.type === "Polygon") {
+      const rings = geometry.coordinates;
+      record.polygon = { hierarchy: new C.PolygonHierarchy(positions(rings[0]), rings.slice(1).map(ring => new C.PolygonHierarchy(positions(ring)))), material: color.withAlpha((layer.opacity ?? 1) * .35), zIndex: 20 };
+      record.polyline = { positions: positions(rings[0]), width: 2, material: color, clampToGround: true };
+    } else throw new Error("Unsupported layer geometry: " + geometry.type);
+    result.push(record);
+  }
+  return result;
+}
 function basemap(id, release, waybackURL) {
   const item = BASEMAPS.find(entry => entry.id === id) || BASEMAPS[0];
   if (item.id === "wayback" && !release) return null;
@@ -98,8 +130,55 @@ function createScene({ container, load = loadCesium, onPick, onCoordinates, onSt
   let releaseImage = null, url = null, screen = null, removeCamera = null, frameRemover = null, terrainGeneration = 0;
   let lastCamera = null, userMoved = false, terrainRequest = null, terrainLoading = false;
   let releaseVectors = null, cameraPosition = null, cameraDirection = null, renderErrorRemover = null;
+  const fileLayers = new Map();
   const stats = { created: 0, destroyed: 0, urlsCreated: 0, urlsRevoked: 0, frames: 0, entities: 0, stale: 0, picks: 0, lastPick: null };
   const render = () => viewer?.scene.requestRender();
+  function removeFile(id) {
+    const entry = fileLayers.get(id); if (!entry) return;
+    if (entry.source && viewer) viewer.dataSources.remove(entry.source, true);
+    if (entry.image && viewer) viewer.imageryLayers.remove(entry.image, true);
+    if (entry.url) { URL.revokeObjectURL(entry.url); stats.urlsRevoked++; }
+    entry.release?.(); fileLayers.delete(id);
+  }
+  function syncFiles(layers = []) {
+    const ids = new Set(layers.map(layer => layer.id)), C = global.Cesium;
+    for (const id of fileLayers.keys()) if (!ids.has(id)) removeFile(id);
+    for (const layer of layers) {
+      let entry = fileLayers.get(layer.id);
+      if (entry && (entry.payload !== (layer.fc || layer.image.blob) || (entry.source && entry.opacity !== layer.opacity))) { removeFile(layer.id); entry = null; }
+      if (!entry) {
+        entry = { payload: layer.fc || layer.image.blob, opacity: layer.opacity };
+        fileLayers.set(layer.id, entry);
+        try {
+          if (layer.fc) {
+            const size = fileVectorSize(layer.fc);
+            entry.release = reserveVectors(size.vertices * 128 + size.features * 512);
+            entry.source = new C.CustomDataSource(layer.name);
+            for (const entity of fileEntities(C, layer)) entry.source.entities.add(entity);
+            const current = viewer;
+            current.dataSources.add(entry.source).then(source => {
+              if (viewer !== current || fileLayers.get(layer.id) !== entry) { if (!current.isDestroyed()) current.dataSources.remove(source,true); }
+              else render();
+            }).catch(error => { if(viewer===current && fileLayers.get(layer.id)===entry)onStatus?.("Layer could not be displayed: " + error.message); });
+          } else {
+            const { blob, size: [width, height], bounds: [w, s, e, n] } = layer.image;
+            entry.release = reserveImage(width * height * 4);
+            entry.url = URL.createObjectURL(blob); stats.urlsCreated++;
+            const imageURL = entry.url;
+            const scheme = new C.WebMercatorTilingScheme({ rectangleSouthwestInMeters: new C.Cartesian2(...global.GVEngine.merc(w, s)), rectangleNortheastInMeters: new C.Cartesian2(...global.GVEngine.merc(e, n)) });
+            const provider = { rectangle: scheme.rectangle, tilingScheme: scheme, tileWidth: width, tileHeight: height,
+              minimumLevel: 0, maximumLevel: 0, errorEvent: new C.Event(), credit: new C.Credit(String(layer.name).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))), hasAlphaChannel: true,
+              getTileCredits: () => undefined, pickFeatures: () => undefined,
+              requestImage: (_x, _y, _level, request) => C.ImageryProvider.loadImage(provider, new C.Resource({ url: imageURL, request })) };
+            entry.image = viewer.imageryLayers.addImageryProvider(provider);
+          }
+        } catch (error) { removeFile(layer.id); throw error; }
+      }
+      if (entry.source) entry.source.show = layer.visible !== false;
+      if (entry.image) { entry.image.show = layer.visible !== false; entry.image.alpha = layer.opacity ?? 1; }
+    }
+    render();
+  }
   function clearImage() {
     if (clipLayer && viewer) viewer.imageryLayers.remove(clipLayer, true);
     clipLayer = null; clipBlob = null;
@@ -148,7 +227,7 @@ function createScene({ container, load = loadCesium, onPick, onCoordinates, onSt
     const nextReservation = reserveVectors(vertices * 128 + features.length * 512);
     viewer.entities.suspendEvents();
     try {
-      setBase(next.basemap); setImage(next.image);
+      setBase(next.basemap); setImage(next.image); syncFiles(next.fileLayers);
       viewer.entities.removeAll();
       for (const [kind, features] of [["aoi", next.aois || []], ["detection", next.detections?.features || []]]) features.forEach((feature, index) => {
         const polygons = feature.geometry.type === "Polygon" ? [feature.geometry.coordinates] : feature.geometry.type === "MultiPolygon" ? feature.geometry.coordinates : [];
@@ -213,6 +292,7 @@ function createScene({ container, load = loadCesium, onPick, onCoordinates, onSt
   function close() {
     generation++; opening?.abort(); opening = null; ++terrainGeneration; terrainRequest?.abort(); terrainRequest = null; terrainLoading = false;
     const camera = viewer ? viewpoint() : null;
+    for (const id of fileLayers.keys()) removeFile(id);
     clearImage(); screen = null; removeCamera?.(); removeCamera = null; frameRemover?.(); frameRemover = null; renderErrorRemover?.(); renderErrorRemover = null;
     if (viewer) { viewer.destroy(); viewer = null; stats.destroyed++; }
     releaseVectors?.(); releaseVectors = null; cameraPosition = cameraDirection = null;
@@ -244,7 +324,7 @@ function createScene({ container, load = loadCesium, onPick, onCoordinates, onSt
           entity = entities.find(item => item.properties.kind.getValue() === "detection") || entity || entities[0];
         }
         stats.lastPick = entity ? entity.properties.kind.getValue() : null;
-        if (entity) onPick?.(entity.properties.kind.getValue(), entity.properties.index.getValue());
+        if (entity) onPick?.(entity.properties.kind.getValue(), entity.properties.index.getValue(), entity.properties.layerId?.getValue());
       }, C.ScreenSpaceEventType.LEFT_CLICK);
       screen.setInputAction(event => { const ray = viewer.camera.getPickRay(event.endPosition), position = ray && viewer.scene.globe.pick(ray, viewer.scene);
         if (position) { const p = C.Cartographic.fromCartesian(position); onCoordinates?.({ lat: C.Math.toDegrees(p.latitude), lng: C.Math.toDegrees(p.longitude) }); } }, C.ScreenSpaceEventType.MOUSE_MOVE);
@@ -263,8 +343,17 @@ function createScene({ container, load = loadCesium, onPick, onCoordinates, onSt
     } catch (error) { if (epoch === generation) { close(); container.replaceChildren?.(); } throw error; }
     finally { if (opening === controller) opening = null; }
   }
-  return { open, close, sync, setCamera, viewpoint, terrain, render,
-    diagnostics: () => ({ ...stats, active: Boolean(viewer), loading: Boolean(opening), image: Boolean(clipLayer), terrainLoading }) };
+  function fitBounds(bounds) {
+    if (!viewer) return;
+    const C = global.Cesium, [w,s,e,n] = bounds, padding = Math.max(.001, Math.max(e-w,n-s) * .08);
+    viewer.camera.flyTo({ destination: C.Rectangle.fromDegrees(Math.max(-180,w-padding),Math.max(-90,s-padding),Math.min(180,e+padding),Math.min(90,n+padding)), duration: .6 });
+    userMoved = true; render();
+  }
+  return { open, close, sync, setCamera, viewpoint, terrain, render, fitBounds,
+    diagnostics: () => ({ ...stats, active: Boolean(viewer), loading: Boolean(opening), image: Boolean(clipLayer), terrainLoading,
+      fileLayers: fileLayers.size, fileVectors: [...fileLayers.values()].filter(layer => layer.source).length,
+      fileRasters: [...fileLayers.values()].filter(layer => layer.image).length,
+      fileEntities: [...fileLayers.values()].reduce((sum,layer) => sum + (layer.source?.entities.values.length || 0),0) }) };
 }
-global.GVMapView = { BASEMAPS, COORDINATES, basemap, coordinates, createScene, terrainResource, CESIUM_BASE, TERRAIN };
+global.GVMapView = { BASEMAPS, COORDINATES, basemap, coordinates, createScene, terrainResource, fileGeometries, fileVectorSize, fileEntities, CESIUM_BASE, TERRAIN };
 })(typeof window !== "undefined" ? window : globalThis);

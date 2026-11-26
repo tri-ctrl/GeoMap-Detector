@@ -2,7 +2,7 @@ name: ${COMPOSE_PROJECT_NAME:-geomap-detector}
 
 x-storage-env: &storage-env
   S3_ENDPOINT: http://minio:9000
-  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9010}
+  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:8095}
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:-geomap-local}
   S3_SECRET_KEY: ${S3_SECRET_KEY:-geomap-local-secret}
   S3_BUCKET: geomap-files
@@ -40,7 +40,7 @@ x-airflow: &airflow
     AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: '10'
     AIRFLOW__WEBSERVER__WORKERS: '2'
     INGESTION_DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion
-    INGESTION_IMAGE: ${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion:local
+    INGESTION_IMAGE: ${INGESTION_IMAGE:-${COMPOSE_PROJECT_NAME:-geomap-detector}-ingestion:local}
     AIRFLOW_API_URL: http://airflow-webserver:8080
     AIRFLOW_API_USER: ${AIRFLOW_USER:-geomap}
     AIRFLOW_API_PASSWORD: ${AIRFLOW_PASSWORD:-geomap-local-airflow}
@@ -75,7 +75,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-geomap-local}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-geomap-local-secret}
-      MINIO_API_CORS_ALLOW_ORIGIN: ${UPLOAD_CORS_ORIGIN:-http://localhost:8095}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${UPLOAD_CORS_ORIGIN:-http://localhost:8095,https://tri-ctrl.github.io}
       MINIO_API_STALE_UPLOADS_EXPIRY: 24h
       MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL: 1h
     ports:
@@ -189,6 +189,9 @@ services:
       context: .
       dockerfile: services/web/Dockerfile
     ports: ['127.0.0.1:${WEB_PORT:-8095}:80']
+    environment:
+      S3_PROXY_HOST: ${S3_PROXY_HOST:-$$http_host}
+      NGINX_ENVSUBST_FILTER: ^S3_PROXY_HOST$$
     depends_on:
       upload-api: {condition: service_healthy}
     networks: [ingestion]

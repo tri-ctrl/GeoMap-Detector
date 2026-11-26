@@ -7,7 +7,7 @@ const { SOURCE_FILES, stampEngine } = require("./write_build_info.cjs");
 const DEFAULT_MODELS = ["yolo11n-obb.onnx", "yolo11s-obb.onnx"];
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
-async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../frontend"), revision = null, fetchImpl = fetch }) {
+async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../frontend"), revision = null, fetchImpl = fetch, ingestionApiUrl }) {
   const base = new URL(url);
   if (!["http:", "https:"].includes(base.protocol) || !base.pathname.endsWith("/") || base.search || base.hash)
     throw new Error("The deployment URL must be an HTTP(S) directory URL ending in /, without query or fragment");
@@ -75,11 +75,17 @@ async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../
         throw new Error(`build-info.json: ${model.file} provenance differs`);
     }
   }
-  return { checkedAt: new Date().toISOString(), url: base.href, revision, files, models, build };
+  let ingestion = null;
+  if (ingestionApiUrl !== undefined) {
+    const expected = require("./write_ingestion_config.cjs").deploymentConfig(ingestionApiUrl);
+    ingestion = await (await request("ingestion-config.json")).json();
+    if (ingestion?.api_url !== expected.api_url) throw new Error("ingestion-config.json: remote API differs from this deployment's configuration");
+  }
+  return { checkedAt: new Date().toISOString(), url: base.href, revision, files, models, build, ingestion };
 }
 
 async function main() {
-  const args = process.argv.slice(2), options = {};
+  const args = process.argv.slice(2), options = { ingestionApiUrl: process.env.INGESTION_API_URL };
   for (let i = 0; i < args.length; i += 2) {
     if (!["--url", "--revision"].includes(args[i]) || !args[i + 1] || args[i + 1].startsWith("--"))
       throw new Error("Usage: node scripts/check_deployment.cjs --url https://host/project/ [--revision SHA]");

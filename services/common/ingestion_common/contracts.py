@@ -1,10 +1,11 @@
 """Versioned, bounded messages. Kafka carries metadata, never file bytes."""
+
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SUPPORTED_EXTENSIONS = (".geojson", ".json", ".csv", ".kml", ".zip", ".gpkg", ".tif", ".tiff")
+from .formats import SUPPORTED_EXTENSIONS
 
 
 class Contract(BaseModel):
@@ -34,7 +35,7 @@ class IngestionRequest(Contract):
 
 
 class Artifact(Contract):
-    role: Literal["data", "preview", "metadata"]
+    role: Literal["data", "preview", "metadata", "source"]
     key: str = Field(min_length=1, max_length=1024)
     media_type: str = Field(max_length=100)
     size: int = Field(ge=0)
@@ -43,13 +44,20 @@ class Artifact(Contract):
 class ProcessedFile(Contract):
     id: str = Field(min_length=1, max_length=80)
     name: str = Field(max_length=255)
-    kind: Literal["vector", "raster"]
-    bbox: tuple[float, float, float, float]
+    kind: Literal[
+        "vector", "raster", "image", "video", "document", "package", "pointcloud"
+    ]
+    bbox: tuple[float, float, float, float] | None = None
+    message: str | None = Field(default=None, max_length=500)
     feature_count: int | None = Field(default=None, ge=0)
     artifacts: list[Artifact] = Field(min_length=1, max_length=10)
 
     @model_validator(mode="after")
     def valid_bounds(self):
+        if self.bbox is None:
+            if self.kind in ("vector", "raster"):
+                raise ValueError("Map layers require geographic bounds")
+            return self
         west, south, east, north = self.bbox
         if not (-180 <= west <= east <= 180 and -90 <= south <= north <= 90):
             raise ValueError("Invalid WGS84 bounds")
@@ -73,16 +81,24 @@ class IngestionResult(Contract):
         prefix = f"processed/{self.upload_id}/{self.attempt}/"
         for file in self.processed_files:
             for artifact in file.artifacts:
-                if not artifact.key.startswith(prefix) or ".." in artifact.key.split("/"):
+                if not artifact.key.startswith(prefix) or ".." in artifact.key.split(
+                    "/"
+                ):
                     raise ValueError("Artifact outside this ingestion attempt")
         return self
 
 
 def validate_source(request: IngestionRequest, bucket: str):
     """Only backend-owned object paths can be passed to a processor container."""
-    if request.source.bucket != bucket or not request.source.key.startswith(f"uploads/{request.upload_id}/"):
+    if request.source.bucket != bucket or not request.source.key.startswith(
+        f"uploads/{request.upload_id}/"
+    ):
         raise ValueError("Source outside this upload")
-    if "/" in request.source.name or "\\" in request.source.name or ".." in request.source.key.split("/"):
+    if (
+        "/" in request.source.name
+        or "\\" in request.source.name
+        or ".." in request.source.key.split("/")
+    ):
         raise ValueError("Invalid source path")
     if not request.source.name.lower().endswith(SUPPORTED_EXTENSIONS):
         raise ValueError("Unsupported input format")

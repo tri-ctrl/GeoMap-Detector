@@ -67,6 +67,10 @@ jobs:
         run: python scripts/export_onnx.py --check
       - name: Write public build revision and model fingerprints
         run: node scripts/write_build_info.cjs --revision "$GITHUB_SHA"
+      - name: Configure remote ingestion services for the public portal
+        env:
+          INGESTION_API_URL: ${{ vars.INGESTION_API_URL }}
+        run: node scripts/write_ingestion_config.cjs
       - name: Upload models for local use
         uses: actions/upload-artifact@v4
         with:
@@ -91,4 +95,5 @@ jobs:
         env:
           GMD_DEPLOYMENT_URL: ${{ steps.deploy.outputs.page_url }}
           GMD_DEPLOYMENT_REVISION: ${{ github.sha }}
+          INGESTION_API_URL: ${{ vars.INGESTION_API_URL }}
         run: node scripts/check_deployment.cjs --url "$GMD_DEPLOYMENT_URL" --revision "$GMD_DEPLOYMENT_REVISION"

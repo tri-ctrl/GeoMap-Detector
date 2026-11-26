@@ -103,10 +103,12 @@ add `--wasm` to verify the WASM provider.
 
 ## Optional Python server (large jobs, GPU training)
 
-For file uploads through **MinIO → Kafka → Airflow → Docker ingestion**, use the
-new [file processing stack](docs/upload-ingestion.md). Run `docker compose up -d --build`
-and open **http://localhost:8095 → Files**. Ports are configurable and separate
-from the optional detection server below. [Implementation tasks](docs/upload-ingestion-tasks.md).
+For file uploads through **MinIO → Kafka → Airflow → Docker ingestion**, use
+[Directory Files](docs/upload-ingestion.md). Processed raster/vector layers display
+independently on the 3D globe, with folders, visibility and opacity controls.
+Run `docker compose up -d --build` for local development. For the public Pages
+frontend, use [remote HTTPS services and GitHub deployment configuration](docs/remote-ingestion.md).
+[Implementation tasks](docs/directory-files-tasks.md).
 
 ```bash
 ./run.sh            # Linux / macOS   (Windows: run.bat)

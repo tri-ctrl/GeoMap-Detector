@@ -7,7 +7,8 @@
   "devDependencies": {
     "cesium": "1.147.0",
     "fake-indexeddb": "6.2.5",
-    "fflate": "0.8.2",
+    "fflate": "0.8.3",
+    "gdal3.js": "2.8.1",
     "jszip": "3.10.1",
     "leaflet": "1.9.4",
     "leaflet-draw": "1.0.4",

@@ -11,7 +11,8 @@ async function fixture(t, change = () => {}) {
   const sourceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "geomap-deploy-test-"));
   t.after(() => fs.rm(sourceRoot, { recursive: true, force: true }));
   const revision = "a".repeat(40), digest = data => createHash("sha256").update(data).digest("hex");
-  const bodies = new Map(SOURCE_FILES.map(file => [file, file === "engine.js" ? 'const BUILD_REVISION = "development"; // GMD_BUILD_REVISION\n' : "source: " + file]));
+  const runtime={version:1,assets:[{file:'gdal3.js',bytes:3},{file:'gdal3WebAssembly.wasm',bytes:4},{file:'gdal3WebAssembly.data',bytes:5}]};
+  const bodies = new Map(SOURCE_FILES.map(file => [file, file === "engine.js" ? 'const BUILD_REVISION = "development"; // GMD_BUILD_REVISION\n' : file==='file-runtime.json'?JSON.stringify(runtime):"source: " + file]));
   await Promise.all([...bodies].map(async ([file, body]) => {
     await fs.mkdir(path.dirname(path.join(sourceRoot, file)), { recursive: true });
     await fs.writeFile(path.join(sourceRoot, file), body);
@@ -34,6 +35,7 @@ async function fixture(t, change = () => {}) {
     // HEAD length must describe the model bytes, not a compressed transfer size.
     assert.equal(options.headers["Accept-Encoding"], "identity");
     state.calls.push({ file, method: options.method });
+    if(file.startsWith('vendor/ingestion/')){const asset=runtime.assets.find(a=>file.endsWith('/'+a.file));return new Response(null,{status:state.browserStatus||200,headers:{'Content-Type':'application/octet-stream','Content-Length':String(state.browserBytes??asset.bytes)}});}
     if (file === "models/models.json") return new Response(JSON.stringify(state.manifest));
     if (file === "build-info.json") return state.build === null ? new Response('', { status: 404 }) : new Response(JSON.stringify(state.build));
     if (options.method === "HEAD") return new Response(null, { status: state.status, headers: {
@@ -59,10 +61,19 @@ test("stale JavaScript fails the source comparison", async t => {
 test("Pages publishing verifies the configured remote ingestion API", async t => {
   const {options,state}=await fixture(t);
   options.ingestionApiUrl="https://files.example.test";
-  state.bodies.set("ingestion-config.json",JSON.stringify({api_url:options.ingestionApiUrl}));
+  state.bodies.set("ingestion-config.json",JSON.stringify({mode:'remote',api_url:options.ingestionApiUrl}));
   assert.equal((await verifyDeployment(options)).ingestion.api_url,options.ingestionApiUrl);
   state.bodies.set("ingestion-config.json",JSON.stringify({api_url:""}));
   await assert.rejects(verifyDeployment(options),/remote API differs/);
+});
+test('Pages browser mode verifies GIS runtimes without requiring a health API',async t=>{
+ const {options,state}=await fixture(t);options.ingestionApiUrl='';state.bodies.set('ingestion-config.json',JSON.stringify({mode:'browser',api_url:''}));
+ assert.equal((await verifyDeployment(options)).ingestion.mode,'browser');assert.equal(state.calls.filter(c=>c.file.startsWith('vendor/ingestion/')).length,3);
+ state.browserStatus=404;await assert.rejects(verifyDeployment(options),/HTTP 404/);
+});
+test('wrong browser mode or truncated GIS assets cannot pass Pages verification',async t=>{
+ const {options,state}=await fixture(t);options.ingestionApiUrl='';state.bodies.set('ingestion-config.json',JSON.stringify({mode:'remote',api_url:''}));await assert.rejects(verifyDeployment(options),/processing mode differs/);
+ state.bodies.set('ingestion-config.json',JSON.stringify({mode:'browser',api_url:''}));state.browserBytes=1;await assert.rejects(verifyDeployment(options),/wrong size/);
 });
 test("a stale processing worker cannot pass the published source guard", async t => {
   const { options } = await fixture(t, state => state.bodies.set("processing-worker.js", "old worker"));

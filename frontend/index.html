@@ -284,7 +284,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       <div class="sec">
         <label class="label" id="uploadDirectory" for="uploadFile">Upload into /</label>
         <input type="file" id="uploadFile">
-        <details class="hint"><summary>Supported files</summary><p id="uploadFormats">Loading supported file types…</p></details>
+        <details class="hint"><summary>Supported files</summary><p id="uploadFormats">Loading supported file types…</p><a href="ingestion-notices.html" target="_blank" rel="noopener">File tools open-source notices</a></details>
         <div class="row"><button class="btn primary" id="uploadStart" disabled>Upload and process</button><button class="btn" id="uploadPause" hidden>Pause upload</button></div>
         <progress id="uploadProgress" max="100" value="0" style="width:100%" aria-label="File upload progress"></progress>
         <p class="hint" id="uploadStatus" role="status" aria-live="polite">Choose a file to begin.</p>
@@ -295,7 +295,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--panel-2)} tr.sel td{
       </div>
       <div class="sec">
         <span class="label">Files and processed layers</span>
-        <p class="hint">Uploads are processed on the server. Spatial outputs can be displayed together on the globe; files without coordinates remain in the directory.</p>
+        <p class="hint" id="filesStorageHint">Spatial outputs can be displayed together on the globe; files without coordinates remain in the directory.</p>
         <div id="uploadedFiles" class="sec"></div>
         <div class="row"><button class="btn" id="filesPrevious" disabled>Previous</button><button class="btn" id="filesNext" disabled>Next</button></div>
       </div>

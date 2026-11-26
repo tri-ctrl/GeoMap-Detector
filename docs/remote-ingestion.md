@@ -96,9 +96,11 @@ been dispatched against a remote host in this session.
 3. The build writes `frontend/ingestion-config.json`. Deployment verification
    checks that its API URL matches the configured remote target.
 
-An empty value keeps same-origin mode for the integrated app. On a `github.io`
-site, Directory Files explicitly reports that remote services have not yet been
-configured. It does not silently try the visitor's localhost.
+An empty repository variable selects [browser ingestion](browser-ingestion.md)
+for the Pages build. Files then works without a backend and saves copies on the
+visitor's device. A configured remote URL selects the service-backed catalog.
+Legacy integrated-app configuration without an explicit mode still uses its
+same-origin backend outside GitHub Pages.
 
 ## Full stack inside GitHub Codespaces for retesting
 

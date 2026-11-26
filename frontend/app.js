@@ -217,8 +217,14 @@ async function openFiles() {
   if (!filesController) {
     if (!filesOpening) filesOpening = (async () => {
     const config = await E.requestJSON(new URL("ingestion-config.json", document.baseURI).href, { timeoutMs:10000 });
-    if (!config.api_url && location.hostname.endsWith(".github.io")) throw new Error("File services have not been deployed for this site yet.");
+    const browserFiles = config.mode === "browser" || (!config.api_url && location.hostname.endsWith(".github.io"));
+    let fileApi;
+    if (browserFiles) {
+      if (!window.GVBrowserFiles) await new Promise((resolve,reject) => { const script=document.createElement('script');script.src=new URL('browser-files.js',document.baseURI).href;const timer=setTimeout(()=>{script.remove();reject(Error('Browser file tools took too long to load. Open Files to retry.'));},15000);script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(Error('Browser file tools could not load. Open Files to retry.'));};document.head.appendChild(script); });
+      fileApi = await window.GVBrowserFiles.create();
+    }
     filesController = window.GVUploads.create({ root: $("#tab-files"), apiBase: config.api_url || "", map, L,
+    api: fileApi, saveFile: (name,blob) => saveBlob(name,blob,()=>{}),
     changed: () => syncScene(), showLayer: async bounds => {
       if (mapMode === "loading") throw new Error("The globe is opening. Use Zoom when it is ready.");
       if (mapMode !== "3d") await setMapMode("3d");

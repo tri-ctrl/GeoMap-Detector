@@ -1,0 +1,158 @@
+{
+  "task": "GMD-039",
+  "verified_at": "2026-11-26T19:43:44.728165+00:00",
+  "status": "implemented and verified on a static project-path site; staged publication pending",
+  "observed_live_site": {
+    "url": "https://tri-ctrl.github.io/GeoMap-Detector/",
+    "revision": "5776f82176465cdd52a364f23a45ebcc3287d924",
+    "ingestion_config": {
+      "api_url": ""
+    },
+    "finding": "No ingestion backend configured. Native Python source publication does not run a server.",
+    "updated_site_verified": false
+  },
+  "test_results": {
+    "javascript": 366,
+    "python": 25
+  },
+  "browser": {
+    "ok": true,
+    "mode": "static browser",
+    "projectPath": "/GeoMap-Detector/",
+    "filesPersisted": 4,
+    "vectorEntities": 3,
+    "raster": true,
+    "zippedShapefile": true,
+    "unsafeArchive": true,
+    "layers": 2,
+    "cancelAndRetry": true,
+    "unsupportedOriginalPreserved": true,
+    "invalidCsv": true,
+    "reload": true,
+    "restoredLayers": true,
+    "delete": true,
+    "aoiUnchanged": true,
+    "nativeIndexedDB": true,
+    "workers": {
+      "created": 7,
+      "active": 0,
+      "terminated": 7
+    },
+    "workersAfterReload": {
+      "created": 0,
+      "active": 0,
+      "terminated": 0
+    },
+    "apiRequests": [],
+    "runtimeErrors": [],
+    "initialRequests": 39
+  },
+  "browser_method": {
+    "app": "Current sources on an HTTP static server under /GeoMap-Detector/",
+    "storage": "Native Chromium IndexedDB with real original/artifact Blobs",
+    "processing": "Real JavaScript and GDAL WebAssembly in disposable Web Workers",
+    "rendering": "Real Cesium WebGL raster/vector layers; controlled dependency routing and synthetic base imagery",
+    "data": [
+      "mixed-geometry GeoJSON",
+      "georeferenced RGB GeoTIFF",
+      "zipped Shapefile with SHX/DBF/PRJ sidecars",
+      "unsafe ZIP",
+      "invalid CSV",
+      "original requiring native ECW decoder"
+    ],
+    "screenshots": "Desktop and 390px mobile screenshots inspected from temporary files",
+    "claims": "Functional verification and resource ownership; not a production throughput, memory or geospatial-accuracy benchmark"
+  },
+  "startup": {
+    "cold_pairs": 5,
+    "warm_pairs": 5,
+    "initial_scripts": 7,
+    "passed": true
+  },
+  "saved_data_regressions": {
+    "native_indexeddb": true,
+    "lifecycle": true,
+    "queue_recovery": true,
+    "identity": true,
+    "migration_rollback": true,
+    "exceptions": []
+  },
+  "runtime": {
+    "version": 1,
+    "gdal": "2.8.1",
+    "fflate": "0.8.3",
+    "source": "https://github.com/bugra9/gdal3.js",
+    "assets": [
+      {
+        "file": "gdal3.js",
+        "bytes": 191138,
+        "sha256": "ec11ced2b626f9738015c3c4e9f3d670d00213a9083c5a06074d39624e6e8921"
+      },
+      {
+        "file": "gdal3WebAssembly.wasm",
+        "bytes": 28219835,
+        "sha256": "350eec4ce9ae4bc10bcafd8621463e057abdbb8f8372f0d8e0af06e6b8561835"
+      },
+      {
+        "file": "gdal3WebAssembly.data",
+        "bytes": 11595145,
+        "sha256": "e473e1e9f20af114bbb491d9cf7ef154986708a7ec763b22181c5e5f012f889e"
+      },
+      {
+        "file": "GDAL-LICENSE",
+        "bytes": 26526,
+        "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331"
+      },
+      {
+        "file": "fflate.js",
+        "bytes": 33044,
+        "sha256": "462ef8041fc970e3615a20a9dd2b2e3047a073b2da729ef4f02b634bba8b7b83"
+      },
+      {
+        "file": "FFLATE-LICENSE",
+        "bytes": 1069,
+        "sha256": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551"
+      }
+    ]
+  },
+  "configuration_checks": {
+    "workflow_yaml_and_shell_syntax": true,
+    "runtime_fingerprints": true,
+    "deployment_mode_guard": true,
+    "deployment_runtime_missing_or_truncated_guard": true,
+    "extension_contract_matches_backend": true,
+    "npm_audit_vulnerabilities": 0
+  },
+  "source_sha256": {
+    ".github/workflows/pages.yml": "940be056f9209eed5b26577f6a6f74dded414e1ce3a89a4228483b39e078389b",
+    ".gitignore": "48e2846588248c85e1a4b9eedaab03167c8707af36d9cb4c674131ac9dc92a23",
+    "frontend/app.js": "391b8cf3afb3b2993833c430f8816879ded2c3840cd15a8cc13b246c38649e47",
+    "frontend/browser-files.js": "11c6c3c3e30f6088325a0ca0612ee956cacefc6746b2d5b62bae10e06f43cfa2",
+    "frontend/file-formats.json": "e33471dfaf23bc41287b696af5f38f2dcd8c6a0e1b0fdbee15e0892d2bbd0c99",
+    "frontend/file-geometry.js": "229d943ee40739917be672eb754c01e2f31cdfdbbdc3e170da3486505186b1ff",
+    "frontend/file-runtime.json": "da2f369249edc4c87b0e3f8735abef6cfcdeca306162e1e72f891d6818bced7b",
+    "frontend/file-worker.js": "bfc9d52f4fe1f6b0647234d085fbfa7c1167a68005957af5eb4de3f4a7733aa9",
+    "frontend/index.html": "c024a143d6f2f1ab12b085e8b3a4095025110177b5a2a1ad6d5321c986c3913d",
+    "frontend/ingestion-notices.html": "3f7ee8af753335a1357762acd8865c197d7063590dbb0e6b7b6cb5e6b9d27694",
+    "frontend/uploads.js": "20a98f054d8c3c4b08e4e0ad319d13be86f1eabb2242dca034bc651a36e6ee34",
+    "package-lock.json": "33764dca0a72116b87a25821576368e3d0096bd51f93252f555a84e30a01bbc9",
+    "package.json": "0121a12d7f2b1f67af4a327af6eae74ebd76dffbccdf3f41d6e2ac0e35763d9f",
+    "scripts/check_deployment.cjs": "a12a54239c3d1757a0b1141720dd3d6c51cb5861a4761d96ccb642875baa6fe8",
+    "scripts/export_file_formats.py": "ef126322c9dedde7a2d4b5a74ff165f4730a65163bcea486a1ac488ff79de164",
+    "scripts/prepare_browser_ingestion.cjs": "bee6c8c0ac560690d9ff9a445bccc0cf250648b7a40eab4a469e264c98aa01ee",
+    "scripts/write_build_info.cjs": "5552161dacf67c7b8996fc5ae5c21a72409bf5c6550fb33a5121b5b150522618",
+    "scripts/write_ingestion_config.cjs": "5b269dd48175ba7de3cd8203e64a94192b90bd198c853bc8cb63c0a1f268f35f",
+    "tests/browser/browser-files.cjs": "c71cc773169be44ee798f9605d2c01056c88976320549d5bf13d61c36becc431",
+    "tests/browser_files.test.cjs": "6534b1c2066a33b6028328d0af42edabc3f38e263ef399cdbd0e48ea53dec3bc",
+    "tests/deployment.test.cjs": "2155c44bc510fb46c0709d20c9f879ec423d17d1edc121c06051c3aeff5a16cf",
+    "tests/ingestion_config.test.cjs": "fdcead293cf2568c319859a84fee63d942ed0ff5890cbd82c89df21ef6d3c0ac",
+    "tests/test_browser_file_formats.py": "dbb1bf21254ef9183b9a69604b4ae601175299a6d70d5b958087c2062a712636"
+  },
+  "limits": [
+    "Browser storage is device/browser-local and separate from a configured remote catalog.",
+    "128 MiB original, 512 MiB saved storage, 1000 files; bounded worker/geometry/archive/raster limits.",
+    "Native-only formats retain their original bytes and an explicit decoder message; acceptance does not imply browser conversion.",
+    "Shared remote storage, Airflow, Kafka and MinIO remain available through a configured remote ingestion API.",
+    "New public Pages deployment was not committed, pushed or published in this turn."
+  ]
+}

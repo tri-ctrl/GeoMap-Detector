@@ -9,6 +9,8 @@ Known issues, the implementation plan, and verification status are maintained in
 
 Ingestion can run as native Python without Docker: [standalone file conversion
 and native Airflow services](docs/native-ingestion.md).
+The public Pages app also supports [browser-local Directory Files ingestion](docs/browser-ingestion.md)
+when no remote API is configured.
 
 ```
 AOIs (GeoJSON/KML/SHP/CSV)  ─┐

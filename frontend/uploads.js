@@ -168,16 +168,17 @@ function createLayerStore({ map, L, changed = () => {} }) {
   };
 }
 
-function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => {} }) {
+function create({ root: panel, apiBase = '', api: suppliedApi, saveFile, map, L, showLayer, changed = () => {} }) {
   const $ = selector => panel.querySelector(selector);
   const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
   const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
   // Integrated deployments use the same-origin API; static deployments receive
   // a published API base without asking users for server addresses.
-  const api = client(apiBase);
+  const api = suppliedApi || client(apiBase), local = api.mode === 'browser';
   let visible = false, generation = 0, timer = null, catalogOwner = null, uploadOwner = null, connectionOwner = null;
   let offset = 0, ready = false, selected = null, folders = [], rows = [], queryTimer = null;
-  let folder = read('gv_directoryFolder', 'root'), restored = false;
+  const folderKey='gv_directoryFolder:'+api.base;
+  let folder = read(folderKey,local?'root':read('gv_directoryFolder','root')), restored = false;
   const status = message => { $('#filesStatus').textContent = message; };
   const uploadStatus = message => { $('#uploadStatus').textContent = message; };
   const selectedKey = 'gv_directoryLayers:' + api.base;
@@ -195,7 +196,7 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
     return '/' + names.join('/');
   }
   function openDirectory(id) {
-    folder = id || 'root'; offset = 0; save('gv_directoryFolder', folder);
+    folder = id || 'root'; offset = 0; save(folderKey, folder);
     generation++; catalogOwner?.abort(); catalogOwner = null; refresh();
   }
   function renderDirectories() {
@@ -204,7 +205,7 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
     $('#directoryPath').innerHTML = '<button type="button" class="btn ghost" data-directory="root">All files</button>' + chain.map(item => `<span aria-hidden="true">/</span><button type="button" class="btn ghost" data-directory="${esc(item.id)}">${esc(item.name)}</button>`).join('');
     $('#directoryChildren').innerHTML = folders.filter(item => (item.parent_id || 'root') === folder).map(item => `<button type="button" class="directory-folder" data-directory="${esc(item.id)}"><span aria-hidden="true">▸</span> ${esc(item.name)}</button>`).join('');
     panel.querySelectorAll('[data-directory]').forEach(button => button.onclick = () => openDirectory(button.dataset.directory));
-    $('#uploadDirectory').textContent = 'Upload into ' + directoryPath(folder);
+    $('#uploadDirectory').textContent = (local?'Add files to ':'Upload into ') + directoryPath(folder);
   }
   function renderActive() {
     $('#directoryLayerCount').textContent = `${store.layers().filter(entry => entry.visible).length} visible`;
@@ -226,7 +227,8 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
       ${row.error ? `<p class="hint" style="color:var(--bad)">${esc(row.error)}</p>` : ''}
       ${row.status === 'uploading' ? '<p class="hint">Reselect the original file to resume.</p><button class="btn" data-action="cancel">Cancel upload</button>' : ''}
       ${row.status === 'failed' ? '<button class="btn" data-action="retry">Retry processing</button>' : ''}
-      ${['completed','failed','queued','processing'].includes(row.status)?'<button class="btn" data-action="source">Download original</button>':''}
+      ${['completed','stored','failed','queued','processing'].includes(row.status)?'<button class="btn" data-action="source">Download original</button>':''}
+      ${local&&row.status!=='processing'?'<button class="btn" data-action="remove-file">Delete saved copy</button>':''}
       ${row.processed_files.map(file => {
         const entry = store.entries.get(store.layerId(row,file)), spatial = file.bbox;
         return `<div class="directory-result" data-file="${esc(file.id)}"><div class="row">${spatial ? `<input type="checkbox" data-toggle ${entry ? 'checked' : ''} aria-label="Show ${esc(file.name)} on globe">` : ''}<span style="flex:1">${esc(file.name)}</span><span class="pill">${esc(file.kind)}</span></div>
@@ -259,10 +261,11 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
     }
     const role = file.kind === 'vector' ? 'data' : 'preview', artifact = file.artifacts.find(a => a.role===role);
     if (!artifact || artifact.size > 20*1048576 || file.feature_count > 10000) throw new Error('Layer exceeds the globe display limit (20 MiB / 10,000 features). Download it or select a smaller layer.');
-    const signed = await api.request(`/api/uploads/${row.id}/files/${file.id}/${role}`,{signal});
-    const response = await fetch(signed.url,{signal}); if(!response.ok) throw new Error(`Layer download returned HTTP ${response.status}`);
-    if(file.kind==='vector') return {fc:await response.json()};
-    const blob = await response.blob(), bitmap = await createImageBitmap(blob);
+    let blob;
+    if(local)blob=await api.readArtifact(row,file,role,signal);
+    else {const signed = await api.request(`/api/uploads/${row.id}/files/${file.id}/${role}`,{signal});const response = await fetch(signed.url,{signal});if(!response.ok)throw new Error(`Layer download returned HTTP ${response.status}`);blob=await response.blob();}
+    if(file.kind==='vector') return {fc:JSON.parse(await blob.text())};
+    const bitmap = await createImageBitmap(blob);
     const size = [bitmap.width,bitmap.height]; bitmap.close();
     return {image:{blob,size,bounds:file.bbox}};
   }
@@ -271,6 +274,9 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
     if (zoom && store.entries.has(entry.id)) await showLayer(entry.bounds);
   }
   async function action(kind,row,file) {
+    if(local&&kind==='source'){saveFile(row.name,await api.readSource(row.id));return;}
+    if(local&&kind==='download'){const artifact=file.artifacts.find(a=>a.role==='data');const extension=artifact?.media_type==='application/geo+json'?'.geojson':artifact?.media_type==='image/tiff'?'.tif':'';saveFile(file.name+(extension&&!file.name.toLowerCase().endsWith(extension)?extension:''),await api.readArtifact(row,file,'data'));return;}
+    if(local&&kind==='remove-file'){await api.remove(row.id);for(const entry of store.entries.values())if(entry.uploadId===row.id)store.remove(entry.id);return refresh();}
     if(kind==='source') {const signed=await api.request(`/api/uploads/${row.id}/source`);const link=document.createElement('a');link.href=signed.url;link.target='_blank';link.rel='noopener';link.click();return;}
     if(kind==='globe') return enable(row,file,true);
     if(kind==='retry' || kind==='cancel') {
@@ -288,7 +294,7 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
       if(owner.signal.aborted || epoch!==generation) return;
       folders=directory.items;rows=data.items;renderDirectories();renderRows();
       $('#filesPrevious').disabled=offset===0;$('#filesNext').disabled=rows.length<25;
-      status('Connected · files and processing are saved on the server.');
+      status(local?'Saved in this browser · files stay on this device.':'Connected · files and processing are saved on the server.');
     } catch(error) { if(!owner.signal.aborted) status(error.message); }
     finally { if(catalogOwner===owner)catalogOwner=null;if(visible&&epoch===generation)timer=setTimeout(refresh,5000); }
   }
@@ -302,7 +308,9 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
       if(folder!=='root'&&!folders.some(item=>item.id===folder))folder='root';
       renderDirectories();
       ready=health.ok;$('#uploadFile').accept=health.extensions.join(',');
-      $('#uploadFormats').textContent=`Accepted file types: ${health.extensions.join(', ')}. Spatial data becomes globe layers; documents and media keep their original location metadata.`;
+      $('#uploadFormats').textContent=`Accepted file types: ${health.extensions.join(', ')}. ${local?'Browser limit: 128 MiB per file, 512 MiB saved total. GeoJSON/CSV/CZML and browser GDAL formats become globe layers; formats needing native decoders keep their originals for download.':'Spatial data becomes globe layers; documents and media keep their original location metadata.'}`;
+      $('#filesStorageHint').textContent=local?'Files are saved and processed in this browser. Spatial outputs can be displayed together on the globe. Clearing site data removes saved copies.':'Uploads are processed on the server. Spatial outputs can be displayed together on the globe; files without coordinates remain in the directory.';
+      $('#uploadStart').textContent=local?'Add and process':'Upload and process';$('#uploadPause').textContent=local?'Stop processing':'Pause upload';
       await refresh();
       if(!restored) {
         restored=true;const selection=read(selectedKey,[]).slice(0,8);
@@ -328,6 +336,11 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
     if(!selected||uploadOwner||!ready)return;
     const file=selected,owner=uploadOwner=new AbortController(),target=folder;busy(true);
     try {
+      if(local){
+        $('#uploadProgress').value=0;
+        const row=await api.add(file,{folder_id:target==='root'?null:target,signal:owner.signal,onProgress:(message,value)=>{uploadStatus(message);$('#uploadProgress').value=value;}});
+        $('#uploadProgress').value=100;uploadStatus(row.status==='stored'?'Original saved in this browser. See its format/location details below.':'File saved and processed in this browser.');selected=null;$('#uploadFile').value='';openDirectory(row.folder_id||'root');return;
+      }
       uploadStatus('Checking file and resumable upload…');const hash=await fingerprint(file);if(owner.signal.aborted)throw abortError();
       const sessions=read('gv_uploadSessions',{}),key=api.base+':'+target+':'+hash;
       let id=sessions[key]||crypto.randomUUID();sessions[key]=id;save('gv_uploadSessions',Object.fromEntries(Object.entries(sessions).slice(-200)));
@@ -339,17 +352,17 @@ function create({ root: panel, apiBase = '', map, L, showLayer, changed = () => 
       }});
       delete sessions[key];save('gv_uploadSessions',sessions);uploadStatus('Upload complete. Processing continues in this directory.');selected=null;$('#uploadFile').value='';
       openDirectory(session.folder_id||'root');
-    } catch(error){uploadStatus(error.name==='AbortError'?'Upload paused. Reselect the same file to resume.':error.message+' Reselect the same file to retry.');}
+    } catch(error){uploadStatus(local?(error.name==='AbortError'?'Processing stopped. Any saved original remains available in this directory.':error.message):error.name==='AbortError'?'Upload paused. Reselect the same file to resume.':error.message+' Reselect the same file to retry.');if(local)await refresh();}
     finally{if(uploadOwner===owner)uploadOwner=null;busy(false);}
   };
   $('#filesRefresh').onclick=()=>ready?refresh():connect();$('#filesClearMap').onclick=()=>store.clear();
   $('#filesPrevious').onclick=()=>{offset=Math.max(0,offset-25);refresh();};$('#filesNext').onclick=()=>{offset+=25;refresh();};
   renderDirectories();renderActive();
-  return { layers:store.layers, diagnostics:store.diagnostics,
+  return { layers:store.layers, diagnostics:()=>({...store.diagnostics(),mode:local?'browser':'remote',processing:api.diagnostics?.().active||0,workers:api.diagnostics?.().workers||null}),
     select(id,index){const entry=store.entries.get(id);if(entry)status(`${entry.name} · ${entry.fc?.features[index]?.properties?.name||'feature '+(index+1)}`);},
     show(){visible=true;ready?refresh():connect();},
     hide(){visible=false;generation++;clearTimeout(timer);clearTimeout(queryTimer);catalogOwner?.abort();catalogOwner=null;connectionOwner?.abort();connectionOwner=null;},
-    suspend(){this.hide();uploadOwner?.abort();const selection=read(selectedKey,[]);store.clear();save(selectedKey,selection);restored=false;}
+    suspend(){this.hide();ready=false;uploadOwner?.abort();api.suspend?.();const selection=read(selectedKey,[]);store.clear();save(selectedKey,selection);restored=false;}
   };
 }
 

@@ -1,5 +1,14 @@
 GeoMap-Detector issue tracker and implementation plan
 
+**GMD-039 — Static Pages Files fix implemented and verified:** empty remote API
+configuration now selects browser ingestion and IndexedDB directories. Real
+GeoJSON/GeoTIFF/zipped Shapefile processing and simultaneous globe layers work
+without an ingestion API. **366 JavaScript / 25 Python checks pass**, alongside
+native static-site, reload, cancellation, archive, ownership and startup checks.
+The fix is staged for the user's Pages publication; live verification of the new
+revision remains pending. [Scope/evidence](browser-ingestion-tasks.md) ·
+[Browser mode and format limits](browser-ingestion.md).
+
 **GMD-038 — Implemented and natively verified:** ingestion runs as standalone
 Python or native Airflow subprocesses. Shared raster/vector outputs and upload
 manifests are preserved. Native setup, service launcher, default Codespaces and

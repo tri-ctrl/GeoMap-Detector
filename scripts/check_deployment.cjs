@@ -80,6 +80,16 @@ async function verifyDeployment({ url, sourceRoot = path.resolve(__dirname, "../
     const expected = require("./write_ingestion_config.cjs").deploymentConfig(ingestionApiUrl);
     ingestion = await (await request("ingestion-config.json")).json();
     if (ingestion?.api_url !== expected.api_url) throw new Error("ingestion-config.json: remote API differs from this deployment's configuration");
+    if (ingestion?.mode !== expected.mode) throw new Error("ingestion-config.json: file processing mode differs from this deployment's configuration");
+    if(ingestion.mode==='browser'){
+      const runtime=JSON.parse(await readFile(path.join(sourceRoot,'file-runtime.json'),'utf8'));
+      if(!Array.isArray(runtime.assets)||runtime.assets.length<3)throw new Error('file-runtime.json: browser runtime assets are missing');
+      for(const asset of runtime.assets){
+        if(!/^[\w.-]+$/.test(asset.file)||asset.file==='..')throw new Error('Invalid browser runtime asset path');
+        const response=await request('vendor/ingestion/'+asset.file,'HEAD');
+        if((response.headers.get('content-type')||'').includes('text/html')||Number(response.headers.get('content-length'))!==asset.bytes)throw new Error('Browser ingestion asset unavailable or has wrong size: '+asset.file);
+      }
+    }
   }
   return { checkedAt: new Date().toISOString(), url: base.href, revision, files, models, build, ingestion };
 }

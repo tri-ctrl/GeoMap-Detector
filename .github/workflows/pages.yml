@@ -20,8 +20,12 @@ jobs:
         with: { node-version: "24" }
       - name: Install test dependencies
         run: npm ci --ignore-scripts
+      - name: Prepare lazy browser GIS runtimes
+        run: node scripts/prepare_browser_ingestion.cjs
       - name: Test browser UI and model regressions
         run: node --test tests/*.test.cjs
+      - name: Test Files on a static Pages site without an API
+        run: node tests/browser/browser-files.cjs
       - name: Test map-first startup, cached dates and request recovery in Chromium
         run: node tests/browser/startup-offline.cjs
       - name: Test native IndexedDB recovery and exports in Chromium

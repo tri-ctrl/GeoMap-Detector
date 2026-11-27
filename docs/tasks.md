@@ -1,5 +1,13 @@
 GeoMap-Detector issue tracker and implementation plan
 
+**GMD-040 — JPEG TIFF fix implemented and locally verified:** browser ingestion
+decodes JPEG TIFF tiles and georeferences GCP-only rasters before creating map
+previews and COG output. The reported ICEYE file processes and renders on the
+Cesium globe. **375 JavaScript / 25 Python checks pass**, including synthetic
+grayscale/RGB, GCP/affine, saved-original preservation and failed-job retry.
+Publication remains pending. [Scope/evidence](jpeg-tiff-tasks.md) ·
+[Browser limits](browser-ingestion.md).
+
 **GMD-039 — Static Pages Files fix implemented and verified:** empty remote API
 configuration now selects browser ingestion and IndexedDB directories. Real
 GeoJSON/GeoTIFF/zipped Shapefile processing and simultaneous globe layers work

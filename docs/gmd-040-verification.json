@@ -1,0 +1,180 @@
+{
+  "task": "GMD-040",
+  "verified_at": "2026-11-27T06:28:20.047706+00:00",
+  "status": "implemented and locally verified; staged for user publication",
+  "reported_failure": "/input/input.tif: Cannot open TIFF file due to missing codec JPEG.",
+  "cause": "Pinned browser GDAL lacks TIFF JPEG codec; the reported quicklook also needs GCP georeferencing.",
+  "reported_sample": {
+    "bytes": 3680724,
+    "width": 4096,
+    "height": 2401,
+    "bands": 1,
+    "sample_type": "uint8",
+    "compression": "JPEG",
+    "gcp_count": 735,
+    "gcp_crs": "EPSG:4326",
+    "affine_crs": false,
+    "source_published": false
+  },
+  "implementation": {
+    "jpeg_decoder": "GeoTIFF.js 3.0.5, loaded only for TIFF compression 7",
+    "compatibility": "Append an uncompressed first image directory and strip while retaining original metadata offsets, including full GCP payloads. Saved original remains byte-identical.",
+    "georeferencing": "GDAL thin-plate spline warp to virtual EPSG:4326 raster before bounded preview/COG conversion",
+    "preview_crs": "EPSG:3857",
+    "outputs": [
+      "DEFLATE COG",
+      "Web Mercator PNG"
+    ]
+  },
+  "tests": {
+    "javascript": 375,
+    "python": 25,
+    "targeted_final_checks": 26,
+    "runtime_fingerprints": true,
+    "diff_check": true,
+    "commands": [
+      "npm test",
+      "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+      "node --test tests/tiff_codec.test.cjs tests/deployment.test.cjs tests/ingestion_config.test.cjs",
+      "node scripts/prepare_browser_ingestion.cjs",
+      "node tests/browser/browser-files.cjs (GMD_BROWSER_JPEG_TIFF supplied from a private local path)"
+    ]
+  },
+  "browser": {
+    "ok": true,
+    "mode": "static browser",
+    "projectPath": "/GeoMap-Detector/",
+    "filesPersisted": 4,
+    "vectorEntities": 3,
+    "raster": true,
+    "jpeg": [
+      {
+        "name": "gray-gcps.tif",
+        "completed": true,
+        "globe": true,
+        "originalPreserved": true,
+        "retry": true
+      },
+      {
+        "name": "rgb-affine.tif",
+        "completed": true,
+        "globe": true,
+        "originalPreserved": true,
+        "retry": false
+      },
+      {
+        "name": "local-jpeg.tif",
+        "completed": true,
+        "globe": true,
+        "originalPreserved": true,
+        "retry": false
+      }
+    ],
+    "zippedShapefile": true,
+    "unsafeArchive": true,
+    "layers": 2,
+    "cancelAndRetry": true,
+    "unsupportedOriginalPreserved": true,
+    "invalidCsv": true,
+    "reload": true,
+    "restoredLayers": true,
+    "delete": true,
+    "aoiUnchanged": true,
+    "nativeIndexedDB": true,
+    "workers": {
+      "created": 11,
+      "active": 0,
+      "terminated": 11
+    },
+    "workersAfterReload": {
+      "created": 0,
+      "active": 0,
+      "terminated": 0
+    },
+    "apiRequests": [],
+    "runtimeErrors": [],
+    "initialRequests": 40
+  },
+  "browser_method": {
+    "app": "Current sources served as a static project-path site under /GeoMap-Detector/",
+    "storage": "Native Chromium IndexedDB, original-byte SHA-256 equality checked",
+    "processing": "Real disposable workers, self-hosted JPEG decoder and GDAL WebAssembly",
+    "rendering": "Real Cesium WebGL; wait for camera flight, loaded globe tiles and the raster GPU texture",
+    "routing": "Controlled external dependencies and synthetic basemap imagery; real local raster artifacts",
+    "screenshot": "Actual reported raster screenshot inspected; kept outside repository",
+    "retry": "Decoder 404 produces a failed entry retaining its original; retry completes on attempt 2 after decoder availability recovers",
+    "api_requests": []
+  },
+  "runtime": {
+    "version": 1,
+    "gdal": "2.8.1",
+    "fflate": "0.8.3",
+    "geotiff": "3.0.5",
+    "source": "https://github.com/bugra9/gdal3.js",
+    "assets": [
+      {
+        "file": "gdal3.js",
+        "bytes": 191138,
+        "sha256": "ec11ced2b626f9738015c3c4e9f3d670d00213a9083c5a06074d39624e6e8921"
+      },
+      {
+        "file": "gdal3WebAssembly.wasm",
+        "bytes": 28219835,
+        "sha256": "350eec4ce9ae4bc10bcafd8621463e057abdbb8f8372f0d8e0af06e6b8561835"
+      },
+      {
+        "file": "gdal3WebAssembly.data",
+        "bytes": 11595145,
+        "sha256": "e473e1e9f20af114bbb491d9cf7ef154986708a7ec763b22181c5e5f012f889e"
+      },
+      {
+        "file": "GDAL-LICENSE",
+        "bytes": 26526,
+        "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331"
+      },
+      {
+        "file": "fflate.js",
+        "bytes": 33044,
+        "sha256": "462ef8041fc970e3615a20a9dd2b2e3047a073b2da729ef4f02b634bba8b7b83"
+      },
+      {
+        "file": "FFLATE-LICENSE",
+        "bytes": 1069,
+        "sha256": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551"
+      },
+      {
+        "file": "geotiff.js",
+        "bytes": 550900,
+        "sha256": "8cfc01ffc945904766d8fb89f19da7afb799e342834454f5592fbcf0bcfe2db5"
+      },
+      {
+        "file": "GEOTIFF-LICENSE",
+        "bytes": 1088,
+        "sha256": "da0811089f254e909f69f75fa496ca97e5167a8eaa945d9a6bffdd8499b47a49"
+      }
+    ]
+  },
+  "limits": [
+    "JPEG type 7, unsigned 8-bit samples, at most 64 MiB decoded samples; TIFF type 6 remains explicitly unsupported.",
+    "At most 2048 GCPs; the existing three-minute worker, geographic, preview, output and catalog limits apply.",
+    "Compatibility image exposes one raster; original overview chains and internal mask directories are not copied into the intermediate first image. The original TIFF remains available.",
+    "Functional/georeferencing and resource ownership checks; not an independent positional-accuracy or production performance benchmark.",
+    "No Docker used. Commit, push and live publication remain pending."
+  ],
+  "source_sha256": {
+    "package.json": "21780eaa93dd802dca5fa799069c560fe8bb9ccd88435ee0c97930a5bcec9e83",
+    "package-lock.json": "7f0dde7c078a98ddd7e2973de54305c2b44626a569df318876a600f4a1ee0f23",
+    "frontend/tiff-codec.js": "b1bf77ff0dd6009e30fd40fffbadd14f573e199618e708abe4bb55fae14af99b",
+    "frontend/file-worker.js": "7ff19fc29e27276dc47be6de3df4b4ef22d34a148a15f92e41024364c08b1b38",
+    "frontend/file-runtime.json": "c64dc20d5b81748b7fae1ac0806f40fd3bd53adf02484d185c9f3d2178f9a3c6",
+    "frontend/ingestion-notices.html": "00660467955e3432c967965068558199e6fcfa256526bff89935b5cec895f94e",
+    "frontend/ingestion-apache-license.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "frontend/ingestion-third-party-licenses.txt": "2350009f04f4c21202da922c47a94b6ea01f637106ea150ab61642ae687766d9",
+    "scripts/prepare_browser_ingestion.cjs": "500b0caa0266c9b5c4a4ffd087af77f50ac97c44763520b12f2c06151e680564",
+    "scripts/write_build_info.cjs": "a3b1b388dad3d2252439e1b6813660698648b466c6d5f472fa087e0401501bf6",
+    "tests/tiff_codec.test.cjs": "c895675b3acc8813302052a7d9b844bb2da83dd9484e45c8c1e8e08cd24886a2",
+    "tests/browser/browser-files.cjs": "496a64265fd1df88e640573160b5e8e13b1707b078f3c44b91360387ea76f73d",
+    "tests/fixtures/jpeg-tiff/gray-gcps.tif": "27a496416086f3f7045f44521f15ac6ce4a81ff8a0a6f89350f3636f39f15fe0",
+    "tests/fixtures/jpeg-tiff/rgb-affine.tif": "04d59e018fb8a00718e822f62db02924b555757f671c622b42d7361ff2b78665"
+  }
+}

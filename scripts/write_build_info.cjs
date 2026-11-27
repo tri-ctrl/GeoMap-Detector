@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const { createReadStream } = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const SOURCE_FILES = ['index.html', 'app.js', 'engine.js', 'map-view.js', 'uploads.js', 'browser-files.js', 'file-worker.js', 'file-geometry.js', 'file-formats.json', 'file-runtime.json', 'ingestion-notices.html', 'processing.js', 'processing-worker.js', 'comparison.js', 'storage.js', 'streaming.js', 'sample_aois/uae_airports_ports.geojson'];
+const SOURCE_FILES = ['index.html', 'app.js', 'engine.js', 'map-view.js', 'uploads.js', 'browser-files.js', 'file-worker.js', 'tiff-codec.js', 'file-geometry.js', 'file-formats.json', 'file-runtime.json', 'ingestion-notices.html', 'ingestion-apache-license.txt', 'ingestion-third-party-licenses.txt', 'processing.js', 'processing-worker.js', 'comparison.js', 'storage.js', 'streaming.js', 'sample_aois/uae_airports_ports.geojson'];
 const digest = data => createHash('sha256').update(data).digest('hex');
 function stampEngine(source, revision) {
   if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Build revision must be a full Git SHA');

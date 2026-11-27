@@ -43,8 +43,13 @@ acceptance and available browser decoders are distinct:
 
 CSV requires finite WGS84 longitude/latitude. XLSX uses `lat`/`lon` columns when
 its worksheets have no geometry. CZML uses a static snapshot of cartographic
-positions. A raster must have a CRS and fit the supported Mercator latitude
-range. Proprietary codecs and unsupported driver variants still need
+positions. A raster must have a CRS or ground control points with a CRS, and fit
+the supported Mercator latitude range. JPEG-compressed 8-bit grayscale/RGB TIFFs
+use a lazy decoder before GDAL conversion; GCP-only rasters are georeferenced
+through a thin-plate spline warp. Affine location and original GCP metadata are
+preserved in the intermediate TIFF. Old-style JPEG compression (TIFF type 6)
+and non-8-bit JPEG samples are unsupported. Proprietary codecs and other
+unsupported driver variants still need
 [native ingestion](native-ingestion.md).
 
 Browser admission limits are 128 MiB per original, 512 MiB saved storage and
@@ -52,7 +57,9 @@ Browser admission limits are 128 MiB per original, 512 MiB saved storage and
 200:1 compression ratio and two archive levels. Links and unsafe paths are
 rejected. Vector processing permits 100,000 features, one million vertices and
 20 MiB encoded output. Raster decoded-size admission is 512 MiB, with a longest
-preview edge of 2,048 pixels. A disposable worker has a three-minute deadline.
+preview edge of 2,048 pixels. JPEG TIFF decoding is limited to a 64 MiB sample
+buffer, and GCP georeferencing to 2,048 control points. A disposable worker has a
+three-minute deadline.
 
 Map display retains its separate budget: eight layers, 10,000 features,
 200,000 vertices and 64 MiB decoded raster pixels. Larger processed vectors
@@ -67,11 +74,12 @@ npm test
 node tests/browser/browser-files.cjs
 ```
 
-The preparation script copies unmodified, pinned gdal3.js 2.8.1 and fflate 0.8.3
-assets into ignored `frontend/vendor/ingestion/`. Their fingerprints are checked
-against tracked `frontend/file-runtime.json`; generated assets are included in
-the Pages artifact. The GIS runtime is about 38 MiB and loads only for formats
-that need it. GeoJSON/CSV parsing does not load it. All file processing happens
+The preparation script copies unmodified, pinned gdal3.js 2.8.1, fflate 0.8.3
+and GeoTIFF.js 3.0.5 assets into ignored `frontend/vendor/ingestion/`. Their
+fingerprints are checked against tracked `frontend/file-runtime.json`; generated assets are included in
+the Pages artifact. The GDAL runtime is about 38 MiB and loads only for formats
+that need it. GeoTIFF.js adds about 538 KiB only for JPEG-compressed TIFFs.
+GeoJSON/CSV parsing does not load these runtimes. All file processing happens
 in disposable workers, and file contents are never sent to a backend in this
 mode. License/source notices are available through **Supported files**.
 
@@ -91,4 +99,5 @@ version constants, then run `node scripts/prepare_browser_ingestion.cjs
 scripts/export_file_formats.py`; a Python regression checks the browser/native
 contract remains identical.
 
-Verification and scope: [GMD-039](browser-ingestion-tasks.md).
+Verification and scope: [GMD-039](browser-ingestion-tasks.md) ·
+[JPEG TIFF and GCP support (GMD-040)](jpeg-tiff-tasks.md).

@@ -1,8 +1,9 @@
 /* One disposable worker per browser ingestion. No file bytes leave this worker/device. */
 'use strict';
-importScripts('file-geometry.js');
+importScripts('file-geometry.js','tiff-codec.js');
 const MAX_FILE=128*1048576,MAX_VECTOR=20*1048576,MAX_EXPANDED=256*1048576;
 const GDAL_VERSION='2.8.1',FFLATE_VERSION='0.8.3';
+const GEOTIFF_VERSION='3.0.5';
 let runtime,sequence=0,artifactBytes=0;
 const progress=(message,value)=>postMessage({type:'progress',message,value});
 const suffix=name=>'.'+name.split('.').at(-1).toLowerCase();
@@ -42,12 +43,24 @@ async function raster(G,dataset,name,info,opened){
  return {name,kind:'raster',bbox:box,preview_crs:'EPSG:3857',artifacts:[blobArtifact('data',new Blob([bytes],{type:'image/tiff'})),blobArtifact('preview',preview)]};
 }
 async function spatial(file,siblings){
+ let inputs=siblings||[new File([file],'input'+suffix(file.name))];
+ if(!siblings&&['.tif','.tiff'].includes(suffix(file.name)))inputs=[await GVFileTIFF.compatible(inputs[0],{progress,loadDecoder:async()=>{importScripts('vendor/ingestion/geotiff.js?v='+GEOTIFF_VERSION);return GeoTIFF;}})];
  const G=await gdal(),opened=[];
  try{
-  const inputs=siblings||[new File([file],'input'+suffix(file.name))];
   const result=await G.open(inputs),layers=[];if(result.datasets.length>20)throw Error('File contains more than 20 datasets.');
   for(const dataset of result.datasets){opened.push(dataset);const info=await G.getInfo(dataset);
-   if(info.type==='raster'){layers.push(await raster(G,dataset,file.name,info,opened));continue;}
+   if(info.type==='raster'){
+    let source=dataset,geometry=info;
+    if(!geometry.projectionWkt){const detail=dataset.info||await G.gdalinfo(dataset),gcps=detail.gcps;
+     if(gcps?.coordinateSystem?.wkt&&gcps.gcpList?.length>=3){
+      if(gcps.gcpList.length>2048||gcps.gcpList.some(g=>![g.pixel,g.line,g.x,g.y].every(Number.isFinite)))throw Error('Raster ground control points exceed browser limits or contain invalid coordinates.');
+      progress('Georeferencing raster from ground control points…',35);
+      const warped=await G.gdalwarp(dataset,['-of','VRT','-t_srs','EPSG:4326','-tps','-dstalpha','-wm','64'],'georeferenced-'+sequence++);
+      source=(await G.open(warped.local)).datasets[0];opened.push(source);geometry=await G.getInfo(source);
+     }
+    }
+    layers.push(await raster(G,source,file.name,geometry,opened));continue;
+   }
    if(info.layers.length>20||info.featureCount>100000)throw Error('Vector exceeds the 20-layer / 100,000-feature processing limit.');
    for(const layer of info.layers){if(layer.featureCount===0)continue;
     const spreadsheet=suffix(file.name)==='.xlsx';

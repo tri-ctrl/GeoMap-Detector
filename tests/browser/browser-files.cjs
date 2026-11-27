@@ -2,12 +2,13 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 if(!process.argv.includes('--scene'))process.argv.push('--scene');
 const {withChrome}=require('./chrome.cjs');
-const root=path.resolve(__dirname,'../..'),prefix='/GeoMap-Detector/',apiRequests=[],held=[];let holdRuntime=false;
+const root=path.resolve(__dirname,'../..'),prefix='/GeoMap-Detector/',apiRequests=[],held=[],codecRequests=[];let holdRuntime=false,blockCodec=false;
 const mime=file=>file.endsWith('.js')?'application/javascript':file.endsWith('.wasm')?'application/wasm':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':file.endsWith('.json')?'application/json':file.endsWith('.html')?'text/html':'application/octet-stream';
 const server=http.createServer((req,res)=>{
  const url=new URL(req.url,'http://local');if(url.pathname.startsWith('/api/'))apiRequests.push(url.pathname);
  if(!url.pathname.startsWith(prefix)){res.writeHead(404);return res.end();}
  const name=decodeURIComponent(url.pathname.slice(prefix.length))||'index.html';if(name==='ingestion-config.json'){res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify({mode:'browser',api_url:''}));}
+ if(name==='vendor/ingestion/geotiff.js'){codecRequests.push(name);if(blockCodec){res.writeHead(404);return res.end('test decoder unavailable');}}
  if(holdRuntime&&name.includes('gdal3WebAssembly.')){held.push(res);return;}
  const file=name.startsWith('vendor/Cesium/')?path.resolve(root,'node_modules/cesium/Build/Cesium',name.slice('vendor/Cesium/'.length)):path.resolve(root,'frontend',name);
  if(!file.startsWith(root+'/frontend/')&&!file.startsWith(root+'/node_modules/cesium/Build/Cesium/')){res.writeHead(404);return res.end();}
@@ -32,18 +33,25 @@ function shapeZip(){
   const origin='http://127.0.0.1:'+server.address().port,url=origin+prefix,requests=[],fixtures=[];
   const fulfill=(id,body,type)=>page('Fetch.fulfillRequest',{requestId:id,responseCode:200,responseHeaders:[{name:'Content-Type',value:type},{name:'Access-Control-Allow-Origin',value:'*'}],body:Buffer.from(body).toString('base64')});
   on('Fetch.requestPaused',event=>{(async()=>{const address=event.request.url;
-   if(address.startsWith(origin))return page('Fetch.continueRequest',{requestId:event.requestId});
+   if(address.startsWith(origin)||address.startsWith('blob:'+origin))return page('Fetch.continueRequest',{requestId:event.requestId});
    if(address.includes('waybackconfig.json'))return fulfill(event.requestId,JSON.stringify({101:{itemTitle:'World Imagery (Wayback 2026-10-29)'}}),'application/json');
    const match=address.match(/leaflet@1\.9\.4\/dist\/(leaflet\.(?:js|css))$/);if(match)return fulfill(event.requestId,fs.readFileSync(require.resolve('leaflet/dist/'+match[1])),mime(match[1]));
    if(address.includes('/cesium@1.147.0/Build/Cesium/')){const name=address.split('/Build/Cesium/')[1];return fulfill(event.requestId,fs.readFileSync(path.join(root,'node_modules/cesium/Build/Cesium',name)),mime(name));}
    if(event.resourceType==='Image'||address.includes('/MapServer/tile/'))return fulfill(event.requestId,Buffer.from('R0lGODlhAQABAP///wAAACwAAAAAAQABAAACAkQBADs=','base64'),'image/gif');
    if(event.resourceType==='Stylesheet')return fulfill(event.requestId,'','text/css');
    throw Error('Unexpected fixture request '+address);
-  })().catch(error=>{fixtures.push(error.message);page('Fetch.failRequest',{requestId:event.requestId,errorReason:'Failed'}).catch(()=>{});});});
+  })().catch(error=>{
+   // Camera flights, layer deletion and reload cancel in-flight fixture requests.
+   if(error.message.includes('"message":"Invalid InterceptionId."'))return;
+   fixtures.push(error.message);page('Fetch.failRequest',{requestId:event.requestId,errorReason:'Failed'}).catch(()=>{});
+  });});
   on('Network.requestWillBeSent',event=>requests.push(event.request.url));
   await page('Fetch.enable',{patterns:[{urlPattern:'*'}]});
   await page('Page.addScriptToEvaluateOnNewDocument',{source:`Object.defineProperty(window,'CESIUM_BASE_URL',{configurable:true,get:()=>${JSON.stringify(url+'vendor/Cesium/')},set:()=>{}});`});
   await page('Page.navigate',{url});await until('window.GVApp&&GVEngine.diagnostics().startup.appReady!=null');
+  await evaluate(`(()=>{const ensure=GVEngine.ensureLibrary;GVEngine.ensureLibrary=async(name,...args)=>{
+   await ensure(name,...args);if(name==='cesium'&&!window.__fileViewerWrapped){window.__fileViewerWrapped=true;const Native=Cesium,Viewer=new Proxy(Native.Viewer,{construct(Target,args){return window.__fileViewer=new Target(...args);}});window.Cesium=new Proxy(Native,{get:(target,key)=>key==='Viewer'?Viewer:Reflect.get(target,key)});}
+  };})()`);
   const initialRequests=requests.length;assert.equal(requests.some(v=>v.includes('gdal3')),false);
   await evaluate("document.querySelector('[data-tab=files]').click()");await until("document.querySelector('#filesStatus').textContent.startsWith('Saved in this browser')");
   assert.equal(await evaluate('document.querySelector("#uploadStart").textContent'),'Add and process');
@@ -70,6 +78,35 @@ function shapeZip(){
   const record=await evaluate("GVApp.diagnostics().mapDisplay.scene");assert.equal(record.urlsCreated,record.urlsRevoked);
   await add('requires-native.ecw','original ECW bytes');assert.equal(await evaluate(`Boolean((${row('requires-native.ecw')}).querySelector('[data-toggle]'))`),false);assert.match(await evaluate(`(${row('requires-native.ecw')}).textContent`),/native decoder/);
   await select('invalid.csv','lat,lon\n999,55\n','text/csv');await until(`Boolean((${row('invalid.csv')})?.querySelector('[data-action=retry]'))`);assert.match(await evaluate(`(${row('invalid.csv')}).textContent`),/longitude/);
+  assert.equal(codecRequests.length,0,'JPEG decoder must remain lazy for other formats');
+  const jpegFixtures=[['gray-gcps.tif',path.join(root,'tests/fixtures/jpeg-tiff/gray-gcps.tif')],['rgb-affine.tif',path.join(root,'tests/fixtures/jpeg-tiff/rgb-affine.tif')]];
+  if(process.env.GMD_BROWSER_JPEG_TIFF)jpegFixtures.push(['local-jpeg.tif',process.env.GMD_BROWSER_JPEG_TIFF]);
+  const jpegResults=[];
+  for(const [name,file] of jpegFixtures){
+   const input=fs.readFileSync(file);let raster;
+   if(name==='gray-gcps.tif'){
+    blockCodec=true;await select(name,input,'image/tiff');await until(`Boolean((${row(name)})?.querySelector('[data-action=retry]'))`,180000);
+    assert.match(await evaluate(`(${row(name)}).textContent`),/JPEG TIFF tools could not load/);
+    assert.equal(await evaluate(`Boolean((${row(name)}).querySelector('[data-action=source]'))`),true);blockCodec=false;
+    await evaluate(`(${row(name)}).querySelector('[data-action=retry]').click()`);await until(`Boolean((${row(name)})?.querySelector('[data-action=download]'))`,180000);raster=row(name);
+   }else raster=await add(name,input,'image/tiff');
+   const savedItem=await evaluate(`(async()=>{
+    const adapter=await GVBrowserFiles.create();
+    try{const item=await adapter.request('/api/uploads/'+(${row(name)}).dataset.upload),source=await adapter.readSource(item.id),hash=await crypto.subtle.digest('SHA-256',await source.arrayBuffer());
+     return {status:item.status,attempt:item.attempt,sourceBytes:source.size,sourceHash:Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join(''),files:item.processed_files};
+    }finally{await adapter.close();}
+   })()`);
+   assert.equal(savedItem.status,'completed');assert.equal(savedItem.sourceBytes,input.length);assert.equal(savedItem.sourceHash,require('node:crypto').createHash('sha256').update(input).digest('hex'));
+   assert.equal(savedItem.files.length,1);assert.equal(savedItem.files[0].kind,'raster');assert.ok(savedItem.files[0].bbox.every(Number.isFinite));
+   if(name==='gray-gcps.tif'){assert.equal(savedItem.attempt,2);const box=savedItem.files[0].bbox;assert.ok(box[0]>9.99&&box[2]<10.2&&box[1]>29.8&&box[3]<30.01,'GCP raster retains its synthetic geographic location');}
+   if(name==='rgb-affine.tif'){const box=savedItem.files[0].bbox;assert.ok(Math.abs(box[0]-10)<.001&&Math.abs(box[3]-30)<.001,'RGB raster retains affine location');}
+   await evaluate(`(${raster}).querySelector('[data-action=globe]').click()`);await until('GVApp.diagnostics().mapDisplay.scene.fileRasters===1',60000);
+   await until(`(()=>{const v=window.__fileViewer;if(!v||v.camera._currentFlight||!v.scene.globe.tilesLoaded)return false;const layer=v.imageryLayers.get(v.imageryLayers.length-1);
+    return v.scene.globe._surface._tilesToRender.some(t=>t.data?.imagery?.some(i=>i.readyImagery?.imageryLayer===layer&&i.readyImagery.texture));})()`,60000);
+   jpegResults.push({name,completed:true,globe:true,originalPreserved:true,retry:savedItem.attempt===2});
+   if(name==='local-jpeg.tif'&&process.env.GMD_BROWSER_JPEG_SCREENSHOT){const image=await page('Page.captureScreenshot',{format:'png'});fs.writeFileSync(process.env.GMD_BROWSER_JPEG_SCREENSHOT,Buffer.from(image.data,'base64'));}
+   await evaluate(`(${raster}).querySelector('[data-action=remove-file]').click()`);await until(`!(${row(name)})&&GVApp.diagnostics().mapDisplay.scene.fileRasters===0`);
+  }
   const saved=await evaluate('document.querySelectorAll("[data-upload]").length');assert.equal(saved,4);
   const completedWorkers=await evaluate('GVApp.diagnostics().directory.workers');assert.equal(completedWorkers.active,0);assert.ok(completedWorkers.created>=7);assert.equal(completedWorkers.created,completedWorkers.terminated);
   await evaluate(`(${row('browser-vector.geojson')}).querySelector('[data-action=globe]').click();(${row('browser-raster.tif')}).querySelector('[data-action=globe]').click()`);await until('GVApp.diagnostics().mapDisplay.scene.fileRasters===1&&GVApp.diagnostics().mapDisplay.scene.fileVectors===1');
@@ -83,6 +120,6 @@ function shapeZip(){
   await evaluate(`(${row('requires-native.ecw')}).querySelector('[data-action=remove-file]').click()`);await until('document.querySelectorAll("[data-upload]").length===3');
   const worker=await evaluate('GVApp.diagnostics().directory.workers');assert.equal(worker.active,0);assert.equal(worker.created,worker.terminated);
   assert.equal(apiRequests.some(v=>/ingestion|uploads|directories/.test(v)),false);assert.deepEqual(errors,[]);assert.deepEqual(fixtures,[]);
-  console.log(JSON.stringify({ok:true,mode:'static browser',projectPath:prefix,filesPersisted:saved,vectorEntities:3,raster:true,zippedShapefile:true,unsafeArchive:true,layers:layerCount,cancelAndRetry:true,unsupportedOriginalPreserved:true,invalidCsv:true,reload:true,restoredLayers:true,delete:true,aoiUnchanged:true,nativeIndexedDB:true,workers:completedWorkers,workersAfterReload:worker,apiRequests:apiRequests.filter(v=>/ingestion|uploads|directories/.test(v)),runtimeErrors:errors,initialRequests}));
+  console.log(JSON.stringify({ok:true,mode:'static browser',projectPath:prefix,filesPersisted:saved,vectorEntities:3,raster:true,jpeg:jpegResults,zippedShapefile:true,unsafeArchive:true,layers:layerCount,cancelAndRetry:true,unsupportedOriginalPreserved:true,invalidCsv:true,reload:true,restoredLayers:true,delete:true,aoiUnchanged:true,nativeIndexedDB:true,workers:completedWorkers,workersAfterReload:worker,apiRequests:apiRequests.filter(v=>/ingestion|uploads|directories/.test(v)),runtimeErrors:errors,initialRequests}));
  });}finally{server.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

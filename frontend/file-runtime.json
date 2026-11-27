@@ -2,6 +2,7 @@
   "version": 1,
   "gdal": "2.8.1",
   "fflate": "0.8.3",
+  "geotiff": "3.0.5",
   "source": "https://github.com/bugra9/gdal3.js",
   "assets": [
     {
@@ -33,6 +34,16 @@
       "file": "FFLATE-LICENSE",
       "bytes": 1069,
       "sha256": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551"
+    },
+    {
+      "file": "geotiff.js",
+      "bytes": 550900,
+      "sha256": "8cfc01ffc945904766d8fb89f19da7afb799e342834454f5592fbcf0bcfe2db5"
+    },
+    {
+      "file": "GEOTIFF-LICENSE",
+      "bytes": 1088,
+      "sha256": "da0811089f254e909f69f75fa496ca97e5167a8eaa945d9a6bffdd8499b47a49"
     }
   ]
 }
